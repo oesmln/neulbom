@@ -1,0 +1,94 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+
+# Meshy에서 추출한 원본 GLB 파일은 용량이 커서 Git에서 제외함.
+# 앱에서 사용하는 optimized/ 폴더의 GLB 파일은 Git에 포함함.
+**/nono_dementia_glb/*.glb
+
+# Expo
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+frontend/expo-env.d.ts
+
+# Metro
+frontend/.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo
+
+# editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+
+# native builds (prebuild 산출물) + 서명키
+/frontend/android/
+/frontend/ios/
+*.orig.*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+**/local.properties
+
+# logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.log
+
+# local env
+.env
+.env.*
+!.env.example
+!.env*.example
+**/application-local.*
+**/application-secret.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spring Boot / Gradle
+.gradle/
+build/
+target/
+out/
+*.class
+*.jar
+*.war
+*.ear
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# test / coverage
+coverage/
+.nyc_output/
+.pytest_cache/
+
+# Python / Jupyter
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# local databases and uploads
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.sql.gz
+uploads/
