@@ -57,6 +57,9 @@ pnpm-debug.*
 !.env*.example
 **/application-local.*
 **/application-secret.*
+!**/application-local.yml
+!**/application-dev.yml
+!**/application-prod.yml
 
 # OS
 .DS_Store

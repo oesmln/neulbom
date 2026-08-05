@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: neulbom-backend
+  profiles:
+    default: local
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      max-file-size: ${APP_MAX_UPLOAD_SIZE:25MB}
+      max-request-size: ${APP_MAX_REQUEST_SIZE:30MB}
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /docs
+
+app:
+  request-id:
+    header-name: ${REQUEST_ID_HEADER:X-Request-Id}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8081}
+    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PATCH,PUT,DELETE,OPTIONS}
+    allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Request-Id,Idempotency-Key}
+  storage:
+    type: ${FILE_STORAGE_TYPE:local}
+    local-root: ${FILE_STORAGE_LOCAL_ROOT:./uploads}
+    bucket: ${FILE_STORAGE_BUCKET:neulbom-local}
+    max-file-size: ${APP_MAX_UPLOAD_SIZE:25MB}
+    allowed-mime-types: ${APP_ALLOWED_MIME_TYPES:audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/webm}
+    allowed-extensions: ${APP_ALLOWED_FILE_EXTENSIONS:wav,mp3,m4a,webm}
+  external-api:
+    connect-timeout: ${EXTERNAL_API_CONNECT_TIMEOUT:3s}
+    read-timeout: ${EXTERNAL_API_READ_TIMEOUT:30s}
+    retry-count: ${EXTERNAL_API_RETRY_COUNT:2}
+
+logging:
+  level:
+    root: INFO
+    com.neulbom.backend: INFO
