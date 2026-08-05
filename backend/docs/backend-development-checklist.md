@@ -1,6 +1,6 @@
 # 늘봄(NEULBOM) 백엔드 개발 체크리스트
 
-> API v1.1 명세서를 실제 Spring Boot 백엔드로 구현하기 위한 순서형 체크리스트
+> API v1.2 명세서를 실제 Spring Boot 백엔드로 구현하기 위한 순서형 체크리스트
 >
 > 기준 문서: [REST API 명세서](api-spec.md)
 > 기술 스택: Spring Boot(Java), PostgreSQL, 외부 AI/STT 연동
@@ -42,6 +42,9 @@
 
 - [ ] `POST /auth/register` - 회원가입
 - [ ] `POST /auth/login` - 로그인 및 access token·refresh token 발급
+- [ ] `POST /auth/oauth/{provider}` - 카카오·네이버 소셜 로그인 및 access token·refresh token 발급
+- [ ] `POST /auth/password/reset/request` - 비밀번호 재설정 요청
+- [ ] `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
 - [ ] `POST /auth/refresh` - access token 갱신
 - [ ] `POST /auth/logout` - refresh token 폐기
 
@@ -65,12 +68,15 @@
 
 기반: `guardian_links` 테이블, 역할·동의·access scope 검사
 
+- [ ] `POST /guardian/invitations` - 6자리 초대 코드 발급
+- [ ] `POST /guardian/invitations/verify` - 초대 코드 검증 및 연결 정보 미리보기
+- [ ] `POST /guardian/invitations/accept` - 초대 코드 수락 및 보호자 연결 생성
 - [ ] `POST /guardian/link` - 고령자 연결 요청
 - [ ] `GET /guardian/{guardian_id}/elders` - 연결된 고령자 목록 조회
 - [ ] `PATCH /guardian/link/{link_id}` - 연결 상태·접근 범위 수정
 - [ ] `DELETE /guardian/link/{link_id}` - 연결 해제
 
-완료 조건: 한 보호자가 여러 고령자를 관리하고, 연결·동의·접근 범위에 따라 데이터가 제한된다.
+완료 조건: 초대 코드 입력부터 연결 생성까지 동작하고, 한 보호자가 여러 고령자를 관리하며, 연결·동의·접근 범위에 따라 데이터가 제한된다.
 
 ### 4차. CIST·AI 정서 문답 세션 API
 
@@ -157,6 +163,7 @@
 - [ ] `POST /notifications/push` - 서비스 내부 알림 생성·발송
 - [ ] `GET /notifications/{user_id}` - 알림 목록·미읽음 수 조회
 - [ ] `PATCH /notifications/{id}/read` - 알림 읽음 처리
+- [ ] `PATCH /notifications/read-all` - 현재 사용자의 미읽음 알림 전체 읽음 처리
 
 완료 조건: 검사 완료, 요약 완료, 보호자 반응, 캠페인 완료 이벤트가 알림으로 연결된다.
 
@@ -173,12 +180,14 @@
 
 ### 0.1 API 계약 고정
 
-- [ ] 팀 저장소의 [API 명세서](/Users/kimminseo/neulbom/docs/api-spec.md)를 기준 버전 `v1.1`로 확정한다.
+- [ ] 팀 저장소의 [API 명세서](api-spec.md)를 기준 버전 `v1.2`로 확정한다.
 - [ ] Base URL을 `local`, `dev`, `prod` 환경별로 분리한다.
 - [ ] API 경로, HTTP method, 상태 코드, 필드명, enum을 프론트엔드와 함께 확인한다.
 - [ ] `elder`, `guardian` 역할을 확정한다.
 - [ ] `session_type`을 `cist`, `emotional_qa`, `game`, `mixed`로 확정한다.
-- [ ] 분석 결과의 사용자 노출 필드를 `screening_reference_score`, `risk_level`, `display_label`로 통일한다.
+- [ ] 분석 결과의 정규화 필드와 화면 표시 필드를 구분한다: `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `risk_level`, `display_label`.
+- [ ] `display_score`와 `score_max`로 `27/30`, `21/30`, `24.1` 형태의 화면 표시를 지원한다.
+- [ ] 초대 코드는 `invite_code` 6자리, 만료·1회성 소비·검증 시도 제한 규칙을 따른다.
 - [ ] 기존 `dementia_score`는 신규 응답에서 사용하지 않고 deprecated alias 유지 여부를 결정한다.
 - [ ] 날짜·시간은 타임존을 포함한 ISO 8601 문자열로 통일한다.
 - [ ] ID 생성 규칙을 UUID 또는 프로젝트 공통 ID 규칙으로 확정한다.
@@ -186,7 +195,7 @@
 ### 0.2 작업 방식
 
 - [ ] 각 단계별 Issue를 생성한다.
-- [ ] 작업 브랜치를 `feature/be/#이슈번호-작업명` 형식으로 만든다.
+- [ ] 작업 브랜치를 작업 유형에 따라 `feature/be/#이슈번호-작업명` 또는 `docs/be/#이슈번호-작업명` 형식으로 만든다.
 - [ ] API 변경이 생기면 명세서와 프론트엔드 계약을 함께 수정한다.
 - [ ] 하나의 PR에는 하나의 기능 흐름만 포함한다.
 - [ ] PR마다 테스트 방법과 미완료 항목을 기록한다.
@@ -410,6 +419,11 @@
 - [ ] `POST /auth/login`을 구현한다.
 - [ ] 로그인 성공 시 access token과 refresh token을 발급한다.
 - [ ] 로그인 실패 시 이메일 존재 여부를 노출하지 않는다.
+- [ ] `POST /auth/oauth/{provider}`를 구현하고 `kakao`, `naver` provider만 허용한다.
+- [ ] provider authorization code를 서버에서 교환하고 code·provider token을 로그에 남기지 않는다.
+- [ ] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
+- [ ] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
+- [ ] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
 
 ### 3.2 JWT·세션 보안
 
@@ -489,6 +503,12 @@
 
 ### 5.1 연결 API
 
+- [ ] `POST /guardian/invitations`로 숫자 6자리 초대 코드를 발급한다.
+- [ ] 초대 코드는 기본 만료 시간과 최대 만료 시간을 검증한다.
+- [ ] `POST /guardian/invitations/verify`는 연결을 생성하지 않는 미리보기 검증으로 구현한다.
+- [ ] `POST /guardian/invitations/accept` 성공 시에만 코드를 소비하고 `guardian_links`를 생성한다.
+- [ ] 사용·만료 초대 코드에 `410`, 반복 실패에 `429`를 반환한다.
+- [ ] 초대 코드 원문을 DB·URL·로그에 저장하지 않고 단방향 해시로 관리한다.
 - [ ] `POST /guardian/link`를 구현한다.
 - [ ] `GET /guardian/{guardian_id}/elders`를 구현한다.
 - [ ] `PATCH /guardian/link/{link_id}`를 구현한다.
@@ -671,6 +691,8 @@
 - [ ] `risk_level`을 `normal`, `caution`, `warning`으로 변환한다.
 - [ ] `label`을 `normal`, `attention_required`로 반환한다.
 - [ ] 영역별 `correct`, `total`, `score_rate`를 저장한다.
+- [ ] 사용자 화면용 `display_score`, `score_max`, `score_rate`를 검사 유형별 환산 규칙으로 계산한다.
+- [ ] 분석 이력에 직전 동일 집계 결과 대비 `score_delta`를 제공하고 첫 기록은 `null`로 반환한다.
 - [ ] 사용자 노출 응답에 내부 모델 raw output을 포함하지 않는다.
 
 ### 8.7 Gemini 문답 요약
@@ -697,6 +719,7 @@
 
 - [ ] `GET /screenings/{session_id}/result`를 구현한다.
 - [ ] 최근 검사 결과와 영역별 점수를 반환한다.
+- [ ] `display_score`, `score_max`, `score_rate`를 반환해 화면 점수 형식을 구성한다.
 - [ ] `display_label`과 `recommendation`을 안전한 문구로 반환한다.
 - [ ] 분석이 끝나지 않았으면 `pending` 상태를 구분한다.
 - [ ] 결과 화면에서 일기 생성에 사용할 `summary_id`를 연결한다.
@@ -706,6 +729,8 @@
 - [ ] `GET /analysis/cognitive/{user_id}/history`를 구현한다.
 - [ ] `answer`, `session`, `user` 집계 범위를 지원한다.
 - [ ] 30일 평균과 `improving`, `declining`, `stable` 추이를 계산한다.
+- [ ] 분석 이력에 정규화 점수와 표시 점수(`display_score`, `score_max`, `score_rate`)를 함께 반환한다.
+- [ ] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
 - [ ] 동일 날짜에 여러 결과가 있을 때 집계 규칙을 정한다.
 - [ ] 표본 부족 시 추이를 `stable`로 단정하지 않고 상태를 별도 반환할지 결정한다.
 
@@ -718,8 +743,9 @@
 
 ### 9.4 보호자 리포트
 
-- [ ] `GET /guardian/{guardian_id}/report?elder_id=...`를 구현한다.
+- [ ] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
 - [ ] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
+- [ ] 보호자 리포트에서 정규화 점수와 표시 점수(`latest_display_score`, `latest_score_max`, `latest_score_rate`)를 구분한다.
 - [ ] `trend_points[]`를 차트가 바로 사용할 수 있는 형식으로 제공한다.
 - [ ] `activity_summary_7d`를 세션·게임·일기 활동으로 구성한다.
 - [ ] `recent_alerts[]`에 보호자가 확인해야 할 이벤트만 포함한다.
@@ -745,6 +771,8 @@
 - [ ] `PATCH /diaries/{diary_id}`를 구현한다.
 - [ ] `DELETE /diaries/{diary_id}`를 구현한다.
 - [ ] `source_type`을 `manual`, `voice`, `session`으로 관리한다.
+- [ ] 일기에 `mood`와 `mood_level`을 저장하고 캘린더 활동의 `metadata`에 포함한다.
+- [ ] `mood`를 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`로 제한하고 `mood_level`을 `1~5`로 검증한다.
 - [ ] 문답 요약에서 일기를 만들 때 사용자가 본문을 수정할 수 있게 한다.
 - [ ] 작성자만 일기를 수정·삭제할 수 있도록 한다.
 
@@ -752,7 +780,7 @@
 
 - [ ] `POST /diaries/{diary_id}/reactions`를 구현한다.
 - [ ] `GET /diaries/{diary_id}/reactions`를 구현한다.
-- [ ] `heart`, `smile`, `cheer`, `pray`, `message`를 허용한다.
+- [ ] `heart`, `smile`, `cheer`, `pray`, `cry`, `message`를 허용한다.
 - [ ] `message` 반응일 때 메시지를 필수로 한다.
 - [ ] 반응 작성자와 대상 일기의 연결 권한을 확인한다.
 - [ ] 같은 사용자가 동일 일기에 같은 반응을 여러 번 남길 수 있는지 정책을 정한다.
@@ -763,6 +791,7 @@
 - [ ] `diary`, `screening`, `emotional_qa`, `game`, `campaign` 활동을 통합한다.
 - [ ] 날짜 범위와 활동 유형 필터를 지원한다.
 - [ ] 각 활동의 `reference_id`로 상세 화면 이동이 가능하게 한다.
+- [ ] 일기 활동의 감정 아이콘을 `metadata.mood`와 `metadata.mood_level`로 표시한다.
 - [ ] 활동이 없는 날짜의 빈 응답을 정의한다.
 
 ### 10단계 완료 조건
@@ -820,6 +849,7 @@
 - [ ] `POST /notifications/push`를 서버 내부 호출용으로 구현한다.
 - [ ] `GET /notifications/{user_id}`를 구현한다.
 - [ ] `PATCH /notifications/{id}/read`를 구현한다.
+- [ ] `PATCH /notifications/read-all`을 구현한다.
 - [ ] 미읽음 수를 정확하게 계산한다.
 - [ ] `unread_only`, `type`, `limit` 필터를 구현한다.
 - [ ] 알림의 `data`에 화면 이동용 reference ID를 저장한다.
@@ -837,6 +867,7 @@
 ### 12단계 완료 조건
 
 - [ ] 알림 목록과 읽음 처리가 동작한다.
+- [ ] 알림 화면의 모두 읽음 동작이 현재 인증 사용자에게만 적용된다.
 - [ ] 검사 완료·반응·캠페인 이벤트가 알림으로 연결된다.
 - [ ] 수신자 외 사용자가 알림을 읽거나 수정할 수 없다.
 
@@ -921,6 +952,9 @@
 - [ ] enum 값이 프론트엔드 상수와 일치하는지 확인한다.
 - [ ] `null` 가능 여부를 명세에 맞춘다.
 - [ ] 기본값과 페이지네이션 동작을 확인한다.
+- [ ] 초대 코드 입력 API에서 code가 path/query로 노출되지 않고, 발급·검증·수락 endpoint의 상태 전이가 일치하는지 확인한다.
+- [ ] 사용·만료 초대 코드의 `410`, 반복 검증 실패의 `429`, 동의 거부의 `422` 응답을 계약 테스트한다.
+- [ ] `PATCH /notifications/read-all`이 개별 읽음 endpoint와 충돌하지 않고 현재 사용자 알림만 변경하는지 확인한다.
 - [ ] Postman 또는 Bruno collection을 만든다.
 - [ ] 개발 서버에서 프론트엔드가 사용하는 API를 실제로 호출해 본다.
 
@@ -966,6 +1000,15 @@
 - [ ] AST·KcELECTRA fusion weight를 실제 검증 데이터로 재평가한다.
 - [ ] 독립 화자 데이터 기준의 모델 평가 결과를 저장한다.
 - [ ] 직접 수집 음성의 익명화·연구 활용 동의 흐름을 별도로 검토한다.
+
+### 14.1 Figma 화면 추가 검토
+
+화면에 보이지만 MVP 범위와 외부 연동 여부가 확정되지 않은 기능은 별도 Issue에서 API 계약을 확정한 뒤 구현한다.
+
+- [ ] 지역 기준선 비교에 필요한 데이터 출처·지역 query·개인정보 기준을 확정한다.
+- [ ] 보호자 리포트 내보내기의 파일 형식·비동기 생성·다운로드 권한·보존 기간을 확정한다.
+- [ ] 전문의 상담 예약의 기관 연동·개인정보 제공 동의·예약 상태를 확정한다.
+- [ ] 위 기능을 v1.2 MVP endpoint에 포함할지 결정하고, 미확정이면 후속 Issue로 분리한다.
 
 ## 최종 완료 체크
 
