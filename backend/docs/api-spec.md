@@ -17,11 +17,15 @@
 - CIST 검사와 AI 정서 문답을 서로 다른 세션 유형으로 구분한다.
 - 음성 답변을 문항 단위로 저장하고, 오프라인에서 녹음한 파일은 재전송할 수 있도록 `client_recording_id`와 처리 상태를 사용한다.
 - 기존 Whisper-KcELECTRA 흐름에 AST 음향 분석 결과를 추가한다. AST와 KcELECTRA는 모델별 결과를 보존하며 최종 스크리닝 참고 점수는 서버에서 집계한다.
-- 고령자 화면의 결과·일기·달력·지역 캠페인·알림, 보호자 화면의 대시보드·일기 반응·위험 추이 차트에 필요한 API를 추가한다.
+- 고령자 화면의 결과·일기·달력·알림, 보호자 화면의 대시보드·일기 반응·위험 추이 차트에 필요한 API를 추가한다. 지역 캠페인은 후속 확장 기능으로 분리한다.
 - 로그인 화면의 카카오·네이버 로그인과 비밀번호 재설정 흐름을 지원한다.
 - 보호자 또는 기관이 발급한 6자리 초대 코드를 검증하고, 고령자가 수락하면 보호자 연결을 생성한다. 초대 코드는 기존 `/guardian/link` 직접 연결 API와 분리한다.
 - 결과 화면에 정규화 점수와 별도로 화면 표시 점수(`display_score`, `score_max`, `score_rate`)를 제공한다.
 - 캘린더 일기 활동의 감정(`mood`, `mood_level`), 보호자 반응의 `cry` 유형, 알림 전체 읽음 처리를 명세한다.
+- AI 정서 문답은 세션 종료 시 캐릭터가 고령자에게 정성적 결과와 격려 메시지를 안내하고, 정확한 점수·상세 분석은 보호자 화면에만 제공한다.
+- 하루 여러 번의 대화를 허용하고, 세션별 분석 결과를 `Asia/Seoul` 기준 하루 단위로 집계해 보호자 리포트와 일일 일기 생성에 사용한다.
+- 상담 센터는 초기에는 지역별 목록과 지도·기관 사이트 외부 링크만 제공하고, 실시간 예약·일정 연동은 후속 확장 기능으로 분리한다.
+- AI 정서 문답과 게임 세션 완료 시 서버가 경험치를 자동 적립하고, 동일 이벤트의 중복 적립을 차단한다.
 - 사용자에게 노출되는 결과는 의료적 진단이 아니라 **인지기능 저하 의심 신호**, **추가 확인 권장**, **스크리닝 참고 점수**로 표현한다.
 
 > 검사 및 AI 분석 결과는 의료적 진단을 대신하지 않는다. `screening_reference_score`, `risk_level` 등은 반복 관찰을 위한 참고 정보이며, 의심 결과가 나타나면 치매안심센터 또는 병원에서 추가 검사를 권고한다.
@@ -40,6 +44,9 @@
 - 보호자는 연결(`guardian_links`)과 동의(`consents`)가 모두 유효한 대상자만 조회할 수 있다.
 - `guardian_id`, `user_id`는 가능하면 JWT의 사용자 정보로 확인하며, 다른 사용자를 지정하는 요청은 서버에서 권한을 검증한다.
 - 모든 날짜·시간은 ISO 8601 형식과 타임존을 포함한다. 예: `2026-08-05T10:30:00+09:00`
+- 사용자 활동일(`local_date`)은 기본 `Asia/Seoul` 시간대의 `00:00:00` 이상, 다음 날 `00:00:00` 미만 구간으로 계산한다. 서버 저장 시간은 UTC를 사용할 수 있지만 집계 기준일은 이 규칙을 따른다.
+- `elder`가 요청한 결과·이력 응답에는 정확한 점수·원본 모델 출력·상세 영역 점수를 포함하지 않고 `result_type`, `display_label`, `message`, `recommendation`만 제공한다. 정확한 점수와 상세 분석은 연결·동의·access scope가 확인된 `guardian`에게만 제공한다.
+- 역할별 필드 노출은 JWT의 인증 역할로 서버가 결정하며, `role` 또는 `audience` query parameter로 변경할 수 없다.
 - ID는 현재 명세에서 `string`으로 표기한다. 실제 구현에서는 UUID 사용을 권장한다.
 
 ### 1.2 공통 응답 및 오류
@@ -139,10 +146,10 @@
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/dashboard/{user_id}` | 고령자 홈 또는 보호자 홈 요약 | 필요 | 사용자 유형별 | MVP |
 | `GET` | `/calendar/{user_id}/activities` | 날짜별 일기·검사·게임·캠페인 활동 | 필요 | 본인, 권한 보유 보호자 | MVP |
-| `GET` | `/campaigns` | 지역 인지건강 캠페인 목록 | 필요 | 로그인 사용자 | MVP |
-| `GET` | `/campaigns/{campaign_id}` | 캠페인 상세 | 필요 | 로그인 사용자 | MVP |
-| `POST` | `/campaigns/{campaign_id}/participation` | 캠페인 참여 신청 | 필요 | 본인 또는 권한 보유자 | MVP |
-| `GET` | `/campaigns/{campaign_id}/participation` | 캠페인 참여 상태 | 필요 | 본인 또는 권한 보유자 | MVP |
+| `GET` | `/campaigns` | 지역 인지건강 캠페인 목록 | 필요 | 로그인 사용자 | Phase 2 |
+| `GET` | `/campaigns/{campaign_id}` | 캠페인 상세 | 필요 | 로그인 사용자 | Phase 2 |
+| `POST` | `/campaigns/{campaign_id}/participation` | 캠페인 참여 신청 | 필요 | 본인 또는 권한 보유자 | Phase 2 |
+| `GET` | `/campaigns/{campaign_id}/participation` | 캠페인 참여 상태 | 필요 | 본인 또는 권한 보유자 | Phase 2 |
 
 ### 2.4 세션·질문·답변
 
@@ -151,7 +158,7 @@
 | `POST` | `/sessions` | CIST·AI 정서 문답·게임 세션 시작 | 필요 | `elder`, 권한 보유자 | MVP |
 | `GET` | `/sessions/{session_id}` | 세션 상태·진행률 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `PATCH` | `/sessions/{session_id}/settings` | 청취·음성·자막 설정 적용 | 필요 | 세션 사용자, 권한 보유자 | MVP |
-| `PATCH` | `/sessions/{session_id}/end` | 세션 종료 | 필요 | 세션 사용자, 권한 보유자 | MVP |
+| `PATCH` | `/sessions/{session_id}/end` | 세션 종료·정성 결과·경험치 적립 상태 반환 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/sessions` | 세션 목록 조회 | 필요 | 본인, 권한 보유자 | MVP |
 | `POST` | `/sessions/{session_id}/answers` | 문항별 답변 저장 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/questions/daily` | 오늘의 질문 목록 | 필요 | 세션 사용자 | MVP |
@@ -167,9 +174,11 @@
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
-| `GET` | `/screenings/{session_id}/result` | 특정 검사 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
+| `GET` | `/screenings/{session_id}/result` | 검사·정서 문답 세션 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `POST` | `/summary/session` | Gemini 문답 요약 생성 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/summary/session/{session_id}` | 문답 요약 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
+| `POST` | `/summary/daily` | 하루 대화 분석 결과 집계 | 서버 전용 권장 | 서버 작업 큐 | MVP |
+| `GET` | `/summary/daily/{user_id}` | 날짜별 대화 집계 요약 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 
 ### 2.6 일기·반응
 
@@ -177,6 +186,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/diaries` | 텍스트·음성 기반 일기 생성 | 필요 | `elder`, 권한 보유자 | MVP |
 | `POST` | `/diaries/from-session` | AI 문답 요약으로 일기 생성 | 필요 | `elder`, 권한 보유자 | MVP |
+| `POST` | `/diaries/from-daily-summary` | 하루 대화 집계 요약으로 일기 생성 | 서버 작업 또는 본인 | 서버 작업 큐, `elder` | MVP |
 | `GET` | `/diaries/{user_id}` | 사용자 일기 목록·날짜 검색 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/diaries/{diary_id}` | 일기 상세 및 반응 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `PATCH` | `/diaries/{diary_id}` | 일기 수정 | 필요 | 작성자 | MVP |
@@ -191,12 +201,18 @@
 | `POST` | `/game/result` | 미니게임 결과 전송 | 필요 | `elder` | MVP |
 | `GET` | `/game/{user_id}/history` | 미니게임 이력 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/character/{user_id}` | 캐릭터 레벨·경험치·아이템 조회 | 필요 | 본인, 권한 보유자 | MVP |
-| `POST` | `/character/{user_id}/xp` | 출석·방문·대화 경험치 적립 | 필요 | 서버 또는 권한 보유자 | MVP |
+| `POST` | `/character/{user_id}/xp` | 정서 문답·게임 완료 등 서버 이벤트 경험치 적립 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/guardian/{guardian_id}/report` | 선택한 고령자 종합 리포트 | 필요 | `guardian` | MVP |
 | `POST` | `/notifications/push` | 서비스 알림 생성·발송 | 서버 전용 권장 | 서버 또는 권한 보유자 | MVP |
 | `GET` | `/notifications/{user_id}` | 알림 목록 및 미읽음 수 | 필요 | 본인 | MVP |
 | `PATCH` | `/notifications/{id}/read` | 알림 읽음 처리 | 필요 | 수신자 | MVP |
 | `PATCH` | `/notifications/read-all` | 현재 사용자의 미읽음 알림 전체 읽음 처리 | 필요 | 수신자 | MVP |
+
+### 2.8 상담 센터
+
+| Method | Endpoint | 설명 | 인증 | 주요 역할 | 우선순위 |
+| --- | --- | --- | --- | --- | --- |
+| `GET` | `/counseling/centers` | 지역별 상담 센터 목록 및 지도·기관 사이트 외부 링크 | 필요 | 로그인 사용자 | MVP |
 
 ## 3. 인증·사용자·동의 API
 
@@ -665,7 +681,9 @@
 
 응답 본문 없음. 연결을 삭제하는 대신 감사 로그에는 해제 이력을 보존한다.
 
-## 5. 홈·캘린더·지역 캠페인 API
+## 5. 홈·캘린더·상담 센터·지역 캠페인 API
+
+지역 캠페인 endpoint와 홈의 `upcoming_campaigns[]`는 Phase 2 확장 범위다. 초기 MVP는 홈·캘린더·상담 센터 목록 및 외부 연결을 우선 구현한다.
 
 ### 5.1 `GET /dashboard/{user_id}` - 홈 요약
 
@@ -682,20 +700,21 @@
 | `latest_summary` | object/null | 최근 AI 문답 요약 |
 | `today_tasks[]` | array | 오늘 진행할 검사·활동 |
 | `unread_notification_count` | integer | 미읽음 알림 수 |
-| `upcoming_campaigns[]` | array | 참여 가능한 지역 캠페인 |
+| `upcoming_campaigns[]` | array | 참여 가능한 지역 캠페인. Phase 2에서만 제공 |
 
 `latest_screening` 객체는 다음 필드를 포함한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | `session_id` | string | 검사 세션 ID |
-| `screening_reference_score` | float | 스크리닝 참고 점수, `0.0~1.0` |
-| `display_score` | float | 화면에 표시할 점수. 예: `27` |
-| `score_max` | float | `display_score`의 만점. 예: `30` |
-| `score_rate` | float | 화면 표시 점수의 비율, `0.0~1.0` |
-| `risk_level` | enum | `normal`, `caution`, `warning` |
-| `display_label` | string | 화면 문구, 예: `추가 확인 권장` |
+| `result_status` | enum | `pending`, `processing`, `completed`, `failed` |
+| `result_type` | enum/null | `positive_feedback`, `follow_up_recommended`, `insufficient_data` |
+| `display_label` | string/null | 고령자 화면 문구 |
+| `message` | string/null | 캐릭터가 안내할 메시지 |
+| `recommendation` | string/null | 추가 확인 권장 문구 |
 | `completed_at` | string | 검사 완료 일시 |
+
+보호자 홈 또는 권한이 확인된 보호자 요청에는 위 필드와 함께 `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `risk_level`, `domain_scores`를 추가한다. 고령자 홈에는 해당 수치 필드를 포함하지 않는다.
 
 ### 5.2 `GET /calendar/{user_id}/activities` - 캘린더 활동 조회
 
@@ -879,11 +898,29 @@
   "status": "ended",
   "ended_at": "2026-08-05T11:42:00+09:00",
   "answered_count": 5,
-  "analysis_status": "pending"
+  "analysis_status": "pending",
+  "result_status": "pending",
+  "result_type": null,
+  "display_label": null,
+  "message": null,
+  "recommendation": null,
+  "xp_earned": 0,
+  "character_level": 3,
+  "level_up": false
 }
 ```
 
-`analysis_status`는 `pending`, `processing`, `completed`, `failed` 중 하나다.
+`analysis_status`와 `result_status`는 각각 `pending`, `processing`, `completed`, `failed` 중 하나다. 분석이 완료되면 `result_type`, `display_label`, `message`, `recommendation`을 채운다.
+
+`result_type`은 고령자 화면에 사용할 정성 결과 유형이며 `positive_feedback`, `follow_up_recommended`, `insufficient_data` 중 하나다. 예시 메시지는 다음 원칙을 따른다.
+
+- `positive_feedback`: 오늘 대화가 잘 진행됐다는 격려 메시지
+- `follow_up_recommended`: 정확한 점수 대신 전문기관 추가 확인을 권하는 메시지
+- `insufficient_data`: 답변 부족·분석 실패 등으로 결과를 확정할 수 없다는 메시지
+
+`session_type=emotional_qa`인 경우 세션 종료 후 캐릭터가 이 결과를 안내한다. `xp_earned`, `character_level`, `level_up`은 정서 문답 완료 이벤트가 처리된 경우에 반환하며, 동일 `session_id`로 재요청해도 경험치가 중복 적립되지 않는다. 정확한 수치와 상세 분석 결과는 이 응답에 포함하지 않는다.
+
+분석이 비동기로 진행되면 앱은 `GET /screenings/{session_id}/result`를 재조회해 결과를 확인한다.
 
 ### 6.5 `GET /sessions` - 세션 목록
 
@@ -1152,7 +1189,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `limit` | integer | N | 기본 `30` |
 | `from_date` | string | N | 시작일 |
 | `to_date` | string | N | 종료일 |
-| `aggregation` | enum | N | `answer`, `session`, `user`; 기본 `session` |
+| `aggregation` | enum | N | `answer`, `session`, `day`, `user`; 기본 `session`. `day`는 `Asia/Seoul` 기준 일일 집계 |
 
 #### Response `200`
 
@@ -1173,23 +1210,52 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `score_delta` | float/null | 직전 동일 집계 결과 대비 `display_score` 차이. 첫 기록은 `null` |
 | `analyzed_at` | string | 분석 일시 |
 
+`aggregation=day`를 사용하면 하루에 여러 번 진행한 세션을 `local_date`별로 합산한다. 고령자 본인 요청에서는 수치·상세 영역 필드를 제외하고 정성 결과 필드만 반환한다.
+
 ### 7.7 `GET /screenings/{session_id}/result` - 검사 결과
 
-고령자 결과 화면과 보호자 리포트에서 사용하는 사용자 노출용 응답이다.
+검사 또는 AI 정서 문답 세션 종료 후 결과를 조회한다. 응답은 JWT 역할과 연결·동의·access scope에 따라 서버가 필터링한다. `audience`는 응답 설명을 위한 값이며 요청으로 지정할 수 없다.
 
-#### Response `200`
+#### 고령자 응답 `200`
+
+정확한 점수, 원본 모델 출력, 상세 `domain_scores`는 포함하지 않는다.
 
 ```json
 {
+  "audience": "elder",
   "session_id": "ses_01J...",
   "user_id": "usr_elder_01J...",
+  "session_type": "emotional_qa",
+  "result_status": "completed",
+  "result_type": "positive_feedback",
+  "display_label": "오늘 대화 결과가 좋아요",
+  "message": "오늘도 잘 대화하셨어요. 다음 대화에서 만나요.",
+  "recommendation": null,
+  "completed_at": "2026-08-05T11:42:00+09:00"
+}
+```
+
+#### 보호자 응답 `200`
+
+연결·동의·access scope가 확인된 보호자에게만 아래 수치·상세 분석 필드를 추가한다. `screening_label`은 수치 결과에 대한 보호자용 상태 문구이며, 고령자용 `display_label`과 구분한다.
+
+```json
+{
+  "audience": "guardian",
+  "session_id": "ses_01J...",
+  "user_id": "usr_elder_01J...",
+  "session_type": "emotional_qa",
+  "result_status": "completed",
+  "result_type": "follow_up_recommended",
+  "display_label": "추가 확인을 권장해요",
+  "message": "오늘 대화가 끝났어요. 보호자와 결과를 함께 확인해 주세요.",
+  "recommendation": "반복 관찰 결과를 확인하고 필요하면 전문기관 상담을 권장합니다.",
   "screening_reference_score": 0.72,
   "display_score": 27,
   "score_max": 30,
   "score_rate": 0.9,
   "risk_level": "caution",
-  "display_label": "인지기능 저하 의심 신호",
-  "recommendation": "반복 검사 결과를 확인하고 필요하면 전문기관 상담을 권장합니다.",
+  "screening_label": "인지기능 저하 의심 신호",
   "domain_scores": {
     "orientation": {"correct": 4, "total": 4, "score_rate": 1.0},
     "memory": {"correct": 4, "total": 4, "score_rate": 1.0},
@@ -1236,6 +1302,46 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `qa_count` | integer | 요약에 포함된 문답 수 |
 | `source_status` | enum | `pending`, `completed`, `failed` |
 
+### 7.10 `POST /summary/daily` - 하루 대화 분석 집계
+
+세션 종료 후 생성된 개별 분석 결과를 `Asia/Seoul` 기준 하루 단위로 합산한다. 앱 사용자가 직접 호출하지 않고 서버 작업 큐 또는 스케줄러에서 호출한다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `user_id` | string | Y | 집계 대상 고령자 ID |
+| `local_date` | string | Y | 집계 기준일, `YYYY-MM-DD` |
+| `timezone` | string | N | 기본 `Asia/Seoul` |
+
+#### Response `202`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `daily_summary_id` | string | 일일 집계 ID |
+| `user_id` | string | 고령자 ID |
+| `local_date` | string | 집계 기준일 |
+| `timezone` | string | 집계 시간대 |
+| `session_count` | integer | 해당 날짜의 전체 세션 수 |
+| `analyzed_session_count` | integer | 분석 완료 세션 수 |
+| `status` | enum | `pending`, `processing`, `completed`, `failed` |
+
+### 7.11 `GET /summary/daily/{user_id}` - 일일 대화 집계 조회
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `date` | string | N | 특정 기준일, `YYYY-MM-DD`; 생략 시 최신 집계 |
+| `from_date` | string | N | 조회 시작일 |
+| `to_date` | string | N | 조회 종료일 |
+| `page` | integer | N | 기본 `1` |
+| `limit` | integer | N | 기본 `20` |
+
+#### Response `200`
+
+`daily_summaries[]`에는 `daily_summary_id`, `user_id`, `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `status`, `display_label`, `message`, `recommendation`, `diary_id`를 포함한다. 보호자에게는 `screening_reference_score`, `domain_scores`, `trend` 등 수치·상세 집계 필드를 추가하고, 고령자 본인에게는 정성 결과 필드만 반환한다.
+
 ## 8. 일기·보호자 반응 API
 
 ### 8.1 `POST /diaries` - 일기 생성
@@ -1245,7 +1351,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | string | Y | 작성자 ID |
-| `source_type` | enum | Y | `manual`, `voice`, `session` |
+| `source_type` | enum | Y | `manual`, `voice`, `session`, `daily_summary` |
 | `title` | string | N | 제목 |
 | `content` | string | Y | 일기 본문 또는 STT 결과 |
 | `recording_id` | string | N | 음성 일기 원본 녹음 |
@@ -1288,7 +1394,26 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 `POST /diaries`와 동일한 일기 객체를 반환한다.
 
-### 8.3 `GET /diaries/{user_id}` - 일기 목록
+### 8.3 `POST /diaries/from-daily-summary` - 하루 집계 요약으로 일기 생성
+
+`Asia/Seoul` 기준 하루가 종료된 뒤 서버 스케줄러가 호출한다. 사용자가 직접 본문을 수정해야 하는 경우에도 동일한 endpoint를 본인 권한으로 호출할 수 있다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `daily_summary_id` | string | Y | 완료된 일일 집계 요약 ID |
+| `user_id` | string | Y | 고령자 ID |
+| `title` | string | N | 일기 제목 |
+| `content` | string | N | 사용자가 수정한 내용. 생략 시 일일 요약으로 생성 |
+| `mood` | enum | N | `very_sad`, `sad`, `neutral`, `happy`, `very_happy` |
+| `mood_level` | integer | N | 감정 단계 `1~5` |
+
+#### Response `201`
+
+`POST /diaries`와 동일한 일기 객체를 반환하며 `source_type`은 `daily_summary`다. 동일한 `daily_summary_id`로 재요청해도 일기가 중복 생성되지 않도록 한다.
+
+### 8.4 `GET /diaries/{user_id}` - 일기 목록
 
 #### Query Parameters
 
@@ -1308,7 +1433,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `diary_id` | string | 일기 ID |
 | `title` | string | 제목 |
 | `preview` | string | 미리보기 |
-| `source_type` | enum | `manual`, `voice`, `session` |
+| `source_type` | enum | `manual`, `voice`, `session`, `daily_summary` |
 | `mood` | enum/null | `very_sad`, `sad`, `neutral`, `happy`, `very_happy` |
 | `mood_level` | integer/null | 감정 단계 `1~5` |
 | `written_at` | string | 작성 일시 |
@@ -1316,13 +1441,13 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `total` | integer | 전체 건수 |
 | `page` | integer | 현재 페이지 |
 
-### 8.4 `GET /diaries/{diary_id}` - 일기 상세
+### 8.5 `GET /diaries/{diary_id}` - 일기 상세
 
 #### Response `200`
 
-`diary_id`, `user_id`, `source_type`, `title`, `content`, `session_id`, `mood`, `mood_level`, `written_at`, `created_at`, `updated_at`, `reactions[]`를 반환한다.
+`diary_id`, `user_id`, `source_type`, `title`, `content`, `session_id`, `daily_summary_id`, `mood`, `mood_level`, `written_at`, `created_at`, `updated_at`, `reactions[]`를 반환한다.
 
-### 8.5 `PATCH /diaries/{diary_id}` - 일기 수정
+### 8.6 `PATCH /diaries/{diary_id}` - 일기 수정
 
 #### Request Body
 
@@ -1335,13 +1460,13 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 `diary_id`, `title`, `content`, `updated_at`을 반환한다.
 
-### 8.6 `DELETE /diaries/{diary_id}` - 일기 삭제
+### 8.7 `DELETE /diaries/{diary_id}` - 일기 삭제
 
 #### Response `204`
 
 응답 본문 없음.
 
-### 8.7 `POST /diaries/{diary_id}/reactions` - 보호자 반응 저장
+### 8.8 `POST /diaries/{diary_id}/reactions` - 보호자 반응 저장
 
 #### Request Body
 
@@ -1363,7 +1488,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 }
 ```
 
-### 8.8 `GET /diaries/{diary_id}/reactions` - 반응 목록
+### 8.9 `GET /diaries/{diary_id}/reactions` - 반응 목록
 
 일기 작성자 또는 연결된 보호자만 조회할 수 있다. `reactions[]`에 `reaction_id`, `reactor_id`, `reactor_name`, `reaction_type`, `message`, `created_at`을 포함한다.
 
@@ -1406,6 +1531,8 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 `records[]`에 `game_result_id`, `game_type`, `score`, `cognitive_index`, `played_at`을 포함한다.
 
+게임 결과 저장이 완료되면 서버가 `event_id=game_result_id`로 경험치를 자동 적립한다. 앱이 별도로 XP 적립 API를 호출하지 않는다.
+
 ### 9.3 `GET /character/{user_id}` - 캐릭터 상태
 
 #### Response `200`
@@ -1421,12 +1548,15 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 ### 9.4 `POST /character/{user_id}/xp` - 경험치 적립
 
+정서 문답·게임 완료 등 서버 이벤트에서만 호출하는 내부 API다. 클라이언트가 임의의 `amount`를 보내는 방식으로 사용하지 않는다.
+
 #### Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `amount` | integer | Y | 지급 경험치 |
-| `reason` | enum | Y | `attendance`, `visit`, `chat`, `campaign`, `game` |
+| `reason` | enum | Y | `attendance`, `visit`, `emotional_qa`, `game`, `campaign`; `campaign`은 Phase 2 |
+| `event_id` | string | Y | 원본 이벤트 ID. 동일 이벤트 재처리 시 중복 적립 방지 |
 
 #### Response `200`
 
@@ -1447,8 +1577,10 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 파라미터 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `elder_id` | string | Y | 연결된 고령자 ID |
+| `date` | string | 조건부 | 특정 일일 리포트 기준일, `YYYY-MM-DD`; `from_date`, `to_date`와 함께 사용할 수 없음 |
 | `from_date` | string | N | 추이 시작일 |
 | `to_date` | string | N | 추이 종료일 |
+| `timezone` | string | N | 일일 집계 시간대. 기본 `Asia/Seoul` |
 
 #### Response `200`
 
@@ -1470,6 +1602,9 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `activity_summary_7d` | object | 최근 7일 활동 지표 |
 | `trend_points[]` | array | 차트용 날짜별 추이 |
 | `recent_alerts[]` | array | 보호자 알림 목록 |
+| `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
+
+`daily_summary`에는 `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`, `conversation_results[]`를 포함한다. `conversation_results[]`에는 날짜 안에 종료된 각 세션의 `session_id`, `session_type`, `result_type`, `display_label`, `screening_reference_score`, `domain_scores`를 포함한다. `screening_reference_score`와 `domain_scores`는 보호자 리포트에서만 반환한다.
 
 `trend_points[]` 예시:
 
@@ -1568,11 +1703,41 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 }
 ```
 
-## 12. 립싱크·TTS 후속 API
+## 12. 상담 센터·립싱크·TTS API
+
+### 12.1 `GET /counseling/centers` - 지역별 상담 센터 목록
+
+초기 MVP에서는 지역을 선택하면 상담 센터 목록과 네이버 지도·기관 홈페이지 등 외부 연결 URL을 제공한다. 서버가 센터의 실시간 예약 가능 시간이나 예약을 직접 생성하지 않는다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `region` | string | Y | 시·도 또는 시·군·구 지역명 |
+| `page` | integer | N | 기본 `1` |
+| `limit` | integer | N | 기본 `20` |
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `centers[]` | array | 상담 센터 목록 |
+| `center_id` | string | 센터 ID |
+| `name` | string | 센터명 |
+| `region` | string | 지역명 |
+| `address` | string | 주소 |
+| `phone` | string/null | 대표 연락처 |
+| `map_url` | string/null | 지도 외부 링크 |
+| `homepage_url` | string/null | 기관 홈페이지 외부 링크 |
+| `reservation_mode` | enum | `external_link` 고정(MVP), 후속으로 `integrated` 검토 |
+
+실시간 예약 가능 시간 조회와 예약 폼 제출은 외부 기관 API·개인정보 제공 동의·예약 취소 정책을 확정한 뒤 별도 API로 추가한다.
+
+### 12.2 립싱크·TTS 후속 API
 
 중간보고서에서는 립싱크 적용 가능성을 검토 중이므로, 아래 API는 현재 MVP 필수 구현이 아닌 후속 확장 항목으로 분리한다.
 
-### 12.1 `POST /voice/synthesize` - 안내 음성 생성 (Phase 2)
+#### 12.2.1 `POST /voice/synthesize` - 안내 음성 생성 (Phase 2)
 
 #### Request Body
 
@@ -1600,17 +1765,20 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 사용자 유형 선택 | `POST /auth/register` | `elder`, `guardian` |
 | 초기 사용자 정보 입력 | `PATCH /users/{user_id}`, `POST /consent/{user_id}` | 학력, 문해, 건강·생활습관, 청력, 스마트폰 사용 수준, 동의 |
 | 청취 환경·음성 선택 | `GET /voice-profiles`, `PATCH /users/{user_id}/preferences` | 잘 들리는 귀, 음성, 말하기 속도 |
+| 마이페이지·설정 | `GET/PATCH /users/{user_id}`, `GET/PATCH /users/{user_id}/preferences`, `GET/POST /consent/{user_id}` | 프로필, 청취·음성·자막 설정, 동의 상태 |
 | 초대 코드 입력 | `POST /guardian/invitations/verify`, `POST /guardian/invitations/accept` | 6자리 코드 검증, 동의 후 보호자 연결 생성 |
 | CIST 검사 | `POST /sessions`, `GET /questions/daily`, `POST /recordings`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end` | 문항 1개씩 진행, 음성 답변, 오프라인 재전송 |
-| CIST 결과·일기 | `GET /screenings/{session_id}/result`, `GET /summary/session/{session_id}`, `POST /diaries/from-session` | 영역별 점수, 참고 점수, 요약, 일기 저장 |
-| AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `GET /questions/daily`, `POST /sessions/{session_id}/answers`, `POST /summary/session` | 캐릭터 문답과 요약 |
+| CIST 결과·일기 | `GET /screenings/{session_id}/result`, `GET /summary/session/{session_id}`, `POST /diaries/from-session` | 고령자 정성 결과, 보호자용 점수·영역별 결과, 요약, 일기 저장 |
+| AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `GET /questions/daily`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end`, `GET /screenings/{session_id}/result` | 세션 종료 후 캐릭터 결과 안내, 정성 결과, XP 적립 |
+| 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-daily-summary` | KST 기준 다회 대화 집계, 보호자 리포트, 0시 일기 생성 |
 | 고령자 홈 | `GET /dashboard/{user_id}`, `GET /character/{user_id}`, `GET /notifications/{user_id}` | 캐릭터, 최근 검사, 오늘 할 일, 알림 |
 | 달력·일기 | `GET /calendar/{user_id}/activities`, `GET /diaries/{user_id}`, `GET /diaries/{diary_id}`, `POST /diaries` | 날짜별 일기·활동·감정 |
-| 지역 캠페인 | `GET /campaigns`, `GET /campaigns/{campaign_id}`, `POST /campaigns/{campaign_id}/participation` | 캠페인 목록·상세·참여 |
+| 상담 센터 | `GET /counseling/centers?region=...` | 지역별 센터 목록, 지도·기관 사이트 외부 연결 |
+| 지역 캠페인 (Phase 2) | `GET /campaigns`, `GET /campaigns/{campaign_id}`, `POST /campaigns/{campaign_id}/participation` | 초기 범위에서 제외한 확장 기능 |
 | 보호자 대시보드 | `GET /guardian/{guardian_id}/elders`, `GET /guardian/{guardian_id}/report` | 여러 고령자 카드, 점수, 위험 상태, 활동 지표 |
 | 보호자 일기·반응 | `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions` | 일기 열람, 하트·감정·메시지 반응 |
 | 보호자 위험 추이 | `GET /guardian/{guardian_id}/report`, `GET /analysis/cognitive/{user_id}/history` | 기간별 참고 점수와 추이 |
-| 알림 | `GET /notifications/{user_id}`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` | 검사 결과, AI 대화 완료, 캠페인, 주간 리포트 |
+| 알림 | `GET /notifications/{user_id}`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` | 검사 결과, AI 대화 완료, 일일 리포트, 캠페인(Phase 2), 주간 리포트 |
 
 ### 13.1 Figma 화면에서 확인했지만 MVP 확정 전인 항목
 
@@ -1620,17 +1788,18 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | --- | --- | --- |
 | 지역 기준선 비교 | `GET /analysis/cognitive/{user_id}/benchmark?region=...` | 지역별 기준 데이터의 출처, 개인정보·표본 기준, 차트 표시 여부 |
 | 리포트 내보내기 | `GET /guardian/{guardian_id}/report/export?elder_id=...&format=pdf\|csv` | 파일 형식, 비동기 생성 여부, 다운로드 권한·보존 기간 |
-| 전문의 상담 예약 | `POST /consultations`, `GET /consultations`, `PATCH /consultations/{consultation_id}` | 예약 대상 기관·외부 서비스 연동, 개인정보 제공 동의, MVP 포함 여부 |
+| 전문 상담 예약 | `GET /counseling/centers/{center_id}/availability`, `POST /counseling/appointments`, `DELETE /counseling/appointments/{appointment_id}` | 외부 기관 API 연동, 개인정보 제공 동의, 예약·취소 정책, MVP 제외 여부 |
 
 ## 14. 백엔드 구현 우선순위
 
 1. 인증·사용자·동의: 회원가입, 로그인, 초기 사용자 정보, 보호자 접근 동의
 2. CIST 핵심 흐름: 세션, 질문, 답변, 녹음 업로드, STT, 결과 조회
 3. AI 분석 파이프라인: AST·KcELECTRA 결과 저장 및 세션 단위 집계
-4. 고령자 화면: 홈, 캐릭터, 알림, 결과·일기, 캘린더
-5. 보호자 화면: 다중 고령자 연결, 대시보드, 리포트, 일기 반응
-6. 지역 캠페인 및 참여 보상
-7. TTS·립싱크 연동은 핵심 검사 흐름 안정화 이후 확장
+4. 고령자 화면: 홈, 캐릭터, 알림, 결과·일기, 캘린더, 마이페이지·설정
+5. 보호자 화면: 다중 고령자 연결, 대시보드, 일일 리포트, 일기 반응
+6. 상담 센터 목록과 외부 지도·기관 사이트 연결
+7. 지역 캠페인 및 참여 보상은 Phase 2로 분리
+8. TTS·립싱크 연동은 핵심 검사 흐름 안정화 이후 확장
 
 ## 15. 구현 시 확인할 사항
 
