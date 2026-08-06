@@ -9,8 +9,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "refresh_tokens")
-public class RefreshTokenEntity {
+@Table(name = "password_reset_tokens")
+public class PasswordResetTokenEntity {
 
     @Id
     private UUID id;
@@ -24,19 +24,16 @@ public class RefreshTokenEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(name = "revoked_at")
-    private Instant revokedAt;
-
-    @Column(name = "last_used_at")
-    private Instant lastUsedAt;
+    @Column(name = "used_at")
+    private Instant usedAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    protected RefreshTokenEntity() {
+    protected PasswordResetTokenEntity() {
     }
 
-    public RefreshTokenEntity(
+    public PasswordResetTokenEntity(
             UUID id,
             UUID userId,
             String tokenHash,
@@ -66,23 +63,19 @@ public class RefreshTokenEntity {
         return expiresAt;
     }
 
-    public Instant getRevokedAt() {
-        return revokedAt;
+    public Instant getUsedAt() {
+        return usedAt;
     }
 
-    public Instant getLastUsedAt() {
-        return lastUsedAt;
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 
     public boolean isUsable(Instant now) {
-        return revokedAt == null && expiresAt.isAfter(now);
+        return usedAt == null && expiresAt.isAfter(now);
     }
 
     public void markUsed(Instant usedAt) {
-        this.lastUsedAt = usedAt;
-    }
-
-    public void revoke(Instant revokedAt) {
-        this.revokedAt = revokedAt;
+        this.usedAt = usedAt;
     }
 }

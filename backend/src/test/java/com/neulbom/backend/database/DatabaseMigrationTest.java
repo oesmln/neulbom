@@ -44,15 +44,16 @@ class DatabaseMigrationTest {
                               'TRANSCRIPTS', 'ANSWERS', 'ACOUSTIC_ANALYSES', 'COGNITIVE_ANALYSES',
                               'SCREENING_RESULTS', 'SESSION_SUMMARIES', 'DIARIES', 'DIARY_REACTIONS',
                               'GAME_RESULTS', 'CHARACTERS', 'XP_LEDGER', 'CAMPAIGNS',
-                              'CAMPAIGN_PARTICIPATIONS', 'NOTIFICATIONS', 'AUDIT_LOGS'
+                              'CAMPAIGN_PARTICIPATIONS', 'NOTIFICATIONS', 'AUDIT_LOGS',
+                              'PASSWORD_RESET_TOKENS', 'OAUTH_ACCOUNTS'
                           )
                         """,
                 Integer.class);
 
-        assertThat(migrationCount).isGreaterThanOrEqualTo(6);
+        assertThat(migrationCount).isGreaterThanOrEqualTo(7);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(8);
-        assertThat(coreTableCount).isEqualTo(28);
+        assertThat(coreTableCount).isEqualTo(30);
     }
 
     @Test

@@ -21,6 +21,25 @@ spring:
       name: test
       password: test
 
+app:
+  security:
+    jwt:
+      secret: test-only-jwt-secret-key-that-is-long-enough
+      issuer: neulbom-test
+      access-token-ttl: 1h
+      refresh-token-ttl: 30d
+  oauth:
+    kakao:
+      client-id: test-kakao-client
+      client-secret: test-kakao-secret
+      token-uri: http://localhost:9999/kakao/token
+      user-info-uri: http://localhost:9999/kakao/user
+    naver:
+      client-id: test-naver-client
+      client-secret: test-naver-secret
+      token-uri: http://localhost:9999/naver/token
+      user-info-uri: http://localhost:9999/naver/user
+
 logging:
   level:
     root: WARN
