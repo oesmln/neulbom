@@ -11,6 +11,11 @@ spring:
     multipart:
       max-file-size: ${APP_MAX_UPLOAD_SIZE:25MB}
       max-request-size: ${APP_MAX_REQUEST_SIZE:30MB}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    clean-disabled: true
 
 server:
   port: ${SERVER_PORT:8080}
