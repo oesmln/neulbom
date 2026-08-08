@@ -5,9 +5,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
@@ -20,6 +23,9 @@ import com.neulbom.backend.auth.oauth.OAuthProfile;
 import com.neulbom.backend.auth.oauth.OAuthProviderClient;
 import com.neulbom.backend.auth.oauth.OAuthProviderClientRegistry;
 import com.neulbom.backend.auth.service.PasswordResetNotifier;
+import com.neulbom.backend.common.audit.AuditLogRepository;
+import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
+import com.neulbom.backend.config.ServerWorkerOnly;
 import com.neulbom.backend.user.OAuthAccountRepository;
 import com.neulbom.backend.user.RefreshTokenRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -32,11 +38,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(AuthIntegrationTest.WorkerEndpointTestConfig.class)
 class AuthIntegrationTest {
 
     @Autowired
@@ -54,6 +67,9 @@ class AuthIntegrationTest {
     @Autowired
     private OAuthAccountRepository oauthAccountRepository;
 
+    @Autowired
+    private AuditLogRepository auditLogRepository;
+
     @MockitoBean
     private PasswordResetNotifier passwordResetNotifier;
 
@@ -69,7 +85,7 @@ class AuthIntegrationTest {
     void registerStoresBcryptHashAndRejectsDuplicateEmail() throws Exception {
         String email = uniqueEmail("register");
 
-        mockMvc.perform(post("/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson(email, "password-1234")))
                 .andExpect(status().isCreated())
@@ -82,7 +98,7 @@ class AuthIntegrationTest {
                 .startsWith("$2a$")
                 .doesNotContain("password-1234");
 
-        mockMvc.perform(post("/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson(email, "password-1234")))
                 .andExpect(status().isConflict());
@@ -95,7 +111,7 @@ class AuthIntegrationTest {
 
         AuthTokenResponse first = login(email, "password-1234");
         AuthTokenResponse rotated = objectMapper.readValue(
-                mockMvc.perform(post("/auth/refresh")
+                mockMvc.perform(post("/api/v1/auth/refresh")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(json("refresh_token", first.refreshToken())))
                         .andExpect(status().isOk())
@@ -103,12 +119,12 @@ class AuthIntegrationTest {
                         .andReturn().getResponse().getContentAsString(),
                 AuthTokenResponse.class);
 
-        mockMvc.perform(post("/auth/refresh")
+        mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("refresh_token", first.refreshToken())))
                 .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/auth/logout")
+        mockMvc.perform(post("/api/v1/auth/logout")
                         .with(jwt().jwt(existing -> existing
                                 .subject(rotated.userId().toString())
                                 .claim("role", rotated.role())))
@@ -116,7 +132,7 @@ class AuthIntegrationTest {
                         .content(json("refresh_token", rotated.refreshToken())))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/auth/refresh")
+        mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("refresh_token", rotated.refreshToken())))
                 .andExpect(status().isUnauthorized());
@@ -133,28 +149,187 @@ class AuthIntegrationTest {
             return null;
         }).when(passwordResetNotifier).send(anyString(), anyString(), any(Instant.class));
 
-        mockMvc.perform(post("/auth/password/reset/request")
+        mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                        .with(request -> {
+                            request.setRemoteAddr("10.0.0.1");
+                            return request;
+                        })
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\"}"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.request_id").isNotEmpty());
 
-        mockMvc.perform(post("/auth/password/reset/confirm")
+        mockMvc.perform(post("/api/v1/auth/password/reset/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reset_token\":\"" + resetToken.get()
                                 + "\",\"new_password\":\"new-password-123\"}"))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/auth/password/reset/confirm")
+        mockMvc.perform(post("/api/v1/auth/password/reset/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reset_token\":\"" + resetToken.get()
                                 + "\",\"new_password\":\"another-password-123\"}"))
                 .andExpect(status().isGone());
-        mockMvc.perform(post("/auth/refresh")
+        mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("refresh_token", oldSession.refreshToken())))
                 .andExpect(status().isUnauthorized());
         login(email, "new-password-123");
+    }
+
+    @Test
+    void passwordResetRequestRateLimitDoesNotRevealAccountExistence() throws Exception {
+        String email = uniqueEmail("rate-limit");
+        String body = "{\"email\":\"" + email + "\"}";
+
+        mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                        .with(request -> {
+                            request.setRemoteAddr("10.0.0.1");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                        .with(request -> {
+                            request.setRemoteAddr("10.0.0.1");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.code").value(429))
+                .andExpect(jsonPath("$.error").value("요청이 너무 많습니다."));
+    }
+
+    @Test
+    void passwordResetRequestLimitsIpAcrossDifferentEmails() throws Exception {
+        for (int index = 0; index < 3; index++) {
+            String email = uniqueEmail("ip-rate-limit-" + index);
+            mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                            .with(request -> {
+                                request.setRemoteAddr("10.0.0.2");
+                                return request;
+                            })
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"" + email + "\"}"))
+                    .andExpect(status().isAccepted());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/password/reset/request")
+                        .with(request -> {
+                            request.setRemoteAddr("10.0.0.2");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + uniqueEmail("ip-rate-limit-blocked") + "\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"));
+    }
+
+    @Test
+    void authenticatedUserChangesPasswordAndRevokesRefreshTokensByDefault() throws Exception {
+        String email = uniqueEmail("change-password");
+        register(email, "old-password-123");
+        AuthTokenResponse session = login(email, "old-password-123");
+        long auditCountBefore = auditLogRepository.count();
+
+        mockMvc.perform(patch("/api/v1/users/me/password")
+                        .with(jwt().jwt(existing -> existing
+                                .subject(session.userId().toString())
+                                .claim("role", session.role())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "current_password": "old-password-123",
+                                  "new_password": "new-password-123"
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("refresh_token", session.refreshToken())))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson(email, "old-password-123")))
+                .andExpect(status().isUnauthorized());
+        login(email, "new-password-123");
+        org.assertj.core.api.Assertions.assertThat(auditLogRepository.count()).isEqualTo(auditCountBefore + 1);
+    }
+
+    @Test
+    void passwordChangeRejectsWrongCurrentPasswordAndSameNewPassword() throws Exception {
+        String email = uniqueEmail("invalid-change-password");
+        register(email, "password-1234");
+        AuthTokenResponse session = login(email, "password-1234");
+
+        mockMvc.perform(patch("/api/v1/users/me/password")
+                        .with(jwt().jwt(existing -> existing
+                                .subject(session.userId().toString())
+                                .claim("role", session.role())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "current_password": "wrong-password",
+                                  "new_password": "new-password-123"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(patch("/api/v1/users/me/password")
+                        .with(jwt().jwt(existing -> existing
+                                .subject(session.userId().toString())
+                                .claim("role", session.role())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "current_password": "password-1234",
+                                  "new_password": "password-1234"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void passwordChangeKeepsRefreshTokensWhenExplicitlyRequested() throws Exception {
+        String email = uniqueEmail("keep-session-password");
+        register(email, "old-password-123");
+        AuthTokenResponse session = login(email, "old-password-123");
+
+        mockMvc.perform(patch("/api/v1/users/me/password")
+                        .with(jwt().jwt(existing -> existing
+                                .subject(session.userId().toString())
+                                .claim("role", session.role())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "current_password": "old-password-123",
+                                  "new_password": "new-password-123",
+                                  "logout_other_sessions": false
+                                }
+                                """))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("refresh_token", session.refreshToken())))
+                .andExpect(status().isOk());
+        login(email, "new-password-123");
+    }
+
+    @Test
+    void legacyUnversionedLoginPathIsNotPublic() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginJson("missing@example.com", "password-1234")))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -167,7 +342,7 @@ class AuthIntegrationTest {
 
         String body = "{\"authorization_code\":\"one-time-code\",\"redirect_uri\":\"http://localhost/callback\","
                 + "\"role\":\"elder\"}";
-        String firstResponse = mockMvc.perform(post("/auth/oauth/kakao")
+        String firstResponse = mockMvc.perform(post("/api/v1/auth/oauth/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -175,13 +350,13 @@ class AuthIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         AuthTokenResponse firstSession = objectMapper.readValue(firstResponse, AuthTokenResponse.class);
 
-        mockMvc.perform(post("/auth/oauth/kakao")
+        mockMvc.perform(post("/api/v1/auth/oauth/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.is_new_user").value(false));
 
-        mockMvc.perform(delete("/users/me")
+        mockMvc.perform(delete("/api/v1/users/me")
                         .with(jwt().jwt(existing -> existing
                                 .subject(firstSession.userId().toString())
                                 .claim("role", firstSession.role()))))
@@ -192,12 +367,35 @@ class AuthIntegrationTest {
     }
 
     @Test
+    void oauthProviderFailureReturnsSafeServiceUnavailableResponse() throws Exception {
+        OAuthProviderClient client = org.mockito.Mockito.mock(OAuthProviderClient.class);
+        when(oauthProviderClientRegistry.clientFor("kakao")).thenReturn(client);
+        when(client.fetchProfile(any())).thenThrow(new ExternalServiceUnavailableException("소셜 provider 응답 지연"));
+
+        mockMvc.perform(post("/api/v1/auth/oauth/kakao")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authorization_code": "secret-one-time-code",
+                                  "redirect_uri": "http://localhost/callback",
+                                  "role": "elder"
+                                }
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.detail").value("소셜 provider 응답 지연"))
+                .andExpect(result -> org.assertj.core.api.Assertions.assertThat(
+                                result.getResponse().getContentAsString())
+                        .doesNotContain("secret-one-time-code"));
+    }
+
+    @Test
     void accountWithdrawalAnonymizesUserAndRevokesRefreshToken() throws Exception {
         String email = uniqueEmail("withdraw");
         register(email, "password-1234");
         AuthTokenResponse session = login(email, "password-1234");
 
-        mockMvc.perform(delete("/users/me")
+        mockMvc.perform(delete("/api/v1/users/me")
                         .with(jwt().jwt(existing -> existing
                                 .subject(session.userId().toString())
                                 .claim("role", session.role())))
@@ -210,11 +408,11 @@ class AuthIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(withdrawn.getPasswordHash()).isNull();
         org.assertj.core.api.Assertions.assertThat(refreshTokenRepository.findByTokenHash("not-a-real-hash")).isEmpty();
 
-        mockMvc.perform(post("/auth/refresh")
+        mockMvc.perform(post("/api/v1/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json("refresh_token", session.refreshToken())))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/auth/login")
+        mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson(email, "password-1234")))
                 .andExpect(status().isUnauthorized());
@@ -222,21 +420,48 @@ class AuthIntegrationTest {
 
     @Test
     void protectedEndpointsRejectMissingAndMalformedAccessTokens() throws Exception {
-        mockMvc.perform(delete("/users/me"))
+        mockMvc.perform(delete("/api/v1/users/me"))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(delete("/users/me").header("Authorization", "Bearer malformed"))
+        mockMvc.perform(delete("/api/v1/users/me").header("Authorization", "Bearer malformed"))
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void serverWorkerEndpointRejectsAppRoleAndAcceptsServerScope() throws Exception {
+        mockMvc.perform(get("/api/v1/internal/worker-test")
+                        .with(jwt().jwt(existing -> existing
+                                .subject(UUID.randomUUID().toString())
+                                .claim("role", "elder"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/internal/worker-test")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_server:write"))))
+                .andExpect(status().isNoContent());
+    }
+
+    @TestConfiguration
+    static class WorkerEndpointTestConfig {
+
+        @RestController
+        static class WorkerEndpoint {
+
+            @GetMapping("/api/v1/internal/worker-test")
+            @ServerWorkerOnly
+            ResponseEntity<Void> execute() {
+                return ResponseEntity.noContent().build();
+            }
+        }
+    }
+
     private void register(String email, String password) throws Exception {
-        mockMvc.perform(post("/auth/register")
+        mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson(email, password)))
                 .andExpect(status().isCreated());
     }
 
     private AuthTokenResponse login(String email, String password) throws Exception {
-        String response = mockMvc.perform(post("/auth/login")
+        String response = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginJson(email, password)))
                 .andExpect(status().isOk())

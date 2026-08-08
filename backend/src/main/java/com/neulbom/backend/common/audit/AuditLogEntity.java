@@ -39,4 +39,27 @@ public class AuditLogEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected AuditLogEntity() {
+    }
+
+    public AuditLogEntity(
+            UUID id,
+            UUID actorUserId,
+            UUID targetUserId,
+            String action,
+            String resourceType,
+            UUID resourceId,
+            String metadata,
+            Instant createdAt
+    ) {
+        this.id = id;
+        this.actorUserId = actorUserId;
+        this.targetUserId = targetUserId;
+        this.action = action;
+        this.resourceType = resourceType;
+        this.resourceId = resourceId;
+        this.metadata = metadata;
+        this.createdAt = createdAt;
+    }
 }
