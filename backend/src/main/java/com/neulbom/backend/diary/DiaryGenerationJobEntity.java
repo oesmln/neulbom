@@ -54,4 +54,54 @@ public class DiaryGenerationJobEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected DiaryGenerationJobEntity() {
+    }
+
+    public DiaryGenerationJobEntity(
+            UUID id,
+            UUID userId,
+            UUID dailySummaryId,
+            LocalDate targetDate,
+            String status,
+            Instant scheduledAt,
+            Instant availableAt,
+            UUID diaryId,
+            String failureReason,
+            int retryCount,
+            int maxRetries,
+            String lastError,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.dailySummaryId = dailySummaryId;
+        this.targetDate = targetDate;
+        this.status = status;
+        this.scheduledAt = scheduledAt;
+        this.availableAt = availableAt;
+        this.diaryId = diaryId;
+        this.failureReason = failureReason;
+        this.retryCount = retryCount;
+        this.maxRetries = maxRetries;
+        this.lastError = lastError;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
+    public UUID getDailySummaryId() { return dailySummaryId; }
+    public LocalDate getTargetDate() { return targetDate; }
+    public String getStatus() { return status; }
+    public Instant getScheduledAt() { return scheduledAt; }
+    public Instant getAvailableAt() { return availableAt; }
+    public UUID getDiaryId() { return diaryId; }
+    public String getFailureReason() { return failureReason; }
+    public int getRetryCount() { return retryCount; }
+    public int getMaxRetries() { return maxRetries; }
+    public String getLastError() { return lastError; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

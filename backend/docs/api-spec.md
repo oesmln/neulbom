@@ -1723,6 +1723,14 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 일기 작성자 또는 연결된 보호자만 조회할 수 있다. `reactions[]`에 `reaction_id`, `reactor_id`, `reactor_name`, `reaction_type`, `message`, `created_at`을 포함한다.
 
+#### 백엔드 구현 메모 (v1.3)
+
+- `POST /diaries/from-session`은 저장된 세션 요약을 재사용하고, 본문을 함께 보내면 사용자가 수정한 본문을 우선 저장한다.
+- `POST /diaries/from-daily-summary`는 `daily_summary_id`를 작업 멱등 키로 사용하며 `202`와 `scheduled|processing|completed|failed|conversation_incomplete` 상태를 반환한다. 동일 요약 재요청은 기존 job/일기를 반환한다.
+- `GET /diaries/{user_id}`와 `GET /diaries/{diary_id}`가 동일한 경로 템플릿을 공유하므로 서버는 먼저 diary ID 존재 여부를 확인하고 없으면 사용자 목록 응답을 반환한다.
+- 반응은 `(diary_id, reactor_id, reaction_type)` unique 정책으로 중복 저장을 막고, 보호자 연결의 `diary` access scope를 확인한다.
+- 캘린더는 `from_date`·`to_date`와 `types` 필터를 서버에서 적용하고, 일기 감정값은 `metadata.mood`, `metadata.mood_level`로 반환한다.
+
 ## 9. 미니게임·캐릭터 API
 
 ### 9.1 `POST /game/result` - 미니게임 결과 전송

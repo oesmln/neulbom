@@ -150,19 +150,21 @@
 
 기반: `diaries`, `diary_reactions` 테이블과 세션 요약 연결
 
-- [ ] `POST /diaries` - 텍스트·음성 일기 생성
-- [ ] `POST /diaries/from-session` - AI 문답 요약으로 일기 생성
-- [ ] `POST /diaries/from-daily-summary` - 하루 대화 집계 요약으로 일기 생성
-- [ ] `GET /diaries/{user_id}/generation-status` - 날짜별 0시 일기 생성 상태 조회
-- [ ] `GET /diaries/{user_id}` - 날짜별 일기 목록 조회
-- [ ] `GET /diaries/{diary_id}` - 일기 상세 조회
-- [ ] `PATCH /diaries/{diary_id}` - 일기 수정
-- [ ] `DELETE /diaries/{diary_id}` - 일기 삭제
-- [ ] `POST /diaries/{diary_id}/reactions` - 보호자 반응·메시지 저장
-- [ ] `GET /diaries/{diary_id}/reactions` - 일기 반응 조회
-- [ ] `GET /calendar/{user_id}/activities` - 일기·검사·게임·캠페인 활동 조회
+- [x] `POST /diaries` - 텍스트·음성 일기 생성
+- [x] `POST /diaries/from-session` - AI 문답 요약으로 일기 생성
+- [x] `POST /diaries/from-daily-summary` - 하루 대화 집계 요약으로 일기 생성
+- [x] `GET /diaries/{user_id}/generation-status` - 날짜별 0시 일기 생성 상태 조회
+- [x] `GET /diaries/{user_id}` - 날짜별 일기 목록 조회
+- [x] `GET /diaries/{diary_id}` - 일기 상세 조회
+- [x] `PATCH /diaries/{diary_id}` - 일기 수정
+- [x] `DELETE /diaries/{diary_id}` - 일기 삭제
+- [x] `POST /diaries/{diary_id}/reactions` - 보호자 반응·메시지 저장
+- [x] `GET /diaries/{diary_id}/reactions` - 일기 반응 조회
+- [x] `GET /calendar/{user_id}/activities` - 일기·검사·게임·캠페인 활동 조회
 
-완료 조건: 문답 결과를 일기로 저장하고, 캘린더에서 활동을 확인하며, 보호자가 일기에 반응할 수 있다.
+완료 조건: 문답 결과를 일기로 저장하고, 캘린더에서 활동을 확인하며, 보호자가 일기에 반응할 수 있다. `DiaryService`는 KST 기준 생성 상태·daily_summary 중복·작성자/보호자 scope를 저장·검증한다.
+
+구현 근거: 일기 CRUD·세션/일일 요약 연결·생성 job 상태·reaction unique 정책·날짜/활동 유형 캘린더 aggregation을 구현했고, 실제 푸시 알림 이벤트와 0시 외부 워커 스케줄은 알림/운영 워커 연결 단계에서 이어간다.
 
 ### 9차. 게임·캐릭터·캠페인 API
 
@@ -871,50 +873,50 @@
 
 ### 10.1 일기
 
-- [ ] `POST /diaries`를 구현한다.
-- [ ] `POST /diaries/from-session`을 구현한다.
-- [ ] `POST /diaries/from-daily-summary`를 구현한다.
-- [ ] 생성 요청은 `202`와 `processing|completed|failed|conversation_incomplete` 작업 상태를 반환한다.
-- [ ] `GET /diaries/{user_id}/generation-status`를 구현한다.
-- [ ] 0시 생성 예정·처리 중·완료·실패 상태와 재시도 가능 여부를 홈·대화 완료 화면에 제공한다.
+- [x] `POST /diaries`를 구현한다.
+- [x] `POST /diaries/from-session`을 구현한다.
+- [x] `POST /diaries/from-daily-summary`를 구현한다.
+- [x] 생성 요청은 `202`와 `processing|completed|failed|conversation_incomplete` 작업 상태를 반환한다.
+- [x] `GET /diaries/{user_id}/generation-status`를 구현한다.
+- [x] 0시 생성 예정·처리 중·완료·실패 상태와 재시도 가능 여부를 홈·대화 완료 화면에 제공한다.
 - [ ] 생성 완료·실패 시 설정을 확인해 알림 이벤트를 생성한다.
-- [ ] `GET /diaries/{user_id}`를 구현한다.
-- [ ] `GET /diaries/{diary_id}`를 구현한다.
-- [ ] `PATCH /diaries/{diary_id}`를 구현한다.
-- [ ] `DELETE /diaries/{diary_id}`를 구현한다.
-- [ ] `source_type`을 `manual`, `voice`, `session`, `daily_summary`로 관리한다.
-- [ ] `daily_summary_id`를 일기와 nullable 관계로 연결한다.
-- [ ] `Asia/Seoul` 기준 하루 대화 집계를 0시 이후 일기로 생성한다.
-- [ ] 같은 `daily_summary_id`로 일기가 중복 생성되지 않게 한다.
-- [ ] 일기에 `mood`와 `mood_level`을 저장하고 캘린더 활동의 `metadata`에 포함한다.
-- [ ] `mood`를 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`로 제한하고 `mood_level`을 `1~5`로 검증한다.
-- [ ] 문답 요약에서 일기를 만들 때 사용자가 본문을 수정할 수 있게 한다.
-- [ ] 작성자만 일기를 수정·삭제할 수 있도록 한다.
+- [x] `GET /diaries/{user_id}`를 구현한다.
+- [x] `GET /diaries/{diary_id}`를 구현한다.
+- [x] `PATCH /diaries/{diary_id}`를 구현한다.
+- [x] `DELETE /diaries/{diary_id}`를 구현한다.
+- [x] `source_type`을 `manual`, `voice`, `session`, `daily_summary`로 관리한다.
+- [x] `daily_summary_id`를 일기와 nullable 관계로 연결한다.
+- [x] `Asia/Seoul` 기준 하루 대화 집계를 0시 이후 일기로 생성한다.
+- [x] 같은 `daily_summary_id`로 일기가 중복 생성되지 않게 한다.
+- [x] 일기에 `mood`와 `mood_level`을 저장하고 캘린더 활동의 `metadata`에 포함한다.
+- [x] `mood`를 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`로 제한하고 `mood_level`을 `1~5`로 검증한다.
+- [x] 문답 요약에서 일기를 만들 때 사용자가 본문을 수정할 수 있게 한다.
+- [x] 작성자만 일기를 수정·삭제할 수 있도록 한다.
 
 ### 10.2 보호자 반응
 
-- [ ] `POST /diaries/{diary_id}/reactions`를 구현한다.
-- [ ] `GET /diaries/{diary_id}/reactions`를 구현한다.
-- [ ] `heart`, `smile`, `cheer`, `pray`, `cry`, `message`를 허용한다.
-- [ ] `message` 반응일 때 메시지를 필수로 한다.
-- [ ] 반응 작성자와 대상 일기의 연결 권한을 확인한다.
-- [ ] 같은 사용자가 동일 일기에 같은 반응을 여러 번 남길 수 있는지 정책을 정한다.
+- [x] `POST /diaries/{diary_id}/reactions`를 구현한다.
+- [x] `GET /diaries/{diary_id}/reactions`를 구현한다.
+- [x] `heart`, `smile`, `cheer`, `pray`, `cry`, `message`를 허용한다.
+- [x] `message` 반응일 때 메시지를 필수로 한다.
+- [x] 반응 작성자와 대상 일기의 연결 권한을 확인한다.
+- [x] 동일 일기에 같은 사용자의 같은 반응은 기존 행을 반환하는 멱등 정책을 적용한다.
 
 ### 10.3 캘린더
 
-- [ ] `GET /calendar/{user_id}/activities`를 구현한다.
-- [ ] `diary`, `screening`, `emotional_qa`, `game`, `campaign` 활동을 통합한다.
-- [ ] 날짜 범위와 활동 유형 필터를 지원한다.
-- [ ] 각 활동의 `reference_id`로 상세 화면 이동이 가능하게 한다.
-- [ ] 일기 활동의 감정 아이콘을 `metadata.mood`와 `metadata.mood_level`로 표시한다.
-- [ ] 활동이 없는 날짜의 빈 응답을 정의한다.
-- [ ] 여러 대화 세션과 일일 집계·일기를 같은 `local_date` 기준으로 표시한다.
+- [x] `GET /calendar/{user_id}/activities`를 구현한다.
+- [x] `diary`, `screening`, `emotional_qa`, `game`, `campaign` 활동을 통합한다.
+- [x] 날짜 범위와 활동 유형 필터를 지원한다.
+- [x] 각 활동의 `reference_id`로 상세 화면 이동이 가능하게 한다.
+- [x] 일기 활동의 감정 아이콘을 `metadata.mood`와 `metadata.mood_level`로 표시한다.
+- [x] 활동이 없는 날짜의 빈 응답을 정의한다.
+- [x] 여러 대화 세션과 일일 집계·일기를 같은 `local_date` 기준으로 표시한다.
 
 ### 10단계 완료 조건
 
-- [ ] AI 문답 결과를 일기로 저장할 수 있다.
-- [ ] 캘린더에서 일기와 검사·게임 활동을 날짜별로 확인할 수 있다.
-- [ ] 보호자가 일기를 열람하고 반응을 남길 수 있다.
+- [x] AI 문답 결과를 일기로 저장할 수 있다.
+- [x] 캘린더에서 일기와 검사·게임 활동을 날짜별로 확인할 수 있다.
+- [x] 보호자가 일기를 열람하고 반응을 남길 수 있다.
 
 ---
 
