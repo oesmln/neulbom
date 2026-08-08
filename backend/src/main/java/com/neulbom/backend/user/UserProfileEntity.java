@@ -41,4 +41,67 @@ public class UserProfileEntity {
 
     @Column(name = "smartphone_skill", length = 20)
     private String smartphoneSkill;
+
+    protected UserProfileEntity() {
+    }
+
+    public UserProfileEntity(UUID userId) {
+        this.userId = userId;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public Integer getEducationYears() {
+        return educationYears;
+    }
+
+    public Boolean getLiteracy() {
+        return literacy;
+    }
+
+    public String getHealthConditions() {
+        return healthConditions;
+    }
+
+    public String getAlcoholUse() {
+        return alcoholUse;
+    }
+
+    public String getSmokingStatus() {
+        return smokingStatus;
+    }
+
+    public String getHearingStatus() {
+        return hearingStatus;
+    }
+
+    public Boolean getCommunicationDifficulty() {
+        return communicationDifficulty;
+    }
+
+    public String getSmartphoneSkill() {
+        return smartphoneSkill;
+    }
+
+    public void update(
+            Integer educationYears,
+            Boolean literacy,
+            String healthConditions,
+            String alcoholUse,
+            String smokingStatus,
+            String hearingStatus,
+            Boolean communicationDifficulty,
+            String smartphoneSkill
+    ) {
+        this.educationYears = educationYears;
+        this.literacy = literacy;
+        this.healthConditions = healthConditions;
+        this.alcoholUse = alcoholUse;
+        this.smokingStatus = smokingStatus;
+        this.hearingStatus = hearingStatus;
+        this.communicationDifficulty = communicationDifficulty;
+        this.smartphoneSkill = smartphoneSkill;
+    }
 }

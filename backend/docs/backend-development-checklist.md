@@ -58,15 +58,17 @@
 
 기반: 인증 API와 `users`, `user_preferences`, `consents`, `voice_profiles` 테이블
 
-- [ ] `GET /users/{user_id}` - 프로필·초기 사용자 정보 조회
-- [ ] `PATCH /users/{user_id}` - 프로필·학력·건강·생활습관 정보 수정
-- [ ] `GET /users/{user_id}/preferences` - 청취·음성·자막 설정 조회
-- [ ] `PATCH /users/{user_id}/preferences` - 잘 들리는 귀·음성·속도·자막·알림 설정 저장
-- [ ] `GET /voice-profiles` - 선택 가능한 안내 음성 목록 조회
-- [ ] `POST /consent/{user_id}` - 개인정보·음성·분석·보호자 접근 동의 저장
-- [ ] `GET /consent/{user_id}` - 동의 상태 조회
+- [x] `GET /users/{user_id}` - 프로필·초기 사용자 정보 조회
+- [x] `PATCH /users/{user_id}` - 프로필·학력·건강·생활습관 정보 수정
+- [x] `GET /users/{user_id}/preferences` - 청취·음성·자막 설정 조회
+- [x] `PATCH /users/{user_id}/preferences` - 잘 들리는 귀·음성·속도·자막·알림 설정 저장
+- [x] `GET /voice-profiles` - 선택 가능한 안내 음성 목록 조회
+- [x] `POST /consent/{user_id}` - 개인정보·음성·분석·보호자 접근 동의 저장
+- [x] `GET /consent/{user_id}` - 동의 상태 조회
 
-완료 조건: 신규 고령자가 최초 검사 전에 필요한 정보를 저장하고, 동의하지 않은 기능은 활성화되지 않는다.
+완료 조건: 신규 고령자가 최초 검사 전에 필요한 정보를 저장하고, 본인 외 접근을 차단하며, 동의하지 않은 기능의 실제 활성화 차단은 보호자 연결·기능 이벤트 단계에서 추가 검증한다.
+
+구현 근거: `UserOnboardingController`·`UserOnboardingService`와 각 Repository, 기본 설정·enum·범위 검증, owner 권한·음성 profile·동의 버전 중복 테스트를 반영했다. 보호자 연결에 따른 대리 조회 권한은 3차 구현에서 연결한다.
 
 ### 3차. 보호자 연결 API
 
