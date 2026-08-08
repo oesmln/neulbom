@@ -40,13 +40,16 @@
 
 기반: `users`, `refresh_tokens` 테이블과 Spring Security 설정
 
-- [ ] `POST /auth/register` - 회원가입
-- [ ] `POST /auth/login` - 로그인 및 access token·refresh token 발급
-- [ ] `POST /auth/oauth/{provider}` - 카카오·네이버 소셜 로그인 및 access token·refresh token 발급
-- [ ] `POST /auth/password/reset/request` - 비밀번호 재설정 요청
-- [ ] `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
-- [ ] `POST /auth/refresh` - access token 갱신
-- [ ] `POST /auth/logout` - refresh token 폐기
+- [x] `POST /auth/register` - 회원가입
+- [x] `POST /auth/login` - 로그인 및 access token·refresh token 발급
+- [x] `POST /auth/oauth/{provider}` - 카카오·네이버 소셜 로그인 및 access token·refresh token 발급
+- [x] `POST /auth/password/reset/request` - 비밀번호 재설정 요청
+- [x] `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
+- [x] `POST /auth/refresh` - access token 갱신
+- [x] `POST /auth/logout` - refresh token 폐기
+- [x] `DELETE /users/me` - 회원탈퇴 및 계정 비활성화
+
+비밀번호 재설정의 `PasswordResetNotifier` 전달 경계와 token 저장·폐기 로직은 구현했다. 실제 이메일·SMS provider 연결과 email/IP rate limit은 운영 준비 작업으로 남아 있다.
 
 완료 조건: 회원가입 → 로그인 → 인증 API 호출 → 토큰 갱신 → 로그아웃 흐름이 동작한다.
 
@@ -425,32 +428,44 @@
 
 ### 3.1 회원가입·로그인
 
-- [ ] `POST /auth/register`를 구현한다.
-- [ ] 이메일 형식과 중복 이메일을 검증한다.
-- [ ] 비밀번호 8자 이상 및 정책을 검증한다.
-- [ ] 비밀번호를 BCrypt 등 단방향 해시로 저장한다.
-- [ ] `role`을 허용 목록으로 제한한다.
-- [ ] 회원가입 응답에서 비밀번호를 절대 반환하지 않는다.
-- [ ] `POST /auth/login`을 구현한다.
-- [ ] 로그인 성공 시 access token과 refresh token을 발급한다.
-- [ ] 로그인 실패 시 이메일 존재 여부를 노출하지 않는다.
-- [ ] `POST /auth/oauth/{provider}`를 구현하고 `kakao`, `naver` provider만 허용한다.
-- [ ] provider authorization code를 서버에서 교환하고 code·provider token을 로그에 남기지 않는다.
-- [ ] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
-- [ ] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
-- [ ] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
+- [x] `POST /auth/register`를 구현한다.
+- [x] 이메일 형식과 중복 이메일을 검증한다.
+- [x] 비밀번호 8자 이상 및 정책을 검증한다.
+- [x] 비밀번호를 BCrypt 등 단방향 해시로 저장한다.
+- [x] `role`을 허용 목록으로 제한한다.
+- [x] 회원가입 응답에서 비밀번호를 절대 반환하지 않는다.
+- [x] `POST /auth/login`을 구현한다.
+- [x] 로그인 성공 시 access token과 refresh token을 발급한다.
+- [x] 로그인 실패 시 이메일 존재 여부를 노출하지 않는다.
+- [x] `POST /auth/oauth/{provider}`를 구현하고 `kakao`, `naver` provider만 허용한다.
+- [x] provider authorization code를 서버에서 교환하고 code·provider token을 로그에 남기지 않는다.
+- [x] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
+- [x] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
+- [x] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
+- [x] `PasswordResetNotifier` adapter를 통해 provider 연결 지점을 분리한다.
+- [ ] 운영 이메일 provider credential과 발신 주소를 secret manager로 연결한다.
+- [ ] 인증된 전화번호를 보유한 사용자에 대한 SMS provider와 발송 채널 정책을 연결한다.
+- [ ] 동일 이메일·IP 기준 rate limit을 구현하고 환경변수로 조정 가능하게 한다.
+- [ ] rate limit 초과 시 `429`와 `Retry-After`를 반환하고 계정 존재 여부를 노출하지 않는다.
+- [ ] provider 장애 시 재시도·실패 모니터링을 연결하고 token 원문을 응답·로그에 남기지 않는다.
+- [x] `DELETE /users/me` 회원탈퇴를 구현한다.
+- [x] 회원탈퇴 시 계정 상태를 `withdrawn`으로 변경하고 로그인 개인정보를 비식별화한다.
+- [x] 회원탈퇴 시 refresh token·비밀번호 재설정 token·OAuth 계정 연결을 폐기한다.
+- [x] 회원탈퇴 API는 URL의 `user_id`를 받지 않고 JWT subject로 본인 계정을 식별한다.
 
 ### 3.2 JWT·세션 보안
 
-- [ ] JWT access token 만료 시간을 설정한다.
-- [ ] refresh token 저장·폐기 정책을 구현한다.
-- [ ] refresh token rotation 여부를 결정한다.
-- [ ] `POST /auth/refresh`를 구현한다.
-- [ ] `POST /auth/logout`에서 refresh token을 폐기한다.
-- [ ] access token 검증 필터를 등록한다.
-- [ ] 만료 토큰과 잘못된 토큰을 `401`로 반환한다.
-- [ ] `ROLE_ELDER`, `ROLE_GUARDIAN` 권한 매핑을 구현한다.
+- [x] JWT access token 만료 시간을 설정한다.
+- [x] refresh token 저장·폐기 정책을 구현한다.
+- [x] refresh token rotation 여부를 결정한다.
+- [x] `POST /auth/refresh`를 구현한다.
+- [x] `POST /auth/logout`에서 refresh token을 폐기한다.
+- [x] access token 검증 필터를 등록한다.
+- [x] 만료 토큰과 잘못된 토큰을 `401`로 반환한다.
+- [x] `ROLE_ELDER`, `ROLE_GUARDIAN` 권한 매핑을 구현한다.
 - [ ] 서버 작업 전용 API에 앱 사용자 토큰으로 접근하지 못하게 한다.
+
+구현 시 refresh token은 rotation 방식으로 새 token을 발급하고 기존 token을 즉시 폐기한다. 비밀번호 재설정·회원탈퇴에서도 해당 사용자의 refresh token을 모두 폐기한다.
 
 ### 3.3 소유권·IDOR 방지
 
@@ -460,11 +475,12 @@
 - [ ] 동의하지 않은 대상자의 결과·일기를 조회할 수 없는지 테스트한다.
 - [ ] 일기·녹음·세션 ID만 알아도 접근할 수 없는지 테스트한다.
 - [ ] 관리자 권한이 필요한 기능을 일반 보호자 권한과 분리한다.
+- [x] 회원탈퇴는 본인 JWT subject만 대상으로 처리해 `DELETE /users/me`의 IDOR 경로를 제거한다.
 
 ### 3단계 완료 조건
 
-- [ ] 회원가입 → 로그인 → 인증 API 호출 → 토큰 갱신 → 로그아웃 흐름이 동작한다.
-- [ ] 인증 없는 보호 API는 `401`을 반환한다.
+- [x] 회원가입 → 로그인 → 인증 API 호출 → 토큰 갱신 → 로그아웃 흐름이 동작한다.
+- [x] 인증 없는 보호 API는 `401`을 반환한다.
 - [ ] 역할이 맞지 않는 API는 `403`을 반환한다.
 - [ ] 주요 리소스의 소유권·연결·동의 검증 테스트가 통과한다.
 
@@ -1045,6 +1061,8 @@
 - [ ] Dockerfile 또는 배포 실행 방법을 작성한다.
 - [ ] 운영 DB migration 실행 순서를 정한다.
 - [ ] 환경변수와 secret 주입 방식을 정한다.
+- [ ] 이메일·SMS provider credential, 발신 정보, 재설정 링크 Base URL을 secret manager로 관리한다.
+- [ ] 비밀번호 재설정 email/IP rate limit과 `429`·`Retry-After` 동작을 운영 환경에서 검증한다.
 - [ ] `/health`와 DB·파일 저장소·외부 AI 상태 점검을 분리한다.
 - [ ] 에러 로그와 request ID로 요청을 추적할 수 있게 한다.
 - [ ] 음성 파일 보관 용량과 삭제 작업을 모니터링한다.

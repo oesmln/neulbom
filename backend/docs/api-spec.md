@@ -36,7 +36,7 @@
 
 | 구분 | 설명 |
 | --- | --- |
-| 공개 API | `/auth/register`, `/auth/login`, `/auth/refresh` |
+| 공개 API | `/auth/register`, `/auth/login`, `/auth/oauth/{provider}`, `/auth/password/reset/**`, `/auth/refresh` |
 | 사용자 본인 | 자신의 프로필, 세션, 일기, 게임, 캐릭터, 알림 조회·수정 |
 | `guardian` | 동의가 완료된 연결 대상자의 검사·결과·요약·활동·일기 조회 및 반응 작성 |
 | 서버 작업 전용 | AST, KcELECTRA, Gemini 분석 API. 앱에서 직접 호출하지 않고 서버 작업 큐에서 호출하는 것을 권장 |
@@ -120,6 +120,7 @@
 | `POST` | `/auth/password/reset/confirm` | 비밀번호 재설정 확정 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/refresh` | 액세스 토큰 갱신 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/logout` | 로그아웃 및 리프레시 토큰 폐기 | 필요 | 전체 | MVP |
+| `DELETE` | `/users/me` | 회원탈퇴 및 계정 비활성화 | 필요 | 본인 | MVP |
 | `GET` | `/users/{user_id}` | 사용자 및 초기 정보 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `PATCH` | `/users/{user_id}` | 사용자 및 초기 정보 수정 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/users/{user_id}/preferences` | 청취·음성·자막 설정 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -328,6 +329,15 @@
 - 재설정 token은 일회성·단기 유효값으로 발급하고 원문을 저장하지 않는다.
 - 존재하지 않는 이메일에도 `202`를 반환해 계정 존재 여부를 추측할 수 없게 한다.
 
+#### 발송 provider·요청 제한 정책
+
+- 현재 요청 계약은 `email`을 기준으로 하며, 서버의 `PasswordResetNotifier` adapter가 재설정 링크 또는 token 전달을 담당한다.
+- 운영에서는 이메일 provider를 연결하고, SMS를 지원할 경우 인증된 사용자 전화번호가 있는 계정에 한해 SMS provider를 연결한다. SMS를 앱에서 직접 선택하게 하는 `delivery_channel` 필드는 provider·전화번호 정책을 확정한 뒤 별도 계약으로 추가한다.
+- provider credential, 발신 주소·번호, 재설정 링크의 Base URL은 환경변수 또는 secret manager로 주입하며 소스와 로그에 저장하지 않는다.
+- 이메일 기준과 IP 기준의 rate limit을 모두 적용한다. 권장 초기값은 동일 이메일 15분당 3회, 동일 IP 1시간당 10회이며 운영 트래픽에 맞춰 환경변수로 조정한다.
+- 제한을 초과하면 `429`와 `Retry-After` 헤더를 반환한다. 계정 존재 여부가 드러나지 않도록 제한 전후의 응답 본문은 동일한 오류 형식을 사용한다.
+- provider 장애 시 token 원문을 응답·로그에 남기지 않고 전송 작업을 재시도하거나 실패 상태로 기록한다. 로컬·테스트 환경은 provider가 연결되지 않은 상태이므로 실제 메시지는 발송되지 않는다.
+
 ### 3.2.3 `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
 
 #### Request Body
@@ -354,9 +364,12 @@
 ```json
 {
   "access_token": "eyJ...",
+  "refresh_token": "eyJ...",
   "expires_in": 3600
 }
 ```
+
+응답의 `refresh_token`은 새 token이며, 요청에 사용한 기존 refresh token은 즉시 폐기한다. 모든 access token 응답은 `user_id`, `role`, `profile_completed`, `is_new_user` 필드를 함께 반환한다(`is_new_user`는 일반 로그인·갱신 시 `false`).
 
 ### 3.4 `POST /auth/logout` - 로그아웃
 
@@ -369,6 +382,20 @@
 #### Response `204`
 
 응답 본문 없음.
+
+### 3.4.1 `DELETE /users/me` - 회원탈퇴
+
+현재 access token의 사용자만 탈퇴할 수 있으며, URL에 다른 사용자의 `user_id`를 받지 않는다. 탈퇴 처리는 다음 순서로 수행한다.
+
+- 계정 상태를 `withdrawn`으로 변경하고 탈퇴 시각을 저장한다.
+- 재가입 시 이메일을 사용할 수 있도록 로그인 이메일·비밀번호·이름·연락처를 비식별화한다.
+- 해당 사용자의 모든 refresh token과 비밀번호 재설정 token을 폐기한다.
+- 카카오·네이버 OAuth 계정 연결을 해제한다.
+- 검사·일기·감사 로그 등 보존 대상 데이터는 별도 보존 정책에 따라 유지한다.
+
+#### Response `204`
+
+응답 본문 없음. 탈퇴 후 refresh token으로는 다시 인증할 수 없다.
 
 ### 3.5 `GET /users/{user_id}` - 사용자 및 초기 정보 조회
 
