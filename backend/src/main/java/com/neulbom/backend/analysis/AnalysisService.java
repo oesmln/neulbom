@@ -21,6 +21,7 @@ import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.guardian.GuardianAccessService;
+import com.neulbom.backend.notification.NotificationService;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
 import com.neulbom.backend.recording.TranscriptEntity;
@@ -69,6 +70,7 @@ public class AnalysisService {
     private final ObjectMapper objectMapper;
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     public AnalysisService(
             UserRepository userRepository,
@@ -83,7 +85,8 @@ public class AnalysisService {
             GuardianAccessService guardianAccessService,
             ObjectMapper objectMapper,
             UuidGenerator uuidGenerator,
-            Clock clock
+            Clock clock,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
@@ -98,6 +101,7 @@ public class AnalysisService {
         this.objectMapper = objectMapper;
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -238,6 +242,12 @@ public class AnalysisService {
         cognitiveAnalysisRepository.save(analysis);
         recording.markAnalysisCompleted(now);
         recordingRepository.save(recording);
+        notificationService.notifyScreening(
+                analysis.getUserId(),
+                analysis.getId(),
+                analysis.getSessionId(),
+                analysis.getRiskLevel(),
+                analysis.getLabel());
         return toCognitiveResponse(analysis);
     }
 
@@ -267,6 +277,7 @@ public class AnalysisService {
                 now,
                 now);
         sessionSummaryRepository.save(entity);
+        notificationService.notifySessionSummary(entity.getUserId(), entity.getId(), entity.getSessionId());
         return toSessionSummaryResponse(entity);
     }
 
@@ -312,6 +323,7 @@ public class AnalysisService {
                 now,
                 now);
         dailySummaryRepository.save(summary);
+        notificationService.notifyDailySummary(summary.getUserId(), summary.getId());
         return toDailySummaryResponse(summary);
     }
 

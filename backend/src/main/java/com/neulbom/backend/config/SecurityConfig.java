@@ -9,6 +9,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.neulbom.backend.common.filter.RequestIdFilter;
@@ -69,14 +70,16 @@ public class SecurityConfig {
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            java.util.Set<org.springframework.security.core.GrantedAuthority> authorities = new java.util.LinkedHashSet<>(
+                    scopeConverter.convert(jwt));
             String role = jwt.getClaimAsString("role");
-            if (role == null || role.isBlank()) {
-                return java.util.List.of();
+            if (role != null && !role.isBlank()) {
+                authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                        "ROLE_" + role.toUpperCase(java.util.Locale.ROOT)));
             }
-            return java.util.List.of(
-                    new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                            "ROLE_" + role.toUpperCase(java.util.Locale.ROOT)));
+            return authorities;
         });
         return converter;
     }

@@ -221,7 +221,7 @@
 | `POST` | `/character/{user_id}/xp` | 정서 문답·게임 완료 등 서버 이벤트 경험치 적립 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/guardian/{guardian_id}/report` | 선택한 고령자 종합 리포트 | 필요 | `guardian` | MVP |
 | `GET` | `/guardian/{guardian_id}/report/export` | 보호자 리포트 PDF·CSV 내보내기 | 필요 | `guardian` | MVP |
-| `POST` | `/notifications/push` | 서비스 알림 생성·발송 | 서버 전용 권장 | 서버 또는 권한 보유자 | MVP |
+| `POST` | `/notifications/push` | 서비스 알림 생성·발송 | 서버 전용 (`server:write`) | 서버 워커 | MVP |
 | `GET` | `/notifications/{user_id}` | 알림 목록 및 미읽음 수 | 필요 | 본인 | MVP |
 | `PATCH` | `/notifications/{id}/read` | 알림 읽음 처리 | 필요 | 수신자 | MVP |
 | `PATCH` | `/notifications/read-all` | 현재 사용자의 미읽음 알림 전체 읽음 처리 | 필요 | 수신자 | MVP |
@@ -1946,7 +1946,7 @@ Figma의 리포트 내보내기 동작에 사용한다. 연결·동의·`screeni
 | `type` | enum | Y | `screening_alert`, `screening_updated`, `session_complete`, `summary`, `diary_generated`, `diary_generation_failed`, `reminder`, `campaign`, `weekly_report`, `guardian_reaction` |
 | `severity` | enum | N | `info`, `success`, `caution`, `danger`; 기본 `info` |
 | `status_label` | string | N | `완료`, `주의`, `위험` 등 서버가 결정한 화면 배지 문구 |
-| `data` | object | N | 화면 이동용 추가 페이로드 |
+| `data` | object | N | 화면 이동용 추가 페이로드. 재시도 멱등 키가 필요하면 `event_id`를 포함한다. |
 
 #### Response `201`
 
@@ -1983,6 +1983,8 @@ Figma의 리포트 내보내기 동작에 사용한다. 연결·동의·`screeni
 | `unread_count` | integer | 미읽음 건수 |
 
 `data`는 가능한 경우 `target_route`, `reference_type`, `reference_id`, `elder_id`를 포함한다. `reference_type`은 `session`, `screening`, `diary`, `report`, `campaign` 중 하나며, 수신자가 해당 resource를 조회할 권한이 없으면 이동 전에 `403`을 반환한다. 알림 생성기는 수신자의 `push_notification_enabled`와 유형별 알림 설정을 확인하되, 앱 내부 알림 저장 여부와 OS push 발송 여부를 구분한다.
+
+`POST /notifications/push`는 `SCOPE_server:write` 권한을 가진 서버 작업만 호출할 수 있다. `data.event_id`가 같은 수신자에게 다시 전달되면 기존 알림을 반환해 분석 워커 재시도와 이벤트 중복 전달을 멱등 처리한다. 목록·읽음 endpoint는 JWT 주체가 `{user_id}` 또는 알림 수신자와 같은지 다시 확인하며, 전체 읽음은 요청 본문에 `user_id`를 받지 않고 현재 인증 사용자에게만 적용한다. 현재 구현은 매주 월요일 09:00(Asia/Seoul) 주간 리포트 워커가 `weekly_report` 알림 생성 경계를 호출하도록 정의했으며, 실제 OS push provider·스케줄러 연결은 운영 단계에서 추가한다.
 
 ### 11.3 `PATCH /notifications/{id}/read` - 읽음 처리
 

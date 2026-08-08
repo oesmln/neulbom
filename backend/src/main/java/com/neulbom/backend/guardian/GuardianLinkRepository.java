@@ -10,5 +10,7 @@ public interface GuardianLinkRepository extends JpaRepository<GuardianLinkEntity
 
     Optional<GuardianLinkEntity> findByGuardianIdAndElderId(UUID guardianId, UUID elderId);
 
+    List<GuardianLinkEntity> findAllByElderIdAndStatus(UUID elderId, String status);
+
     List<GuardianLinkEntity> findAllByGuardianIdOrderByCreatedAtDesc(UUID guardianId);
 }

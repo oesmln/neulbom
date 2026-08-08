@@ -51,7 +51,7 @@ class DatabaseMigrationTest {
                         """,
                 Integer.class);
 
-        assertThat(migrationCount).isGreaterThanOrEqualTo(8);
+        assertThat(migrationCount).isGreaterThanOrEqualTo(10);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(8);
         assertThat(coreTableCount).isEqualTo(34);
@@ -171,6 +171,29 @@ class DatabaseMigrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "INSERT INTO daily_summaries (id, user_id, local_date) VALUES (?, ?, DATE '2026-08-08')",
                 UUID.randomUUID(), userId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void notificationsRejectDuplicateEventKeyForSameRecipient() {
+        UUID userId = UUID.randomUUID();
+        UUID firstNotificationId = UUID.randomUUID();
+        insertUser(userId, "notification-event-" + userId + "@example.com");
+        jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, recipient_user_id, title, body, type, severity, event_key
+                        ) VALUES (?, ?, '알림', '내용', 'reminder', 'info', ?)
+                        """,
+                firstNotificationId, userId, "event-" + userId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO notifications (
+                            id, recipient_user_id, title, body, type, severity, event_key
+                        ) VALUES (?, ?, '알림 중복', '내용', 'reminder', 'info', ?)
+                        """,
+                UUID.randomUUID(), userId, "event-" + userId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
