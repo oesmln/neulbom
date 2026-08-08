@@ -1211,6 +1211,13 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 }
 ```
 
+#### 구현 권한·동기화 규칙
+
+- 녹음 업로드는 고령자 본인만 수행한다. `purpose=answer`는 본인 소유 세션·활성 질문의 `session_id`와 `question_id`를 함께 받아야 하고, `purpose=diary`는 두 필드를 받지 않는다.
+- 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, 최대 25MB이며 MIME type도 함께 검증한다.
+- 동일 `client_recording_id`를 본인이 재전송하면 기존 `recording_id`와 처리 상태를 `deduplicated=true`로 반환한다. 다른 사용자가 해당 ID를 사용하면 `403`이다.
+- 상태 조회는 본인 또는 활성 보호자 연결의 `screening`(답변)·`diary`(음성 일기) scope만 허용한다. STT·AST·KcELECTRA 결과 ID는 처리 완료 시 adapter가 채우며 초기 업로드 응답에서는 `pending`이다.
+
 ### 7.2 `GET /recordings/{recording_id}` - 녹음 처리 상태
 
 #### Response `200`

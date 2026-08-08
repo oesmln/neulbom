@@ -108,10 +108,12 @@
 
 기반: `recordings` 테이블, 파일 저장소, `client_recording_id` 중복 방지
 
-- [ ] `POST /recordings` - 문항 답변 또는 독립 음성 일기 파일 업로드
-- [ ] `GET /recordings/{recording_id}` - 업로드·STT·분석 처리 상태 조회
+- [x] `POST /recordings` - 문항 답변 또는 독립 음성 일기 파일 업로드
+- [x] `GET /recordings/{recording_id}` - 업로드·STT·분석 처리 상태 조회
 
 완료 조건: 오프라인에서 저장한 음성을 재전송할 수 있고, 같은 `client_recording_id`가 중복 저장되지 않는다.
+
+구현 근거: `RecordingController`·`RecordingService`·local `RecordingStorage`와 파일 형식/용량/목적별 참조/소유권 검증을 추가했다. 동일 `client_recording_id` 재전송은 기존 상태를 반환하고, 음성 일기는 세션·문항 없이 저장하며, 보호자는 `screening` 또는 `diary` scope로 상태를 읽는다. 외부 object storage adapter와 STT/분석 처리는 다음 단계에서 연결한다.
 
 ### 6차. STT·AI 분석·요약 API
 
