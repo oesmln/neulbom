@@ -52,4 +52,47 @@ public class AcousticAnalysisEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected AcousticAnalysisEntity() {
+    }
+
+    public AcousticAnalysisEntity(
+            UUID id,
+            UUID recordingId,
+            String modelName,
+            String modelVersion,
+            BigDecimal acousticReferenceScore,
+            String acousticFlags,
+            BigDecimal speechRate,
+            BigDecimal pauseRatio,
+            BigDecimal energyVariability,
+            BigDecimal speechStability,
+            Instant analyzedAt,
+            Instant createdAt
+    ) {
+        this.id = id;
+        this.recordingId = recordingId;
+        this.modelName = modelName;
+        this.modelVersion = modelVersion;
+        this.acousticReferenceScore = acousticReferenceScore;
+        this.acousticFlags = acousticFlags;
+        this.speechRate = speechRate;
+        this.pauseRatio = pauseRatio;
+        this.energyVariability = energyVariability;
+        this.speechStability = speechStability;
+        this.analyzedAt = analyzedAt;
+        this.createdAt = createdAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getRecordingId() { return recordingId; }
+    public String getModelName() { return modelName; }
+    public String getModelVersion() { return modelVersion; }
+    public BigDecimal getAcousticReferenceScore() { return acousticReferenceScore; }
+    public String getAcousticFlags() { return acousticFlags; }
+    public BigDecimal getSpeechRate() { return speechRate; }
+    public BigDecimal getPauseRatio() { return pauseRatio; }
+    public BigDecimal getEnergyVariability() { return energyVariability; }
+    public BigDecimal getSpeechStability() { return speechStability; }
+    public Instant getAnalyzedAt() { return analyzedAt; }
 }

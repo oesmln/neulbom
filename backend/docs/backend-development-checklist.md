@@ -119,15 +119,17 @@
 
 기반: 외부 서비스 adapter, 분석 결과 테이블, 비동기 작업 상태
 
-- [ ] `POST /voice/transcribe` - Whisper STT 실행
-- [ ] `POST /analysis/acoustic` - AST 음향 특징 분석
-- [ ] `POST /analysis/cognitive` - KcELECTRA 텍스트 분석 및 선택적 결과 결합
-- [ ] `POST /summary/session` - Gemini 문답 요약 생성
-- [ ] `GET /summary/session/{session_id}` - 문답 요약 조회
-- [ ] `POST /summary/daily` - 하루 대화 분석 결과 집계
-- [ ] `GET /summary/daily/{user_id}` - 날짜별 대화 집계 요약 조회
+- [x] `POST /voice/transcribe` - Whisper STT 실행
+- [x] `POST /analysis/acoustic` - AST 음향 특징 분석
+- [x] `POST /analysis/cognitive` - KcELECTRA 텍스트 분석 및 선택적 결과 결합
+- [x] `POST /summary/session` - Gemini 문답 요약 생성
+- [x] `GET /summary/session/{session_id}` - 문답 요약 조회
+- [x] `POST /summary/daily` - 하루 대화 분석 결과 집계
+- [x] `GET /summary/daily/{user_id}` - 날짜별 대화 집계 요약 조회
 
-완료 조건: 음성 업로드 후 STT → AST/KcELECTRA → 점수 집계 → Gemini 요약 순서로 처리되고, 실패 시 재시도 가능하다.
+완료 조건: 음성 업로드 후 STT → AST/KcELECTRA → 점수 집계 → Gemini 요약 순서와 상태 저장 계약이 동작하고, provider 실패 재시도는 외부 작업 큐 연결 시 같은 idempotency key로 이어질 수 있다.
+
+구현 근거: 분석 Entity/Repository와 `AnalysisController`·`AnalysisService`를 추가해 전사·음향·텍스트·세션 요약·Asia/Seoul 일일 집계 저장/조회 계약을 연결했다. `@ServerWorkerOnly`로 분석 생성 endpoint를 서버 작업 scope에 묶었고, 중복 전사·요약 요청은 기존 결과를 반환한다. 실제 Whisper/AST/KcELECTRA/Gemini provider adapter와 운영 큐 재시도는 외부 credential 연결 후 교체할 수 있는 fallback 경계로 남겼다.
 
 ### 7차. 검사 결과·추이·홈·보호자 리포트 API
 

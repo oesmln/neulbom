@@ -49,6 +49,34 @@ public class TranscriptEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    public TranscriptEntity(
+            UUID id,
+            UUID recordingId,
+            String transcript,
+            BigDecimal durationSec,
+            BigDecimal confidence,
+            String language,
+            String modelName,
+            String modelVersion,
+            String status,
+            Instant analyzedAt,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.recordingId = recordingId;
+        this.transcript = transcript;
+        this.durationSec = durationSec;
+        this.confidence = confidence;
+        this.language = language;
+        this.modelName = modelName;
+        this.modelVersion = modelVersion;
+        this.status = status;
+        this.analyzedAt = analyzedAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
     protected TranscriptEntity() {
     }
 
@@ -62,6 +90,22 @@ public class TranscriptEntity {
 
     public String getTranscript() {
         return transcript;
+    }
+
+    public BigDecimal getDurationSec() {
+        return durationSec;
+    }
+
+    public BigDecimal getConfidence() {
+        return confidence;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public String getModelName() {
+        return modelName;
     }
 
     public String getStatus() {

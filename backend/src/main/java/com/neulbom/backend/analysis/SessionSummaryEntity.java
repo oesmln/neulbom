@@ -46,4 +46,42 @@ public class SessionSummaryEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected SessionSummaryEntity() {
+    }
+
+    public SessionSummaryEntity(
+            UUID id,
+            UUID sessionId,
+            UUID userId,
+            String summary,
+            BigDecimal vocabularyScore,
+            String keywordFlags,
+            int qaCount,
+            String sourceStatus,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.summary = summary;
+        this.vocabularyScore = vocabularyScore;
+        this.keywordFlags = keywordFlags;
+        this.qaCount = qaCount;
+        this.sourceStatus = sourceStatus;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getSessionId() { return sessionId; }
+    public UUID getUserId() { return userId; }
+    public String getSummary() { return summary; }
+    public BigDecimal getVocabularyScore() { return vocabularyScore; }
+    public String getKeywordFlags() { return keywordFlags; }
+    public int getQaCount() { return qaCount; }
+    public String getSourceStatus() { return sourceStatus; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

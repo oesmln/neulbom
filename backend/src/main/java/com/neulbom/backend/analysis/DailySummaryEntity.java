@@ -49,4 +49,45 @@ public class DailySummaryEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected DailySummaryEntity() {
+    }
+
+    public DailySummaryEntity(
+            UUID id,
+            UUID userId,
+            LocalDate localDate,
+            String timezone,
+            int sessionCount,
+            int analyzedSessionCount,
+            String analysisStatus,
+            String summary,
+            String conversationResults,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.localDate = localDate;
+        this.timezone = timezone;
+        this.sessionCount = sessionCount;
+        this.analyzedSessionCount = analyzedSessionCount;
+        this.analysisStatus = analysisStatus;
+        this.summary = summary;
+        this.conversationResults = conversationResults;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
+    public LocalDate getLocalDate() { return localDate; }
+    public String getTimezone() { return timezone; }
+    public int getSessionCount() { return sessionCount; }
+    public int getAnalyzedSessionCount() { return analyzedSessionCount; }
+    public String getAnalysisStatus() { return analysisStatus; }
+    public String getSummary() { return summary; }
+    public String getConversationResults() { return conversationResults; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }
