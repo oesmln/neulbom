@@ -16,6 +16,22 @@ public class GuardianInvitationScopeId implements Serializable {
     @Column(nullable = false, length = 20)
     private String scope;
 
+    protected GuardianInvitationScopeId() {
+    }
+
+    public GuardianInvitationScopeId(UUID invitationId, String scope) {
+        this.invitationId = invitationId;
+        this.scope = scope;
+    }
+
+    public UUID getInvitationId() {
+        return invitationId;
+    }
+
+    public String getScope() {
+        return scope;
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object) {

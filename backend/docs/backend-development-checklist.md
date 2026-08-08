@@ -74,15 +74,17 @@
 
 기반: `guardian_links` 테이블, 역할·동의·access scope 검사
 
-- [ ] `POST /guardian/invitations` - 6자리 초대 코드 발급
-- [ ] `POST /guardian/invitations/verify` - 초대 코드 검증 및 연결 정보 미리보기
-- [ ] `POST /guardian/invitations/accept` - 초대 코드 수락 및 보호자 연결 생성
-- [ ] `POST /guardian/link` - 고령자 연결 요청
-- [ ] `GET /guardian/{guardian_id}/elders` - 연결된 고령자 목록 조회
-- [ ] `PATCH /guardian/link/{link_id}` - 연결 상태·접근 범위 수정
-- [ ] `DELETE /guardian/link/{link_id}` - 연결 해제
+- [x] `POST /guardian/invitations` - 6자리 초대 코드 발급
+- [x] `POST /guardian/invitations/verify` - 초대 코드 검증 및 연결 정보 미리보기
+- [x] `POST /guardian/invitations/accept` - 초대 코드 수락 및 보호자 연결 생성
+- [x] `POST /guardian/link` - 고령자 연결 요청
+- [x] `GET /guardian/{guardian_id}/elders` - 연결된 고령자 목록 조회
+- [x] `PATCH /guardian/link/{link_id}` - 연결 상태·접근 범위 수정
+- [x] `DELETE /guardian/link/{link_id}` - 연결 해제
 
 완료 조건: 초대 코드 입력부터 연결 생성까지 동작하고, 한 보호자가 여러 고령자를 관리하며, 연결·동의·접근 범위에 따라 데이터가 제한된다.
+
+구현 근거: `GuardianController`·`GuardianService`·`GuardianAccessService`와 초대/연결 scope Repository를 추가했다. 원문 코드 비저장, 만료·1회성 소비·IP 실패 제한, 역할·소유권·동의·scope 테스트를 반영했으며, 분석/리포트 API에서 `GuardianAccessService`를 재사용한다.
 
 ### 4차. CIST·AI 정서 문답 세션 API
 
