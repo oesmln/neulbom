@@ -280,129 +280,130 @@
 
 ### 2.1 사용자·보안 테이블
 
-- [ ] `users` 테이블을 만든다.
-  - [ ] `id`
-  - [ ] `email` unique
-  - [ ] `password_hash`
-  - [ ] `name`
-  - [ ] `role`
-  - [ ] `birth_date`
-  - [ ] `age_group`
-  - [ ] `gender`
-  - [ ] `phone`
-  - [ ] `profile_completed`
-  - [ ] `created_at`, `updated_at`
-- [ ] `user_profiles` 또는 `users` 확장 컬럼에 초기 건강·생활 정보를 저장한다.
-  - [ ] `education_years`
-  - [ ] `literacy`
-  - [ ] `health_conditions`
-  - [ ] `alcohol_use`
-  - [ ] `smoking_status`
-  - [ ] `hearing_status`
-  - [ ] `communication_difficulty`
-  - [ ] `smartphone_skill`
-- [ ] `user_preferences` 테이블을 만든다.
-  - [ ] `preferred_hearing_side`
-  - [ ] `voice_profile_id`
-  - [ ] `speech_rate`
-  - [ ] `subtitle_enabled`
-  - [ ] `sound_effect_enabled`
-- [ ] `refresh_tokens` 테이블을 만든다.
-- [ ] `consents` 테이블을 만든다.
-  - [ ] `consent_type`
-  - [ ] `agreed`
-  - [ ] `agreed_at`
-  - [ ] `version`
+- [x] `users` 테이블을 만든다.
+  - [x] `id`
+  - [x] `email` unique
+  - [x] `password_hash`
+  - [x] `name`
+  - [x] `role`
+  - [x] `birth_date`
+  - [x] `age_group`
+  - [x] `gender`
+  - [x] `phone`
+  - [x] `profile_completed`
+  - [x] `created_at`, `updated_at`
+- [x] `user_profiles` 또는 `users` 확장 컬럼에 초기 건강·생활 정보를 저장한다.
+  - [x] `education_years`
+  - [x] `literacy`
+  - [x] `health_conditions`
+  - [x] `alcohol_use`
+  - [x] `smoking_status`
+  - [x] `hearing_status`
+  - [x] `communication_difficulty`
+  - [x] `smartphone_skill`
+- [x] `user_preferences` 테이블을 만든다.
+  - [x] `preferred_hearing_side`
+  - [x] `voice_profile_id`
+  - [x] `speech_rate`
+  - [x] `subtitle_enabled`
+  - [x] `sound_effect_enabled`
+- [x] `refresh_tokens` 테이블을 만든다.
+- [x] `consents` 테이블을 만든다.
+  - [x] `consent_type`
+  - [x] `agreed`
+  - [x] `agreed_at`
+  - [x] `version`
 
 ### 2.2 보호자 테이블
 
-- [ ] `guardian_links` 테이블을 만든다.
-- [ ] `guardian_id`, `elder_id`, `status` 조합을 검증한다.
-- [ ] `access_scope`를 JSONB 또는 별도 권한 테이블 중 하나로 결정한다.
+- [x] `guardian_links` 테이블을 만든다.
+- [x] `guardian_id`, `elder_id` 중복 연결을 unique로 차단하고 `status` 값을 제한한다.
+- [x] `access_scope`는 `guardian_link_scopes`와 `guardian_invitation_scopes` 별도 권한 테이블로 관리한다.
+- [x] `guardian_invitations` 테이블에 코드 hash·만료·사용·시도 횟수를 저장한다.
 - [ ] `pending`, `active`, `revoked` 상태 전환 규칙을 정한다.
-- [ ] 연결 해제 시 감사 로그를 남길 수 있도록 한다.
-- [ ] `guardian_id`, `elder_id`, `status`에 인덱스를 추가한다.
+- [x] 연결 해제 시 감사 로그를 남길 수 있도록 `audit_logs` 테이블을 만든다.
+- [x] `guardian_id`, `elder_id`, `status`에 인덱스를 추가한다.
 
 ### 2.3 질문·세션·답변 테이블
 
-- [ ] `voice_profiles` 테이블 또는 seed 데이터를 만든다.
-- [ ] `questions` 테이블을 만든다.
-  - [ ] `question_type`: `orientation`, `memory`, `attention`, `language`, `emotion`
-  - [ ] `session_type`
-  - [ ] `content`
-  - [ ] `hint`
-  - [ ] `display_order`
-  - [ ] `subtitle_available`
-- [ ] CIST 기본 질문 seed 데이터를 등록한다.
-- [ ] AI 정서 문답 질문 seed 데이터를 등록한다.
-- [ ] `sessions` 테이블을 만든다.
-  - [ ] `user_id`
-  - [ ] `session_type`
-  - [ ] `status`
-  - [ ] `current_question_order`
-  - [ ] `answered_count`
-  - [ ] `total_questions`
-  - [ ] `settings`
-  - [ ] `started_at`, `ended_at`
-- [ ] `answers` 테이블을 만든다.
-- [ ] `client_answer_id`를 세션 단위 unique로 설정한다.
-- [ ] 답변의 `recording_id`, `transcript_id` nullable 관계를 설계한다.
+- [x] `voice_profiles` 테이블과 seed 데이터를 만든다.
+- [x] `questions` 테이블을 만든다.
+  - [x] `question_type`: `orientation`, `memory`, `attention`, `language`, `emotion`
+  - [x] `session_type`
+  - [x] `content`
+  - [x] `hint`
+  - [x] `display_order`
+  - [x] `subtitle_available`
+- [x] CIST 기본 질문 seed 데이터를 등록한다.
+- [x] AI 정서 문답 질문 seed 데이터를 등록한다.
+- [x] `sessions` 테이블을 만든다.
+  - [x] `user_id`
+  - [x] `session_type`
+  - [x] `status`
+  - [x] `current_question_order`
+  - [x] `answered_count`
+  - [x] `total_questions`
+  - [x] `settings`
+  - [x] `started_at`, `ended_at`
+- [x] `answers` 테이블을 만든다.
+- [x] `client_answer_id`를 세션 단위 unique로 설정한다.
+- [x] 답변의 `recording_id`, `transcript_id` nullable 관계를 설계한다.
 
 ### 2.4 녹음·AI 분석 테이블
 
-- [ ] `recordings` 테이블을 만든다.
-  - [ ] `client_recording_id` unique
-  - [ ] `user_id`, `session_id`, `question_id`
-  - [ ] 저장 위치와 파일 metadata
-  - [ ] `sync_status`
-  - [ ] `transcript_status`
-  - [ ] `analysis_status`
-  - [ ] `recorded_at`
-- [ ] `transcripts` 테이블을 만든다.
-- [ ] `acoustic_analyses` 테이블을 만든다.
-- [ ] `cognitive_analyses` 테이블을 만든다.
-- [ ] `screening_results` 또는 세션 집계 결과 테이블을 만든다.
-- [ ] `session_summaries` 테이블을 만든다.
-- [ ] 모든 분석 결과에 `model_name`, `model_version`, `analyzed_at`을 저장한다.
-- [ ] 원본 모델 출력과 사용자 노출 결과를 분리한다.
-- [ ] `screening_reference_score`, `risk_level`, `domain_scores` 저장 구조를 결정한다.
-- [ ] AST·KcELECTRA 개별 결과를 `model_breakdown`으로 조회할 수 있게 한다.
+- [x] `recordings` 테이블을 만든다.
+  - [x] `client_recording_id` unique
+  - [x] `user_id`, `session_id`, `question_id`
+  - [x] 저장 위치와 파일 metadata
+  - [x] `sync_status`
+  - [x] `transcript_status`
+  - [x] `analysis_status`
+  - [x] `recorded_at`
+- [x] `transcripts` 테이블을 만든다.
+- [x] `acoustic_analyses` 테이블을 만든다.
+- [x] `cognitive_analyses` 테이블을 만든다.
+- [x] `screening_results` 또는 세션 집계 결과 테이블을 만든다.
+- [x] `session_summaries` 테이블을 만든다.
+- [x] 모든 분석 결과에 `model_name`, `model_version`, `analyzed_at`을 저장한다.
+- [x] 원본 모델 출력과 사용자 노출 결과를 분리한다.
+- [x] `screening_reference_score`, `risk_level`, `domain_scores` 저장 구조를 결정한다.
+- [x] AST·KcELECTRA 개별 결과를 `model_breakdown`으로 조회할 수 있게 한다.
 
 ### 2.5 일기·게임·캐릭터·캠페인·알림 테이블
 
-- [ ] `diaries` 테이블을 만든다.
-- [ ] `diary_reactions` 테이블을 만든다.
-- [ ] `game_results` 테이블을 만든다.
-- [ ] `characters` 테이블을 만든다.
-- [ ] 경험치 중복 적립 방지를 위한 `xp_ledger` 또는 이벤트 ID를 설계한다.
-- [ ] `campaigns` 테이블을 만든다.
-- [ ] `campaign_participations` 테이블에 사용자·캠페인 unique 제약을 추가한다.
-- [ ] `notifications` 테이블을 만든다.
-- [ ] `audit_logs` 테이블 필요 여부를 결정하고 보호자 접근·동의 변경을 기록한다.
+- [x] `diaries` 테이블을 만든다.
+- [x] `diary_reactions` 테이블을 만든다.
+- [x] `game_results` 테이블을 만든다.
+- [x] `characters` 테이블을 만든다.
+- [x] 경험치 중복 적립 방지를 위한 `xp_ledger`와 이벤트 ID를 설계한다.
+- [x] `campaigns` 테이블을 만든다.
+- [x] `campaign_participations` 테이블에 사용자·캠페인 unique 제약을 추가한다.
+- [x] `notifications` 테이블을 만든다.
+- [x] `audit_logs` 테이블과 보호자 접근·동의 변경 기록 구조를 만든다.
 
 ### 2.6 migration·무결성 검증
 
-- [ ] Flyway 또는 Liquibase를 선택한다.
-- [ ] 초기 schema migration을 작성한다.
-- [ ] seed migration과 운영 데이터 migration을 분리한다.
-- [ ] 외래키와 삭제 정책을 설정한다.
+- [x] Flyway를 선택한다.
+- [x] 초기 schema migration을 작성한다.
+- [x] seed migration을 schema migration과 분리한다.
+- [x] 외래키와 삭제 정책을 설정한다.
 - [ ] 개인정보 테이블의 접근 권한을 DB 계정별로 검토한다.
-- [ ] 자주 조회하는 컬럼에 인덱스를 추가한다.
-  - [ ] `users.email`
-  - [ ] `sessions.user_id, started_at`
-  - [ ] `recordings.client_recording_id`
-  - [ ] `analysis_results.user_id, analyzed_at`
-  - [ ] `diaries.user_id, written_at`
-  - [ ] `notifications.user_id, is_read, created_at`
-- [ ] migration을 빈 DB에서 처음부터 재현한다.
+- [x] 자주 조회하는 컬럼에 인덱스를 추가한다.
+  - [x] `users.email`
+  - [x] `sessions.user_id, started_at`
+  - [x] `recordings.client_recording_id`
+  - [x] `cognitive_analyses.user_id, analyzed_at`
+  - [x] `diaries.user_id, written_at`
+  - [x] `notifications.recipient_user_id, is_read, created_at`
+- [x] migration을 빈 DB에서 처음부터 재현한다.
 - [ ] migration rollback 또는 복구 절차를 문서화한다.
 
 ### 2단계 완료 조건
 
-- [ ] 빈 PostgreSQL에 migration만 실행해 전체 스키마가 생성된다.
-- [ ] 중복 이메일, 중복 연결, 중복 오프라인 녹음이 DB 레벨에서도 차단된다.
-- [ ] 주요 조회 쿼리에 필요한 인덱스가 존재한다.
-- [ ] 테스트용 seed 질문과 음성 profile을 조회할 수 있다.
+- [x] 빈 PostgreSQL에 migration만 실행해 전체 스키마가 생성된다.
+- [x] 중복 이메일, 중복 연결, 중복 오프라인 녹음이 DB 레벨에서도 차단된다.
+- [x] 주요 조회 쿼리에 필요한 인덱스가 존재한다.
+- [x] 테스트용 seed 질문과 음성 profile을 조회할 수 있다.
 
 ---
 
