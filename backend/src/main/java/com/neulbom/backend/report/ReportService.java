@@ -37,6 +37,10 @@ import com.neulbom.backend.common.audit.AuditLogRepository;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.diary.DiaryEntity;
+import com.neulbom.backend.diary.DiaryGenerationJobEntity;
+import com.neulbom.backend.diary.DiaryGenerationJobRepository;
+import com.neulbom.backend.diary.DiaryRepository;
 import com.neulbom.backend.game.CharacterEntity;
 import com.neulbom.backend.game.CharacterRepository;
 import com.neulbom.backend.game.GameResultEntity;
@@ -77,6 +81,8 @@ public class ReportService {
     private final ScreeningResultRepository screeningResultRepository;
     private final SessionSummaryRepository sessionSummaryRepository;
     private final DailySummaryRepository dailySummaryRepository;
+    private final DiaryRepository diaryRepository;
+    private final DiaryGenerationJobRepository diaryGenerationJobRepository;
     private final CharacterRepository characterRepository;
     private final GameResultRepository gameResultRepository;
     private final NotificationRepository notificationRepository;
@@ -94,6 +100,8 @@ public class ReportService {
             ScreeningResultRepository screeningResultRepository,
             SessionSummaryRepository sessionSummaryRepository,
             DailySummaryRepository dailySummaryRepository,
+            DiaryRepository diaryRepository,
+            DiaryGenerationJobRepository diaryGenerationJobRepository,
             CharacterRepository characterRepository,
             GameResultRepository gameResultRepository,
             NotificationRepository notificationRepository,
@@ -110,6 +118,8 @@ public class ReportService {
         this.screeningResultRepository = screeningResultRepository;
         this.sessionSummaryRepository = sessionSummaryRepository;
         this.dailySummaryRepository = dailySummaryRepository;
+        this.diaryRepository = diaryRepository;
+        this.diaryGenerationJobRepository = diaryGenerationJobRepository;
         this.characterRepository = characterRepository;
         this.gameResultRepository = gameResultRepository;
         this.notificationRepository = notificationRepository;
@@ -244,13 +254,14 @@ public class ReportService {
                 .map(this::toNotificationSummary).toList();
         CognitiveAnalysisEntity latestAnalysis = cognitiveAnalysisRepository.findAllByUserIdOrderByAnalyzedAtDesc(userId).stream().findFirst().orElse(null);
         DashboardResponse.CognitiveActivity activity = toCognitiveActivity(latestAnalysis, today);
+        DashboardResponse.DiarySummary latestDiary = latestDiary(userId, today);
         List<DashboardResponse.Task> tasks = List.of(
                 new DashboardResponse.Task("emotional_qa", "not_started", "AI 정서 문답", "오늘의 기억을 AI와 함께 이야기해요", "/ai"),
                 new DashboardResponse.Task("memory_game", "new", "기억력 게임", "카드를 뒤집어 짝을 맞춰보세요", "/games/memory"),
                 new DashboardResponse.Task("diary", "scheduled", "오늘의 일기", "오늘 대화를 일기로 남겨보세요", "/diary"));
         return new DashboardResponse(userId, target.getRole(), characterSummary, latestScreening, latestSummary, tasks,
                 streak, new DashboardResponse.ActivitySummary(YearMonth.from(today).toString(), emotionalCount, gameCount, attendanceDays, streak),
-                null, activity, unread, alerts);
+                latestDiary, activity, unread, alerts);
     }
 
     @Transactional(readOnly = true)
@@ -296,7 +307,10 @@ public class ReportService {
                 latest == null ? null : latest.getRiskLevel(), latestSummary == null ? null : latestSummary.getVocabularyScore(),
                 null, alertLevel(latest == null ? null : latest.getRiskLevel()), trend(trendAnalyses),
                 sessions.stream().map(SessionEntity::getStartedAt).findFirst().orElse(null),
-                new GuardianReportResponse.ActivitySummary(sessionCount, gameCount, 0), trendPoints, alerts, daily);
+                new GuardianReportResponse.ActivitySummary(sessionCount, gameCount,
+                        diaryRepository.findAllByUserIdOrderByWrittenAtDesc(elderId).stream()
+                                .filter(diary -> diary.getWrittenAt().isAfter(sevenDaysAgo)).count()),
+                trendPoints, alerts, daily);
     }
 
     @Transactional
@@ -345,8 +359,9 @@ public class ReportService {
         }
         List<GuardianReportResponse.ConversationResult> conversations = readConversationResults(summary.getConversationResults()).stream()
                 .map(node -> conversationResult(node, elderId)).filter(Objects::nonNull).toList();
+        UUID diaryId = diaryRepository.findByDailySummaryId(summary.getId()).map(DiaryEntity::getId).orElse(null);
         return new GuardianReportResponse.DailyReport(summary.getLocalDate(), summary.getTimezone(), summary.getSessionCount(),
-                summary.getAnalyzedSessionCount(), summary.getAnalysisStatus(), null, conversations);
+                summary.getAnalyzedSessionCount(), summary.getAnalysisStatus(), diaryId, conversations);
     }
 
     private GuardianReportResponse.ConversationResult conversationResult(JsonNode node, UUID elderId) {
@@ -464,6 +479,29 @@ public class ReportService {
         String label = "stable".equals(status) ? "안정적" : "observe".equals(status) ? "꾸준한 관찰" : "확인 필요";
         String message = "stable".equals(status) ? "현재 인지 활동이 안정적으로 유지되고 있어요." : "최근 활동을 천천히 확인해 주세요.";
         return new DashboardResponse.CognitiveActivity(status, label, label, message, date);
+    }
+
+    private DashboardResponse.DiarySummary latestDiary(UUID userId, LocalDate today) {
+        DiaryGenerationJobEntity job = diaryGenerationJobRepository.findByUserIdAndTargetDate(userId, today)
+                .orElseGet(() -> diaryGenerationJobRepository.findByUserIdAndTargetDate(userId, today.minusDays(1)).orElse(null));
+        if (job != null) {
+            String label = switch (job.getStatus()) {
+                case "completed" -> "일기 생성 완료";
+                case "processing" -> "일기 생성 중";
+                case "failed" -> "일기 생성 실패";
+                case "conversation_incomplete" -> "대화가 부족해요";
+                default -> "일기 생성 예정";
+            };
+            return new DashboardResponse.DiarySummary(job.getTargetDate(), job.getStatus(), job.getDiaryId(), label,
+                    "completed".equals(job.getStatus()) ? "오늘의 일기를 확인해 보세요." : "오늘 대화를 바탕으로 일기를 준비해요.", job.getAvailableAt());
+        }
+        DiaryEntity diary = diaryRepository.findAllByUserIdOrderByWrittenAtDesc(userId).stream().findFirst().orElse(null);
+        if (diary == null) return new DashboardResponse.DiarySummary(today, "scheduled", null, "내일 일기 생성 예정", "오늘 대화를 바탕으로 내일 일기를 준비해요.", null);
+        return new DashboardResponse.DiarySummary(localDate(diary.getWrittenAt()), "completed", diary.getId(), "일기 생성 완료", "오늘의 일기를 확인해 보세요.", diary.getCreatedAt());
+    }
+
+    private LocalDate localDate(Instant instant) {
+        return instant.atZone(BUSINESS_ZONE).toLocalDate();
     }
 
     private DashboardResponse.NotificationSummary toNotificationSummary(NotificationEntity notification) {
