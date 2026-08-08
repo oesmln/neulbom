@@ -1,6 +1,6 @@
 # 늘봄(NEULBOM) 백엔드 개발 체크리스트
 
-> API v1.2 명세서를 실제 Spring Boot 백엔드로 구현하기 위한 순서형 체크리스트
+> API v1.3 명세서를 실제 Spring Boot 백엔드로 구현하기 위한 순서형 체크리스트
 >
 > 기준 문서: [REST API 명세서](api-spec.md)
 > 기술 스택: Spring Boot(Java), PostgreSQL, 외부 AI/STT 연동
@@ -47,6 +47,7 @@
 - [x] `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
 - [x] `POST /auth/refresh` - access token 갱신
 - [x] `POST /auth/logout` - refresh token 폐기
+- [ ] `PATCH /users/me/password` - 현재 비밀번호 확인 후 비밀번호 변경
 - [x] `DELETE /users/me` - 회원탈퇴 및 계정 비활성화
 
 비밀번호 재설정의 `PasswordResetNotifier` 전달 경계와 token 저장·폐기 로직은 구현했다. 실제 이메일·SMS provider 연결과 email/IP rate limit은 운영 준비 작업으로 남아 있다.
@@ -60,7 +61,7 @@
 - [ ] `GET /users/{user_id}` - 프로필·초기 사용자 정보 조회
 - [ ] `PATCH /users/{user_id}` - 프로필·학력·건강·생활습관 정보 수정
 - [ ] `GET /users/{user_id}/preferences` - 청취·음성·자막 설정 조회
-- [ ] `PATCH /users/{user_id}/preferences` - 잘 들리는 귀·음성·속도·자막 설정 저장
+- [ ] `PATCH /users/{user_id}/preferences` - 잘 들리는 귀·음성·속도·자막·알림 설정 저장
 - [ ] `GET /voice-profiles` - 선택 가능한 안내 음성 목록 조회
 - [ ] `POST /consent/{user_id}` - 개인정보·음성·분석·보호자 접근 동의 저장
 - [ ] `GET /consent/{user_id}` - 동의 상태 조회
@@ -90,6 +91,7 @@
 - [ ] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
 - [ ] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
 - [ ] `GET /sessions` - 사용자별 세션 목록 조회
+- [ ] `GET /sessions/{session_id}/answers` - 대화 질문·답변·전사 내역 조회
 - [ ] `GET /questions/daily` - 세션 유형별 질문 목록 조회
 - [ ] `GET /questions/{question_id}` - 질문 단건 조회
 - [ ] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
@@ -100,7 +102,7 @@
 
 기반: `recordings` 테이블, 파일 저장소, `client_recording_id` 중복 방지
 
-- [ ] `POST /recordings` - 문항별 음성 파일 업로드
+- [ ] `POST /recordings` - 문항 답변 또는 독립 음성 일기 파일 업로드
 - [ ] `GET /recordings/{recording_id}` - 업로드·STT·분석 처리 상태 조회
 
 완료 조건: 오프라인에서 저장한 음성을 재전송할 수 있고, 같은 `client_recording_id`가 중복 저장되지 않는다.
@@ -125,8 +127,10 @@
 
 - [ ] `GET /screenings/{session_id}/result` - 고령자용 검사 결과 조회
 - [ ] `GET /analysis/cognitive/{user_id}/history` - 분석 이력·30일 추이 조회
+- [ ] `GET /analysis/cognitive/{user_id}/benchmark` - 보호자용 지역 기준선 비교 조회
 - [ ] `GET /dashboard/{user_id}` - 고령자 홈 요약 조회
 - [ ] `GET /guardian/{guardian_id}/report` - 선택한 고령자 종합 리포트 및 날짜별 집계 조회
+- [ ] `GET /guardian/{guardian_id}/report/export` - 보호자 리포트 PDF·CSV 내보내기
 
 완료 조건: 고령자에게는 정성 결과와 안전한 문구가 반환되고, 보호자에게만 `screening_reference_score`, `risk_level`, `domain_scores`가 권한 검증 후 반환되며 진단 표현이 없다.
 
@@ -137,6 +141,7 @@
 - [ ] `POST /diaries` - 텍스트·음성 일기 생성
 - [ ] `POST /diaries/from-session` - AI 문답 요약으로 일기 생성
 - [ ] `POST /diaries/from-daily-summary` - 하루 대화 집계 요약으로 일기 생성
+- [ ] `GET /diaries/{user_id}/generation-status` - 날짜별 0시 일기 생성 상태 조회
 - [ ] `GET /diaries/{user_id}` - 날짜별 일기 목록 조회
 - [ ] `GET /diaries/{diary_id}` - 일기 상세 조회
 - [ ] `PATCH /diaries/{diary_id}` - 일기 수정
@@ -154,6 +159,7 @@
 - [ ] `POST /game/result` - 미니게임 결과 저장
 - [ ] `GET /game/{user_id}/history` - 게임 이력 조회
 - [ ] `GET /character/{user_id}` - 캐릭터 레벨·경험치·아이템 조회
+- [ ] `GET /character/{user_id}/xp-history` - 경험치 획득 내역 조회
 - [ ] `POST /character/{user_id}/xp` - 정서 문답·게임 완료 이벤트 기반 경험치 자동 적립
 - [ ] `GET /campaigns` - 지역 캠페인 목록 조회 (Phase 2)
 - [ ] `GET /campaigns/{campaign_id}` - 지역 캠페인 상세 조회 (Phase 2)
@@ -165,8 +171,12 @@
 ### 10차. 상담 센터 API
 
 - [ ] `GET /counseling/centers` - 지역별 상담 센터 목록·지도·기관 사이트 링크 조회
+- [ ] `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 조회 (Phase 2)
+- [ ] `POST /counseling/appointments` - 상담 예약 생성 (Phase 2)
+- [ ] `GET /counseling/appointments` - 본인 상담 예약 목록 조회 (Phase 2)
+- [ ] `DELETE /counseling/appointments/{appointment_id}` - 상담 예약 취소 (Phase 2)
 
-완료 조건: 지역 선택 후 센터 목록을 조회하고 외부 지도 또는 기관 사이트로 이동할 수 있다. 실시간 예약은 후속 Issue로 분리한다.
+완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작하고, Phase 2에서는 동의·기관 연동 조건 아래 예약·취소까지 동작한다.
 
 ### 11차. 알림 API
 
@@ -192,7 +202,7 @@
 
 ### 0.1 API 계약 고정
 
-- [ ] 팀 저장소의 [API 명세서](api-spec.md)를 기준 버전 `v1.2`로 확정한다.
+- [ ] 팀 저장소의 [API 명세서](api-spec.md)를 기준 버전 `v1.3`으로 확정한다.
 - [ ] Base URL을 `local`, `dev`, `prod` 환경별로 분리한다.
 - [ ] API 경로, HTTP method, 상태 코드, 필드명, enum을 프론트엔드와 함께 확인한다.
 - [ ] `elder`, `guardian` 역할을 확정한다.
@@ -205,7 +215,8 @@
 - [ ] AI 정서 문답 세션 종료 시 고령자에게 `result_type`, `display_label`, `message`, `recommendation`만 제공하고 정확한 점수는 보호자에게만 제공한다.
 - [ ] 하루 집계 기준을 `Asia/Seoul`의 `00:00~다음 날 00:00`으로 고정한다.
 - [ ] 세션별 분석은 종료 후 생성하고, 일일 집계·보호자 리포트·일기 생성은 하루 종료 후 실행한다.
-- [ ] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 제한하고 실시간 예약은 후속 범위로 분리한다.
+- [ ] Figma에 노출된 모든 화면 기능을 구현 범위로 확정하고 화면별 API 연결표와 체크리스트를 1:1로 유지한다.
+- [ ] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 구현하고, 실시간 예약은 Phase 2 구현 범위로 유지한다.
 - [ ] 지역 지정 캠페인은 초기 MVP에서 제외하고 Phase 2로 관리한다.
 - [ ] ID 생성 규칙을 UUID 또는 프로젝트 공통 ID 규칙으로 확정한다.
 
@@ -397,6 +408,10 @@
 - [x] `campaign_participations` 테이블에 사용자·캠페인 unique 제약을 추가한다.
 - [x] `notifications` 테이블을 만든다.
 - [x] `audit_logs` 테이블과 보호자 접근·동의 변경 기록 구조를 만든다.
+- [ ] `user_preferences`에 전체·보호자 반응·검사·일기·주간 리포트 알림 설정 컬럼을 추가한다.
+- [ ] `game_results`에 `client_game_result_id` unique와 짝 수·시도·시간·재시작·완료 지표를 추가한다.
+- [ ] 날짜별 일기 생성 작업 상태·실패·재시도를 저장할 `diary_generation_jobs` 구조를 추가한다.
+- [ ] 상담 기관 기준정보와 Phase 2 예약·상태 이력을 저장할 테이블을 설계한다.
 
 ### 2.6 migration·무결성 검증
 
@@ -433,6 +448,7 @@
 - [x] 비밀번호 8자 이상 및 정책을 검증한다.
 - [x] 비밀번호를 BCrypt 등 단방향 해시로 저장한다.
 - [x] `role`을 허용 목록으로 제한한다.
+- [ ] Figma 가입 순서에서 사용자 유형 선택 전 입력값을 임시 보관하고 최종 `role` 확정 후 회원가입을 호출하는 클라이언트 계약을 검증한다.
 - [x] 회원가입 응답에서 비밀번호를 절대 반환하지 않는다.
 - [x] `POST /auth/login`을 구현한다.
 - [x] 로그인 성공 시 access token과 refresh token을 발급한다.
@@ -442,6 +458,8 @@
 - [x] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
 - [x] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
 - [x] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
+- [ ] `PATCH /users/me/password`를 구현하고 현재 비밀번호·새 비밀번호 정책을 검증한다.
+- [ ] 비밀번호 변경 성공 시 현재 세션을 제외한 refresh token을 폐기하고 보안 이벤트를 기록한다.
 - [x] `PasswordResetNotifier` adapter를 통해 provider 연결 지점을 분리한다.
 - [ ] 운영 이메일 provider credential과 발신 주소를 secret manager로 연결한다.
 - [ ] 인증된 전화번호를 보유한 사용자에 대한 SMS provider와 발송 채널 정책을 연결한다.
@@ -520,6 +538,8 @@
 - [ ] `subtitle_enabled` 기본값을 `false`로 설정한다.
 - [ ] 보호자가 청력 보조 목적으로 자막을 켤 수 있는 조건을 구현한다.
 - [ ] 효과음 기본값을 꺼진 상태로 설정한다.
+- [ ] `push_notification_enabled`와 유형별 알림 설정 4종을 저장·조회한다.
+- [ ] 알림 설정을 꺼도 앱 내부 알림 저장과 OS push 발송을 구분해 처리한다.
 
 ### 4단계 완료 조건
 
@@ -596,6 +616,8 @@
 - [ ] 정서 문답 완료 이벤트를 `event_id=session_id`로 경험치 적립과 연결한다.
 - [ ] `GET /sessions`를 구현한다.
 - [ ] 날짜·세션 유형·페이지네이션 필터를 구현한다.
+- [ ] `GET /sessions/{session_id}/answers`를 구현해 질문·답변·전사문·녹음 연결을 순서대로 반환한다.
+- [ ] 대화 내역 조회 시 본인 또는 연결·동의·access scope를 검증한다.
 
 ### 6.3 문항별 답변
 
@@ -637,6 +659,8 @@
 - [ ] 저장 파일명에 이름·생년월일을 사용하지 않는다.
 - [ ] 서버 UUID 또는 가명화된 식별자로 파일명을 생성한다.
 - [ ] 파일 metadata에 사용자·세션·질문·녹음 시각을 저장한다.
+- [ ] `purpose=answer|diary`를 검증하고, `diary`이면 세션·질문 없이 업로드할 수 있게 한다.
+- [ ] 음성 일기의 `recording_id`를 `POST /diaries`의 `source_type=voice`와 연결한다.
 - [ ] 로컬 저장소와 운영 object storage를 adapter로 분리한다.
 
 ### 7.2 재전송·중복 방지
@@ -784,11 +808,18 @@
 - [ ] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
 - [ ] 동일 날짜에 여러 결과가 있을 때 집계 규칙을 정한다.
 - [ ] 표본 부족 시 추이를 `stable`로 단정하지 않고 상태를 별도 반환할지 결정한다.
+- [ ] `GET /analysis/cognitive/{user_id}/benchmark`를 구현한다.
+- [ ] 시·도·시군구별 집계 데이터의 공신력 있는 출처·갱신 주기를 기록한다.
+- [ ] 최소 표본 수 미달 시 지역값을 억제하고 `suppressed=true`로 반환한다.
+- [ ] 연결·동의·`screening` access scope가 있는 보호자만 지역 기준선을 조회하게 한다.
 
 ### 9.3 고령자 홈
 
 - [ ] `GET /dashboard/{user_id}`를 구현한다.
 - [ ] 캐릭터 상태, 최근 검사, 최근 요약, 오늘 할 일, 미읽음 알림 수를 조합한다.
+- [ ] 월간 AI 문답 횟수·게임 완료 횟수·활동 일수·연속 출석을 반환한다.
+- [ ] 일기 카드에 생성 예정·처리·완료·미완료 상태와 확인 가능 시각을 반환한다.
+- [ ] 고령자용 인지 활동 상태를 `stable`, `observe`, `attention_required` 안전 문구로 매핑한다.
 - [ ] 여러 API를 호출하는 대신 서버 aggregation으로 제공할지 결정한다.
 - [ ] 데이터가 없는 신규 사용자의 빈 상태 응답을 정의한다.
 
@@ -805,6 +836,9 @@
 - [ ] `activity_summary_7d`를 세션·게임·일기 활동으로 구성한다.
 - [ ] `recent_alerts[]`에 보호자가 확인해야 할 이벤트만 포함한다.
 - [ ] 리포트 조회 전 연결·동의·access scope를 검증한다.
+- [ ] `GET /guardian/{guardian_id}/report/export`를 구현해 PDF·CSV 작업 상태와 서명 URL을 반환한다.
+- [ ] 내보내기 기간·형식 중복 요청을 멱등 처리하고 다운로드 접근 audit log를 남긴다.
+- [ ] 내보내기 파일의 만료·보존·삭제 정책을 구현한다.
 
 ### 9단계 완료 조건
 
@@ -822,6 +856,10 @@
 - [ ] `POST /diaries`를 구현한다.
 - [ ] `POST /diaries/from-session`을 구현한다.
 - [ ] `POST /diaries/from-daily-summary`를 구현한다.
+- [ ] 생성 요청은 `202`와 `processing|completed|failed|conversation_incomplete` 작업 상태를 반환한다.
+- [ ] `GET /diaries/{user_id}/generation-status`를 구현한다.
+- [ ] 0시 생성 예정·처리 중·완료·실패 상태와 재시도 가능 여부를 홈·대화 완료 화면에 제공한다.
+- [ ] 생성 완료·실패 시 설정을 확인해 알림 이벤트를 생성한다.
 - [ ] `GET /diaries/{user_id}`를 구현한다.
 - [ ] `GET /diaries/{diary_id}`를 구현한다.
 - [ ] `PATCH /diaries/{diary_id}`를 구현한다.
@@ -869,6 +907,8 @@
 - [ ] `POST /game/result`를 구현한다.
 - [ ] `image_match`, `consonant`, `word_match`를 허용한다.
 - [ ] 점수, 응답 시간 배열, 오답 수, 전체 문항 수를 검증한다.
+- [ ] 기억력 게임의 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 저장·검증한다.
+- [ ] `client_game_result_id` unique로 결과 재전송을 멱등 처리하고 `deduplicated`를 반환한다.
 - [ ] `cognitive_index` 계산 규칙을 문서화한다.
 - [ ] `GET /game/{user_id}/history`를 구현한다.
 - [ ] 보호자에게 게임 이력을 노출할 때 access scope를 검증한다.
@@ -876,6 +916,8 @@
 ### 11.2 캐릭터·경험치
 
 - [ ] `GET /character/{user_id}`를 구현한다.
+- [ ] 캐릭터 응답에 이름·레벨·5단계 성장 상태·XP 목표·남은 XP를 포함한다.
+- [ ] `GET /character/{user_id}/xp-history`를 구현해 마이페이지 획득 내역을 cursor 페이지네이션으로 반환한다.
 - [ ] `POST /character/{user_id}/xp`를 구현한다.
 - [ ] 정서 문답·게임 완료 시 서버 이벤트로 경험치를 자동 적립한다.
 - [ ] `event_id=session_id` 또는 `event_id=game_result_id`로 중복 적립을 차단한다.
@@ -900,10 +942,14 @@
 ### 11.4 상담 센터
 
 - [ ] `GET /counseling/centers`를 구현한다.
-- [ ] `region`으로 시·도 또는 시·군·구 필터를 지원한다.
-- [ ] 센터명, 주소, 연락처, 지도 URL, 기관 홈페이지 URL을 반환한다.
+- [ ] `province_code`, `district_code`, `facility_type` 필터를 지원한다.
+- [ ] 센터명, 기관 유형, 행정구역 코드, 주소, 좌표, 연락처, 네이버 지도 URL, 기관 홈페이지 URL을 반환한다.
 - [ ] MVP에서는 `reservation_mode=external_link`만 제공한다.
-- [ ] 실시간 예약 가능 여부·예약 생성·취소는 외부 기관 연동 확정 후 별도 Issue로 분리한다.
+- [ ] 기관 기준정보의 출처·갱신 주기와 깨진 외부 링크 점검 방식을 정한다.
+- [ ] `GET /counseling/centers/{center_id}/availability`를 구현한다. (Phase 2)
+- [ ] `POST /counseling/appointments`, `GET /counseling/appointments`를 구현한다. (Phase 2)
+- [ ] `DELETE /counseling/appointments/{appointment_id}`를 멱등 취소로 구현한다. (Phase 2)
+- [ ] 예약 전에 연결 관계·개인정보 제공 동의·취소 마감·중복 요청을 검증한다. (Phase 2)
 
 ### 11단계 완료 조건
 
@@ -926,16 +972,22 @@
 - [ ] 미읽음 수를 정확하게 계산한다.
 - [ ] `unread_only`, `type`, `limit` 필터를 구현한다.
 - [ ] 알림의 `data`에 화면 이동용 reference ID를 저장한다.
+- [ ] `type`, `severity`, `status_label`, `read_at`을 저장·반환한다.
+- [ ] `data`의 `target_route`, `reference_type`, `reference_id`, `elder_id` 계약을 고정하고 이동 대상 권한을 재검증한다.
+- [ ] 고령자·보호자별 알림 유형과 화면 배지 문구를 서버 매핑으로 관리한다.
 
 ### 12.2 이벤트 연결
 
 - [ ] 검사 분석 완료 시 고령자 알림을 생성한다.
 - [ ] 보호자에게 위험 신호 알림을 보낼 조건을 정의한다.
 - [ ] AI 정서 문답 요약 완료 시 알림을 생성한다.
+- [ ] 일기 생성 완료와 생성 실패 알림을 구분해 생성한다.
+- [ ] 검사 결과 업데이트와 인지 점수 하락 경보를 서로 다른 유형·심각도로 생성한다.
 - [ ] 보호자 반응 등록 시 고령자 알림을 생성한다.
 - [ ] 캠페인 참여 완료 시 알림을 생성한다.
 - [ ] 주간 리포트 알림의 생성 시점을 정의한다.
 - [ ] 동일 이벤트에 알림이 중복 생성되지 않게 한다.
+- [ ] 전체·유형별 사용자 알림 설정을 확인해 OS push 발송을 제어한다.
 
 ### 12단계 완료 조건
 
@@ -1015,9 +1067,12 @@
 #### 시나리오 E. 게임 → 캐릭터 → 캠페인
 
 - [ ] 게임 결과 저장
+- [ ] 기억력 게임 6쌍 완료 시 짝 수·시도·경과 시간·재시작 횟수 저장
+- [ ] 동일 `client_game_result_id` 재전송 시 기존 결과 반환과 XP 중복 방지 확인
 - [ ] 게임 이력 조회
 - [ ] 게임 완료 이벤트로 경험치 자동 적립
 - [ ] 레벨업 여부 확인
+- [ ] 캐릭터 성장 단계·남은 XP·경험치 획득 내역 확인
 - [ ] 캠페인 목록 조회 (Phase 2)
 - [ ] 캠페인 참여 (Phase 2)
 - [ ] 완료 보상과 알림 확인 (Phase 2)
@@ -1028,6 +1083,30 @@
 - [ ] `GET /counseling/centers` 호출
 - [ ] 상담 센터 목록·주소·연락처 조회
 - [ ] 지도 또는 기관 홈페이지 외부 링크 이동
+
+#### 시나리오 G. 마이페이지·계정 설정
+
+- [ ] 프로필·레벨·월간 활동·연속 출석·경험치 내역 조회
+- [ ] 전체·유형별 알림 설정 변경 후 재조회
+- [ ] 현재 비밀번호 검증 후 비밀번호 변경
+- [ ] 변경 후 다른 refresh token 폐기 확인
+- [ ] 로그아웃과 회원탈퇴 권한·상태 전이 확인
+
+#### 시나리오 H. 대화 완료 → 다음 날 일기·알림
+
+- [ ] 세션 대화 질문·답변·전사 내역 조회
+- [ ] 대화 완료 직후 다음 날 0시 일기 생성 예정 상태 확인
+- [ ] 생성 작업의 처리·완료·실패·대화 미완료 상태 확인
+- [ ] 생성 완료 또는 실패 알림의 유형·화면 이동 확인
+- [ ] 별도 음성 일기 업로드 후 일기와 녹음 연결 확인
+
+#### 시나리오 I. 보호자 추이·내보내기·상담
+
+- [ ] 최소 표본 수를 충족한 지역 기준선과 사용자 추이 비교
+- [ ] 표본 부족 지역의 집계값 억제 확인
+- [ ] PDF·CSV 리포트 생성, 서명 URL 만료, 다운로드 audit log 확인
+- [ ] 시·도·시군구 선택 후 기관 유형·외부 지도 링크 확인
+- [ ] 예약 가능 시간·예약·목록·취소 흐름 확인 (Phase 2)
 
 ### 13.3 API 계약 검증
 
@@ -1041,6 +1120,9 @@
 - [ ] `Asia/Seoul` 기준 `local_date` 일일 집계와 `date` 리포트 query를 계약 테스트한다.
 - [ ] `POST /summary/daily`와 `POST /diaries/from-daily-summary`의 중복 실행 방지를 계약 테스트한다.
 - [ ] `GET /counseling/centers`의 지역 필터와 외부 URL 응답을 계약 테스트한다.
+- [ ] 게임 결과 상세 지표와 `client_game_result_id` 멱등 응답을 계약 테스트한다.
+- [ ] 날짜별 일기 생성 작업 상태와 알림 유형·deep link payload를 계약 테스트한다.
+- [ ] 지역 기준선의 최소 표본 억제와 리포트 내보내기 권한·만료를 계약 테스트한다.
 - [ ] 초대 코드 입력 API에서 code가 path/query로 노출되지 않고, 발급·검증·수락 endpoint의 상태 전이가 일치하는지 확인한다.
 - [ ] 사용·만료 초대 코드의 `410`, 반복 검증 실패의 `429`, 동의 거부의 `422` 응답을 계약 테스트한다.
 - [ ] `PATCH /notifications/read-all`이 개별 읽음 endpoint와 충돌하지 않고 현재 사용자 알림만 변경하는지 확인한다.
@@ -1092,14 +1174,16 @@
 - [ ] 독립 화자 데이터 기준의 모델 평가 결과를 저장한다.
 - [ ] 직접 수집 음성의 익명화·연구 활용 동의 흐름을 별도로 검토한다.
 
-### 14.1 Figma 화면 추가 검토
+### 14.1 Figma 전체 화면·기존 계획 기능 구현
 
-화면에 보이지만 MVP 범위와 외부 연동 여부가 확정되지 않은 기능은 별도 Issue에서 API 계약을 확정한 뒤 구현한다.
+Figma에 노출된 기능은 모두 구현한다. Figma에 현재 노출되지 않은 기존 계획 기능도 삭제하지 않고 Phase 2 구현 범위로 유지한다.
 
-- [ ] 지역 기준선 비교에 필요한 데이터 출처·지역 query·개인정보 기준을 확정한다.
-- [ ] 보호자 리포트 내보내기의 파일 형식·비동기 생성·다운로드 권한·보존 기간을 확정한다.
-- [ ] 전문의 상담 예약의 기관 연동·개인정보 제공 동의·예약 상태를 확정한다.
-- [ ] 위 기능을 v1.2 MVP endpoint에 포함할지 결정하고, 미확정이면 후속 Issue로 분리한다.
+- [ ] Figma 화면별 API 연결표의 모든 행을 E2E 시나리오 또는 계약 테스트와 연결한다.
+- [ ] 지역 기준선 비교의 데이터 출처·지역 코드·최소 표본·개인정보 기준을 확정하고 MVP로 구현한다.
+- [ ] 보호자 리포트 내보내기의 PDF·CSV·비동기 생성·다운로드 권한·보존 기간을 확정하고 MVP로 구현한다.
+- [ ] 전문 상담 기관 검색·외부 지도 연결을 MVP로 구현한다.
+- [ ] 전문 상담 예약의 기관 연동·개인정보 제공 동의·예약 상태를 확정하고 Phase 2로 구현한다.
+- [ ] 지역 캠페인·TTS·립싱크를 Figma 노출 여부와 무관하게 Phase 2로 구현한다.
 
 ## 최종 완료 체크
 
@@ -1111,4 +1195,5 @@
 - [ ] 오프라인 녹음 재전송과 중복 방지가 동작한다.
 - [ ] 결과 문구가 의료적 진단으로 오해되지 않는다.
 - [ ] 고령자 화면·보호자 화면의 주요 API 흐름이 E2E 테스트를 통과한다.
+- [ ] Figma 화면별 API 연결표의 모든 기능과 비화면 Phase 2 계획이 Issue로 추적된다.
 - [ ] 배포·migration·백업·장애 대응 방법이 문서화되어 있다.

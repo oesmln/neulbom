@@ -2,13 +2,24 @@
 
 > 성장형 캐릭터 기반 치매 조기 스크리닝 서비스
 >
-> **Version:** v1.2<br>
-> **기준 문서:** 기존 REST API 명세서 v1.0 + 2026 중간보고서 수정사항<br>
+> **Version:** v1.3<br>
+> **기준 문서:** 기존 REST API 명세서 v1.2 + Figma Make 치매노노 v45 전체 화면<br>
 > **Base URL:** `https://api.dementia-care.com/api/v1`<br>
 > **Content-Type:** `application/json`<br>
 > **인증:** `Authorization: Bearer {access_token}`
 
-## 0. v1.2 반영 사항
+## 0. v1.3 반영 사항
+
+- Figma Make v45에 노출된 모든 고령자·보호자 화면을 구현 범위로 확정한다. Figma에 현재 노출되지 않은 기존 계획 기능도 삭제하지 않고 후속 구현 범위로 유지한다.
+- 로그인 상태의 비밀번호 변경, 마이페이지 알림 설정, 캐릭터 성장 단계·월간 활동·연속 출석·경험치 내역, 회원탈퇴 계약을 명시한다.
+- AI 정서 문답 대화 내역 조회와 `Asia/Seoul` 기준 다음 날 0시 일기 생성 작업의 예약·처리·실패 상태를 명시한다.
+- 기억력 게임 화면의 짝 맞춤 수, 시도 횟수, 경과 시간, 재시작 횟수와 중복 결과 방지를 명시한다.
+- 알림 유형·심각도·상태 배지와 화면 이동용 `target_route`, `reference_type`, `reference_id` payload를 고정한다.
+- 상담 기관 검색을 시·도/시·군·구 행정구역 코드와 병원·치매안심센터·보건소 유형으로 조회하고 네이버 지도·기관 사이트 링크를 제공하도록 구체화한다.
+- Figma의 지역 기준선 비교와 보호자 리포트 내보내기를 구현 대상 API로 확정한다. 외부 기관 실시간 예약, 지역 캠페인, TTS·립싱크도 후속 구현 범위로 유지한다.
+- 회원가입 화면 입력값은 사용자 유형 선택까지 클라이언트에 임시 보관하고, `role` 확정 후 `POST /auth/register`를 호출하는 단계 순서를 명시한다.
+
+### v1.2까지의 반영 사항
 
 - 회원 유형은 `elder`, `guardian`으로 구분한다. 화면의 “보호자 / 의료진”은 백엔드에서 모두 `guardian` 역할로 처리한다.
 - 회원가입 후 최초 검사 전에 학력, 문해 여부, 건강·생활습관, 청력, 스마트폰 사용 수준을 선택적으로 저장한다.
@@ -120,6 +131,7 @@
 | `POST` | `/auth/password/reset/confirm` | 비밀번호 재설정 확정 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/refresh` | 액세스 토큰 갱신 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/logout` | 로그아웃 및 리프레시 토큰 폐기 | 필요 | 전체 | MVP |
+| `PATCH` | `/users/me/password` | 로그인 상태 비밀번호 변경 | 필요 | 본인 | MVP |
 | `DELETE` | `/users/me` | 회원탈퇴 및 계정 비활성화 | 필요 | 본인 | MVP |
 | `GET` | `/users/{user_id}` | 사용자 및 초기 정보 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `PATCH` | `/users/{user_id}` | 사용자 및 초기 정보 수정 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -162,6 +174,7 @@
 | `PATCH` | `/sessions/{session_id}/end` | 세션 종료·정성 결과·경험치 적립 상태 반환 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/sessions` | 세션 목록 조회 | 필요 | 본인, 권한 보유자 | MVP |
 | `POST` | `/sessions/{session_id}/answers` | 문항별 답변 저장 | 필요 | 세션 사용자, 권한 보유자 | MVP |
+| `GET` | `/sessions/{session_id}/answers` | 세션 대화·답변 내역 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/questions/daily` | 오늘의 질문 목록 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/questions/{question_id}` | 질문 단건 조회 | 필요 | 세션 사용자 | MVP |
 
@@ -169,12 +182,13 @@
 
 | Method | Endpoint | 설명 | 인증 | 주요 역할 | 우선순위 |
 | --- | --- | --- | --- | --- | --- |
-| `POST` | `/recordings` | 문항별 음성 업로드 및 동기화 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/recordings` | 문항 답변·음성 일기 녹음 업로드 및 동기화 | 필요 | 본인, 세션 사용자 | MVP |
 | `GET` | `/recordings/{recording_id}` | 녹음 업로드·분석 상태 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `POST` | `/voice/transcribe` | Whisper STT 실행 | 필요/서버 전용 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
+| `GET` | `/analysis/cognitive/{user_id}/benchmark` | 지역 기준선 비교 | 필요 | 권한 보유 보호자 | MVP |
 | `GET` | `/screenings/{session_id}/result` | 검사·정서 문답 세션 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `POST` | `/summary/session` | Gemini 문답 요약 생성 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/summary/session/{session_id}` | 문답 요약 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -188,6 +202,7 @@
 | `POST` | `/diaries` | 텍스트·음성 기반 일기 생성 | 필요 | `elder`, 권한 보유자 | MVP |
 | `POST` | `/diaries/from-session` | AI 문답 요약으로 일기 생성 | 필요 | `elder`, 권한 보유자 | MVP |
 | `POST` | `/diaries/from-daily-summary` | 하루 대화 집계 요약으로 일기 생성 | 서버 작업 또는 본인 | 서버 작업 큐, `elder` | MVP |
+| `GET` | `/diaries/{user_id}/generation-status` | 날짜별 일기 생성 상태 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/diaries/{user_id}` | 사용자 일기 목록·날짜 검색 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/diaries/{diary_id}` | 일기 상세 및 반응 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `PATCH` | `/diaries/{diary_id}` | 일기 수정 | 필요 | 작성자 | MVP |
@@ -202,8 +217,10 @@
 | `POST` | `/game/result` | 미니게임 결과 전송 | 필요 | `elder` | MVP |
 | `GET` | `/game/{user_id}/history` | 미니게임 이력 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/character/{user_id}` | 캐릭터 레벨·경험치·아이템 조회 | 필요 | 본인, 권한 보유자 | MVP |
+| `GET` | `/character/{user_id}/xp-history` | 경험치 획득 내역 조회 | 필요 | 본인, 권한 보유자 | MVP |
 | `POST` | `/character/{user_id}/xp` | 정서 문답·게임 완료 등 서버 이벤트 경험치 적립 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/guardian/{guardian_id}/report` | 선택한 고령자 종합 리포트 | 필요 | `guardian` | MVP |
+| `GET` | `/guardian/{guardian_id}/report/export` | 보호자 리포트 PDF·CSV 내보내기 | 필요 | `guardian` | MVP |
 | `POST` | `/notifications/push` | 서비스 알림 생성·발송 | 서버 전용 권장 | 서버 또는 권한 보유자 | MVP |
 | `GET` | `/notifications/{user_id}` | 알림 목록 및 미읽음 수 | 필요 | 본인 | MVP |
 | `PATCH` | `/notifications/{id}/read` | 알림 읽음 처리 | 필요 | 수신자 | MVP |
@@ -214,10 +231,16 @@
 | Method | Endpoint | 설명 | 인증 | 주요 역할 | 우선순위 |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/counseling/centers` | 지역별 상담 센터 목록 및 지도·기관 사이트 외부 링크 | 필요 | 로그인 사용자 | MVP |
+| `GET` | `/counseling/centers/{center_id}/availability` | 상담 가능 시간 조회 | 필요 | `guardian` | Phase 2 |
+| `POST` | `/counseling/appointments` | 상담 예약 생성 | 필요 | `guardian` | Phase 2 |
+| `GET` | `/counseling/appointments` | 본인 상담 예약 목록 조회 | 필요 | `guardian` | Phase 2 |
+| `DELETE` | `/counseling/appointments/{appointment_id}` | 상담 예약 취소 | 필요 | 예약자 | Phase 2 |
 
 ## 3. 인증·사용자·동의 API
 
 ### 3.1 `POST /auth/register` - 회원가입
+
+Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코드 입력 또는 건너뛰기 → 사용자 유형 선택`이다. 첫 화면 입력만으로 계정을 생성하지 않으며, 클라이언트는 사용자 유형이 확정될 때까지 값을 안전하게 임시 보관한 뒤 최종 `role`과 함께 이 API를 호출한다. 초대 코드를 입력한 경우 공개 `verify`를 먼저 호출하고, `elder` 가입·로그인 완료 후 `accept`를 호출한다.
 
 #### Request Body
 
@@ -383,7 +406,23 @@
 
 응답 본문 없음.
 
-### 3.4.1 `DELETE /users/me` - 회원탈퇴
+### 3.4.1 `PATCH /users/me/password` - 로그인 상태 비밀번호 변경
+
+마이페이지에서 현재 비밀번호를 확인한 뒤 새 비밀번호로 변경한다. 현재 access token의 사용자만 변경할 수 있으며 URL에 `user_id`를 받지 않는다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `current_password` | string | Y | 현재 비밀번호 |
+| `new_password` | string | Y | 8자 이상이며 현재 비밀번호와 다른 새 비밀번호 |
+| `logout_other_sessions` | boolean | N | 다른 기기의 refresh token 폐기 여부, 기본 `true` |
+
+#### Response `204`
+
+응답 본문 없음. 현재 비밀번호가 일치하지 않으면 계정 존재 여부를 추가로 노출하지 않는 `400`을 반환한다. 성공 시 현재 요청에 사용 중인 세션을 제외한 refresh token을 기본적으로 폐기하며, 보안 정책에 따라 모든 세션 재로그인을 강제할 수 있다.
+
+### 3.4.2 `DELETE /users/me` - 회원탈퇴
 
 현재 access token의 사용자만 탈퇴할 수 있으며, URL에 다른 사용자의 `user_id`를 받지 않는다. 탈퇴 처리는 다음 순서로 수행한다.
 
@@ -465,6 +504,11 @@
 | `speech_rate` | float | 말하기 속도, 기본 `0.9`, 허용 범위 `0.75~1.25` |
 | `subtitle_enabled` | boolean | 질문 글자 표시 여부, 기본 `false` |
 | `sound_effect_enabled` | boolean | 효과음 사용 여부, 기본 `false` 권장 |
+| `push_notification_enabled` | boolean | OS push 수신 여부, 기본 `true`; 인앱 알림 저장과 별도 |
+| `guardian_reaction_notification_enabled` | boolean | 보호자 반응 알림 수신 여부, 기본 `true` |
+| `screening_notification_enabled` | boolean | 검사·인지 활동 결과 알림 수신 여부, 기본 `true` |
+| `diary_notification_enabled` | boolean | 일기 생성 완료·미완료 알림 수신 여부, 기본 `true` |
+| `weekly_report_notification_enabled` | boolean | 주간 리포트 알림 수신 여부, 기본 `true` |
 | `updated_at` | string | 최종 수정 일시 |
 
 ### 3.8 `PATCH /users/{user_id}/preferences` - 사용 환경 설정 수정
@@ -478,6 +522,11 @@
 | `speech_rate` | float | N | `0.75~1.25` |
 | `subtitle_enabled` | boolean | N | 기본 `false`; 청력 문제 시 보호자가 활성화 가능 |
 | `sound_effect_enabled` | boolean | N | 배경음·효과음 사용 여부 |
+| `push_notification_enabled` | boolean | N | OS push 수신 여부; 인앱 알림 저장과 별도 |
+| `guardian_reaction_notification_enabled` | boolean | N | 보호자 반응 알림 수신 여부 |
+| `screening_notification_enabled` | boolean | N | 검사·인지 활동 결과 알림 수신 여부 |
+| `diary_notification_enabled` | boolean | N | 일기 생성 완료·미완료 알림 수신 여부 |
+| `weekly_report_notification_enabled` | boolean | N | 주간 리포트 알림 수신 여부 |
 
 #### Response `200`
 
@@ -488,6 +537,11 @@
   "speech_rate": 0.9,
   "subtitle_enabled": false,
   "sound_effect_enabled": false,
+  "push_notification_enabled": true,
+  "guardian_reaction_notification_enabled": true,
+  "screening_notification_enabled": true,
+  "diary_notification_enabled": true,
+  "weekly_report_notification_enabled": true,
   "updated_at": "2026-08-05T10:40:00+09:00"
 }
 ```
@@ -726,8 +780,36 @@
 | `latest_screening` | object/null | 최근 검사 요약 |
 | `latest_summary` | object/null | 최근 AI 문답 요약 |
 | `today_tasks[]` | array | 오늘 진행할 검사·활동 |
+| `conversation_streak_days` | integer | 연속 AI 정서 문답 완료 일수 |
+| `monthly_activity` | object | 이번 달 AI 문답·게임 완료 횟수와 출석 일수 |
+| `latest_diary` | object/null | 홈 일기 카드 상태와 대상 날짜 |
+| `cognitive_activity` | object/null | 인지 활동 상태 카드 |
 | `unread_notification_count` | integer | 미읽음 알림 수 |
 | `upcoming_campaigns[]` | array | 참여 가능한 지역 캠페인. Phase 2에서만 제공 |
+
+`character`는 `GET /character/{user_id}`의 `level`, `display_name`, `stage`, `xp_current`, `xp_goal`, `xp_remaining`, `skin_id` 요약을 포함한다.
+
+`today_tasks[]`의 공통 필드는 `task_type`, `status`, `title`, `description`, `target_route`다. `task_type`은 `emotional_qa`, `memory_game`, `diary`이며 `status`는 화면별로 다음 값을 사용한다.
+
+- AI 정서 문답: `not_started`, `in_progress`, `completed`
+- 기억력 게임: `new`, `in_progress`, `completed`
+- 일기: `scheduled`, `processing`, `completed`, `failed`, `conversation_incomplete`
+
+`monthly_activity`는 `year_month`, `emotional_qa_completed_count`, `game_completed_count`, `attendance_days`, `current_attendance_streak_days`를 포함한다.
+
+`latest_diary`는 `target_date`, `generation_status`, `diary_id`, `display_label`, `message`, `available_at`을 포함한다. `generation_status`는 `scheduled`, `processing`, `completed`, `failed`, `conversation_incomplete` 중 하나다.
+
+`cognitive_activity`는 다음 필드를 포함한다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `status` | enum | `stable`, `observe`, `attention_required` |
+| `display_label` | string | `안정적`, `꾸준한 관찰`, `확인 필요` 등 화면 문구 |
+| `title` | string | 상태 카드 제목 |
+| `message` | string | 진단이 아닌 관찰 안내 문구 |
+| `reference_date` | string | 상태 산정 기준일, `YYYY-MM-DD` |
+
+`cognitive_activity.status`는 보호자용 `risk_level`을 그대로 노출하지 않는 고령자 화면 전용 표현이다. 서버가 정한 매핑과 안전 문구를 반환하고 프론트엔드가 임의 점수 임계값으로 판단하지 않는다.
 
 `latest_screening` 객체는 다음 필드를 포함한다.
 
@@ -1004,7 +1086,28 @@
 }
 ```
 
-### 6.7 `GET /questions/daily` - 오늘의 질문 목록
+### 6.7 `GET /sessions/{session_id}/answers` - 세션 대화·답변 내역
+
+Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 사용자 본인은 자신의 전사문과 질문·답변만 조회할 수 있고, 보호자는 연결·동의·`summary` 또는 `screening` access scope가 있을 때만 조회할 수 있다.
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `session_id` | string | 세션 ID |
+| `session_type` | enum | 세션 유형 |
+| `answers[]` | array | 문항 순서별 답변 목록 |
+| `answers[].answer_id` | string | 답변 ID |
+| `answers[].question_id` | string | 질문 ID |
+| `answers[].question_order` | integer | 문항 순서 |
+| `answers[].question_text` | string | 화면 표시 질문 문구 |
+| `answers[].answer_text` | string/null | STT 또는 텍스트 답변 |
+| `answers[].recording_id` | string/null | 원본 녹음 ID. 원본 재생 권한은 별도 검증 |
+| `answers[].answered_at` | string | 답변 일시 |
+
+검사 정답·채점 기준, 모델 원문 출력, 다른 사용자의 답변은 반환하지 않는다.
+
+### 6.8 `GET /questions/daily` - 오늘의 질문 목록
 
 #### Query Parameters
 
@@ -1026,7 +1129,7 @@
 | `subtitle_available` | boolean | 자막 표시 가능 여부 |
 | `hint` | string/null | 힌트 텍스트 |
 
-### 6.8 `GET /questions/{question_id}` - 질문 단건 조회
+### 6.9 `GET /questions/{question_id}` - 질문 단건 조회
 
 #### Response `200`
 
@@ -1045,7 +1148,7 @@
 
 ## 7. 녹음·STT·AI 분석 API
 
-### 7.1 `POST /recordings` - 문항별 음성 업로드 및 동기화
+### 7.1 `POST /recordings` - 문항 답변·음성 일기 업로드 및 동기화
 
 `Content-Type: multipart/form-data`를 사용한다. 파일은 `wav`, `m4a`, `mp3`, 최대 25MB를 허용한다.
 
@@ -1056,10 +1159,13 @@
 | `audio_file` | file | Y | 고령자 답변 음성 |
 | `client_recording_id` | string | Y | 기기 생성 UUID, 재전송 중복 방지 |
 | `user_id` | string | Y | 고령자 ID |
-| `session_id` | string | Y | 세션 ID |
-| `question_id` | string | Y | 문항 ID |
+| `purpose` | enum | Y | `answer`, `diary` |
+| `session_id` | string | 조건부 | `purpose=answer`일 때 세션 ID |
+| `question_id` | string | 조건부 | `purpose=answer`일 때 문항 ID |
 | `recorded_at` | string | Y | 기기 녹음 일시 |
 | `device_status` | enum | N | `device_saved`, `server_pending` |
+
+`purpose=diary`이면 `session_id`, `question_id`를 받지 않으며 STT 완료 후 `POST /diaries`의 `source_type=voice`, `recording_id`로 연결한다. 답변 녹음과 음성 일기는 같은 멱등성·파일 검증·보존 정책을 사용하되 분석 파이프라인과 접근 권한은 목적별로 분리한다.
 
 #### Response `201`
 
@@ -1067,6 +1173,7 @@
 | --- | --- | --- |
 | `recording_id` | string | 서버 녹음 ID |
 | `client_recording_id` | string | 기기 녹음 ID |
+| `purpose` | enum | `answer`, `diary` |
 | `sync_status` | enum | `server_uploaded`, `analysis_completed`, `failed` |
 | `transcript_status` | enum | `pending`, `processing`, `completed`, `failed` |
 | `analysis_status` | enum | `pending`, `processing`, `completed`, `failed` |
@@ -1238,6 +1345,37 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `analyzed_at` | string | 분석 일시 |
 
 `aggregation=day`를 사용하면 하루에 여러 번 진행한 세션을 `local_date`별로 합산한다. 고령자 본인 요청에서는 수치·상세 영역 필드를 제외하고 정성 결과 필드만 반환한다.
+
+### 7.6.1 `GET /analysis/cognitive/{user_id}/benchmark` - 지역 기준선 비교
+
+보호자 위험 추이 화면의 `지역 전산 비교`와 그래프 생성에 사용한다. 연결·동의·`screening` access scope가 확인된 보호자만 조회할 수 있다. 개인을 식별할 수 없도록 최소 표본 수를 충족한 지역 집계만 반환한다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `province_code` | string | Y | 시·도 행정구역 코드 |
+| `district_code` | string | N | 시·군·구 행정구역 코드 |
+| `from_date` | string | N | 비교 시작일 |
+| `to_date` | string | N | 비교 종료일 |
+| `aggregation` | enum | N | `month`, `quarter`; 기본 `month` |
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `user_series[]` | array | 대상 고령자의 날짜별 표시 점수 |
+| `regional_series[]` | array | 비식별 지역 기준선 |
+| `regional_series[].region_code` | string | 행정구역 코드 |
+| `regional_series[].region_name` | string | 화면 표시 지역명 |
+| `regional_series[].period` | string | 집계 기간 |
+| `regional_series[].average_display_score` | float | 지역 평균 표시 점수 |
+| `regional_series[].sample_size` | integer | 집계 표본 수 |
+| `regional_series[].suppressed` | boolean | 최소 표본 미달로 값이 숨겨졌는지 여부 |
+| `source_name` | string | 기준 데이터 출처 |
+| `source_updated_at` | string | 데이터 갱신 일시 |
+
+최소 표본 수, 데이터 출처, 갱신 주기와 지역 비교 문구는 운영 전 확정한다. `suppressed=true`이면 평균 점수 대신 비교 불가 상태를 표시한다.
 
 ### 7.7 `GET /screenings/{session_id}/result` - 검사 결과
 
@@ -1436,9 +1574,47 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `mood` | enum | N | `very_sad`, `sad`, `neutral`, `happy`, `very_happy` |
 | `mood_level` | integer | N | 감정 단계 `1~5` |
 
-#### Response `201`
+#### Response `202`
 
-`POST /diaries`와 동일한 일기 객체를 반환하며 `source_type`은 `daily_summary`다. 동일한 `daily_summary_id`로 재요청해도 일기가 중복 생성되지 않도록 한다.
+```json
+{
+  "generation_job_id": "dgj_01J...",
+  "user_id": "usr_elder_01J...",
+  "target_date": "2026-08-05",
+  "status": "processing",
+  "scheduled_at": "2026-08-06T00:00:00+09:00",
+  "available_at": null,
+  "diary_id": null,
+  "retryable": true
+}
+```
+
+동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 대화가 없으면 `conversation_incomplete`로 종료한다.
+
+### 8.3.1 `GET /diaries/{user_id}/generation-status` - 날짜별 일기 생성 상태
+
+홈 일기 카드와 대화 완료 화면에서 다음 날 0시 생성 예정·처리·완료·미완료 상태를 표시하는 데 사용한다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `date` | string | Y | 대화가 진행된 기준일, `YYYY-MM-DD` |
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `generation_job_id` | string/null | 생성 작업 ID |
+| `target_date` | string | 일기 대상 날짜 |
+| `status` | enum | `scheduled`, `processing`, `completed`, `failed`, `conversation_incomplete` |
+| `scheduled_at` | string/null | 생성 예약 시각 |
+| `available_at` | string/null | 일기 확인 가능 시각 |
+| `diary_id` | string/null | 완료된 일기 ID |
+| `failure_reason` | enum/null | `summary_failed`, `generation_failed`, `insufficient_conversation`, `unknown` |
+| `retryable` | boolean | 서버 재시도 가능 여부 |
+| `display_label` | string | 홈 카드 상태 문구 |
+| `message` | string | 사용자 안내 문구 |
 
 ### 8.4 `GET /diaries/{user_id}` - 일기 목록
 
@@ -1529,11 +1705,17 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | --- | --- | --- | --- |
 | `user_id` | string | Y | 고령자 ID |
 | `session_id` | string | Y | 게임 세션 ID |
+| `client_game_result_id` | string | Y | 기기에서 생성한 재전송 중복 방지 ID |
 | `game_type` | enum | Y | `image_match`, `consonant`, `word_match` |
 | `score` | integer | Y | 획득 점수 |
 | `response_times[]` | float[] | Y | 문항별 응답 시간(초) |
 | `error_count` | integer | Y | 오답 횟수 |
 | `total_questions` | integer | Y | 전체 문항 수 |
+| `matched_pairs` | integer | 조건부 | `image_match`에서 맞춘 짝 수, 완료 시 `6` |
+| `attempt_count` | integer | 조건부 | `image_match`에서 두 장을 선택한 총 시도 횟수 |
+| `duration_sec` | integer | Y | 시작부터 완료까지 경과 시간(초) |
+| `restarted_count` | integer | N | 다시 시작 횟수, 기본 `0` |
+| `completed` | boolean | Y | 정상 완료 여부 |
 
 #### Response `200`
 
@@ -1544,6 +1726,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `xp_earned` | integer | 획득 경험치 |
 | `character_level` | integer | 현재 캐릭터 레벨 |
 | `level_up` | boolean | 레벨업 여부 |
+| `deduplicated` | boolean | 동일 `client_game_result_id` 재전송 여부. 재전송이면 기존 결과를 반환하고 XP를 다시 적립하지 않음 |
 
 ### 9.2 `GET /game/{user_id}/history` - 게임 이력
 
@@ -1556,7 +1739,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 #### Response `200`
 
-`records[]`에 `game_result_id`, `game_type`, `score`, `cognitive_index`, `played_at`을 포함한다.
+`records[]`에 `game_result_id`, `game_type`, `score`, `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`, `cognitive_index`, `xp_earned`, `played_at`을 포함한다.
 
 게임 결과 저장이 완료되면 서버가 `event_id=game_result_id`로 경험치를 자동 적립한다. 앱이 별도로 XP 적립 API를 호출하지 않는다.
 
@@ -1567,13 +1750,33 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
 | `user_id` | string | 사용자 ID |
+| `display_name` | string | 캐릭터 화면 표시 이름 |
 | `level` | integer | 현재 레벨 |
+| `stage` | enum | `egg`, `puppy`, `sprout`, `flower`, `star` |
+| `stage_index` | integer | 현재 성장 단계의 1부터 시작하는 순번 |
+| `stage_count` | integer | 전체 성장 단계 수 |
 | `xp_current` | integer | 현재 경험치 |
-| `xp_next` | integer | 다음 레벨까지 필요한 경험치 |
+| `xp_goal` | integer | 다음 레벨 도달에 필요한 누적 경험치 |
+| `xp_remaining` | integer | 다음 레벨까지 남은 경험치 |
 | `skin_id` | string | 현재 스킨 ID |
 | `unlocked[]` | string[] | 해금 아이템 ID 목록 |
 
-### 9.4 `POST /character/{user_id}/xp` - 경험치 적립
+### 9.4 `GET /character/{user_id}/xp-history` - 경험치 획득 내역
+
+마이페이지의 경험치 획득 내역 펼침 영역에 사용한다. 본인 또는 연결·동의·access scope가 확인된 보호자만 조회할 수 있다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `limit` | integer | `20` | 조회 개수 |
+| `cursor` | string | - | 다음 페이지 cursor |
+
+#### Response `200`
+
+`records[]`에 `xp_ledger_id`, `reason`, `display_title`, `amount`, `event_id`, `earned_at`을 포함하고, 최상위에 `next_cursor`를 반환한다. `reason`은 `attendance`, `visit`, `emotional_qa`, `game`, `campaign` 중 하나다.
+
+### 9.5 `POST /character/{user_id}/xp` - 경험치 적립
 
 정서 문답·게임 완료 등 서버 이벤트에서만 호출하는 내부 API다. 클라이언트가 임의의 `amount`를 보내는 방식으로 사용하지 않는다.
 
@@ -1660,6 +1863,32 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 
+### 10.2 `GET /guardian/{guardian_id}/report/export` - 보호자 리포트 내보내기
+
+Figma의 리포트 내보내기 동작에 사용한다. 연결·동의·`screening`, `summary` access scope를 모두 확인하며, 생성된 파일 URL은 짧은 만료 시간을 가진 서명 URL이어야 한다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `elder_id` | string | Y | 연결된 고령자 ID |
+| `from_date` | string | Y | 시작일, `YYYY-MM-DD` |
+| `to_date` | string | Y | 종료일, `YYYY-MM-DD` |
+| `format` | enum | Y | `pdf`, `csv` |
+| `timezone` | string | N | 기본 `Asia/Seoul` |
+
+#### Response `202`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `export_id` | string | 내보내기 작업 ID |
+| `status` | enum | `processing`, `completed`, `failed` |
+| `download_url` | string/null | 완료된 경우 서명 다운로드 URL |
+| `expires_at` | string/null | URL 만료 시각 |
+| `failure_reason` | string/null | 실패 사유 코드 |
+
+동일 사용자·대상자·기간·형식 요청은 진행 중 작업을 재사용한다. 다운로드와 재생성 접근도 audit log에 남기고, 원본 파일 보존 기간은 운영 정책으로 제한한다.
+
 ## 11. 알림 API
 
 ### 11.1 `POST /notifications/push` - 푸시 알림 생성
@@ -1671,7 +1900,9 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `target_user_id` | string | Y | 수신자 ID |
 | `title` | string | Y | 알림 제목 |
 | `body` | string | Y | 알림 내용 |
-| `type` | enum | Y | `screening_alert`, `session_complete`, `summary`, `reminder`, `campaign`, `weekly_report`, `guardian_reaction` |
+| `type` | enum | Y | `screening_alert`, `screening_updated`, `session_complete`, `summary`, `diary_generated`, `diary_generation_failed`, `reminder`, `campaign`, `weekly_report`, `guardian_reaction` |
+| `severity` | enum | N | `info`, `success`, `caution`, `danger`; 기본 `info` |
+| `status_label` | string | N | `완료`, `주의`, `위험` 등 서버가 결정한 화면 배지 문구 |
 | `data` | object | N | 화면 이동용 추가 페이로드 |
 
 #### Response `201`
@@ -1700,10 +1931,15 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `title` | string | 제목 |
 | `body` | string | 내용 |
 | `type` | enum | 알림 유형 |
+| `severity` | enum | 알림 심각도·색상 의미 |
+| `status_label` | string/null | 화면 상태 배지 문구 |
 | `data` | object/null | 화면 이동 데이터 |
 | `is_read` | boolean | 읽음 여부 |
+| `read_at` | string/null | 읽은 시각 |
 | `created_at` | string | 생성 일시 |
 | `unread_count` | integer | 미읽음 건수 |
+
+`data`는 가능한 경우 `target_route`, `reference_type`, `reference_id`, `elder_id`를 포함한다. `reference_type`은 `session`, `screening`, `diary`, `report`, `campaign` 중 하나며, 수신자가 해당 resource를 조회할 권한이 없으면 이동 전에 `403`을 반환한다. 알림 생성기는 수신자의 `push_notification_enabled`와 유형별 알림 설정을 확인하되, 앱 내부 알림 저장 여부와 OS push 발송 여부를 구분한다.
 
 ### 11.3 `PATCH /notifications/{id}/read` - 읽음 처리
 
@@ -1734,13 +1970,15 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 ### 12.1 `GET /counseling/centers` - 지역별 상담 센터 목록
 
-초기 MVP에서는 지역을 선택하면 상담 센터 목록과 네이버 지도·기관 홈페이지 등 외부 연결 URL을 제공한다. 서버가 센터의 실시간 예약 가능 시간이나 예약을 직접 생성하지 않는다.
+MVP에서는 지역을 선택하면 상담 센터 목록과 네이버 지도·기관 홈페이지 등 외부 연결 URL을 제공한다. Phase 2에서는 동일 센터 식별자를 사용해 예약 가능 시간 조회와 예약·취소를 제공한다.
 
 #### Query Parameters
 
 | 파라미터 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `region` | string | Y | 시·도 또는 시·군·구 지역명 |
+| `province_code` | string | Y | 시·도 코드 |
+| `district_code` | string | N | 시·군·구 코드. 선택 전에는 생략 가능 |
+| `facility_type` | enum | N | `hospital`, `dementia_center`, `public_health_center` |
 | `page` | integer | N | 기본 `1` |
 | `limit` | integer | N | 기본 `20` |
 
@@ -1751,20 +1989,42 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `centers[]` | array | 상담 센터 목록 |
 | `center_id` | string | 센터 ID |
 | `name` | string | 센터명 |
-| `region` | string | 지역명 |
+| `province_code` | string | 시·도 코드 |
+| `province_name` | string | 시·도 표시명 |
+| `district_code` | string | 시·군·구 코드 |
+| `district_name` | string | 시·군·구 표시명 |
+| `facility_type` | enum | `hospital`, `dementia_center`, `public_health_center` |
 | `address` | string | 주소 |
 | `phone` | string/null | 대표 연락처 |
-| `map_url` | string/null | 지도 외부 링크 |
+| `latitude` | float/null | 지도 표시용 위도 |
+| `longitude` | float/null | 지도 표시용 경도 |
+| `naver_map_url` | string/null | 네이버 지도 외부 링크 |
 | `homepage_url` | string/null | 기관 홈페이지 외부 링크 |
 | `reservation_mode` | enum | `external_link` 고정(MVP), 후속으로 `integrated` 검토 |
 
-실시간 예약 가능 시간 조회와 예약 폼 제출은 외부 기관 API·개인정보 제공 동의·예약 취소 정책을 확정한 뒤 별도 API로 추가한다.
+시·도와 시·군·구 선택지는 행정구역 기준정보를 사용하며, 프론트엔드는 자유 입력 지역명을 API 식별자로 사용하지 않는다.
 
-### 12.2 립싱크·TTS 후속 API
+### 12.2 `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 (Phase 2)
+
+`from_date`, `to_date`를 받아 `slots[]`의 `slot_id`, `starts_at`, `ends_at`, `status=available|unavailable`을 반환한다. 외부 기관이 실시간 연동을 지원하지 않으면 `501 COUNSELING_INTEGRATION_UNAVAILABLE`을 반환하고 센터의 외부 예약 URL을 안내한다.
+
+### 12.3 `POST /counseling/appointments` - 상담 예약 생성 (Phase 2)
+
+요청은 `center_id`, `slot_id`, `elder_id`, `contact_name`, `contact_phone`, `privacy_consent_version`을 포함한다. 응답 `201`은 `appointment_id`, `status=confirmed|requested`, `starts_at`, `center`, `cancellation_deadline`을 반환한다. 보호자는 연결 관계와 상담용 개인정보 제공 동의를 충족해야 하며, idempotency key로 중복 예약을 막는다.
+
+### 12.4 `GET /counseling/appointments` - 상담 예약 목록 (Phase 2)
+
+현재 인증 보호자의 예약만 반환한다. `status`, `from_date`, `to_date` 필터를 지원하며 `appointments[]`에 기관·대상자·예약 일시·상태를 포함한다.
+
+### 12.5 `DELETE /counseling/appointments/{appointment_id}` - 상담 예약 취소 (Phase 2)
+
+예약자만 취소할 수 있다. 취소 마감 이후에는 `409 APPOINTMENT_CANCELLATION_CLOSED`, 이미 취소된 요청은 기존 상태와 함께 멱등 응답을 반환한다.
+
+### 12.6 립싱크·TTS 후속 API
 
 중간보고서에서는 립싱크 적용 가능성을 검토 중이므로, 아래 API는 현재 MVP 필수 구현이 아닌 후속 확장 항목으로 분리한다.
 
-#### 12.2.1 `POST /voice/synthesize` - 안내 음성 생성 (Phase 2)
+#### 12.6.1 `POST /voice/synthesize` - 안내 음성 생성 (Phase 2)
 
 #### Request Body
 
@@ -1792,30 +2052,36 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 사용자 유형 선택 | `POST /auth/register` | `elder`, `guardian` |
 | 초기 사용자 정보 입력 | `PATCH /users/{user_id}`, `POST /consent/{user_id}` | 학력, 문해, 건강·생활습관, 청력, 스마트폰 사용 수준, 동의 |
 | 청취 환경·음성 선택 | `GET /voice-profiles`, `PATCH /users/{user_id}/preferences` | 잘 들리는 귀, 음성, 말하기 속도 |
-| 마이페이지·설정 | `GET/PATCH /users/{user_id}`, `GET/PATCH /users/{user_id}/preferences`, `GET/POST /consent/{user_id}` | 프로필, 청취·음성·자막 설정, 동의 상태 |
+| 마이페이지·설정 | `GET/PATCH /users/{user_id}`, `GET/PATCH /users/{user_id}/preferences`, `PATCH /users/me/password`, `POST /auth/logout`, `DELETE /users/me`, `GET /character/{user_id}`, `GET /character/{user_id}/xp-history`, `GET /dashboard/{user_id}` | 프로필, 알림 설정, 비밀번호, 로그아웃·탈퇴, 레벨·경험치 내역, 월간 활동·연속 출석 |
 | 초대 코드 입력 | `POST /guardian/invitations/verify`, `POST /guardian/invitations/accept` | 6자리 코드 검증, 동의 후 보호자 연결 생성 |
 | CIST 검사 | `POST /sessions`, `GET /questions/daily`, `POST /recordings`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end` | 문항 1개씩 진행, 음성 답변, 오프라인 재전송 |
 | CIST 결과·일기 | `GET /screenings/{session_id}/result`, `GET /summary/session/{session_id}`, `POST /diaries/from-session` | 고령자 정성 결과, 보호자용 점수·영역별 결과, 요약, 일기 저장 |
 | AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `GET /questions/daily`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end`, `GET /screenings/{session_id}/result` | 세션 종료 후 캐릭터 결과 안내, 정성 결과, XP 적립 |
-| 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-daily-summary` | KST 기준 다회 대화 집계, 보호자 리포트, 0시 일기 생성 |
+| 대화 내역 | `GET /sessions`, `GET /sessions/{session_id}`, `GET /sessions/{session_id}/answers` | 세션 목록, 질문·답변·전사문, 중단 세션 복구 |
+| 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-daily-summary`, `GET /diaries/{user_id}/generation-status` | KST 기준 다회 대화 집계, 보호자 리포트, 0시 일기 생성 작업과 상태 |
 | 고령자 홈 | `GET /dashboard/{user_id}`, `GET /character/{user_id}`, `GET /notifications/{user_id}` | 캐릭터, 최근 검사, 오늘 할 일, 알림 |
-| 달력·일기 | `GET /calendar/{user_id}/activities`, `GET /diaries/{user_id}`, `GET /diaries/{diary_id}`, `POST /diaries` | 날짜별 일기·활동·감정 |
-| 상담 센터 | `GET /counseling/centers?region=...` | 지역별 센터 목록, 지도·기관 사이트 외부 연결 |
+| 달력·일기 | `GET /calendar/{user_id}/activities`, `GET /diaries/{user_id}`, `GET /diaries/{diary_id}`, `POST /recordings` with `purpose=diary`, `POST /diaries` | 날짜별 일기·활동·감정, 음성 일기 녹음 |
+| 기억력 게임 | `POST /game/result`, `GET /game/{user_id}/history`, `GET /character/{user_id}` | 짝 맞춤 수, 시도·시간·재시작, XP와 성장 단계 |
+| 상담 센터 | `GET /counseling/centers?province_code=...&district_code=...` | 시·도·시군구별 기관 유형, 주소, 네이버 지도·기관 사이트 외부 연결 |
 | 지역 캠페인 (Phase 2) | `GET /campaigns`, `GET /campaigns/{campaign_id}`, `POST /campaigns/{campaign_id}/participation` | 초기 범위에서 제외한 확장 기능 |
 | 보호자 대시보드 | `GET /guardian/{guardian_id}/elders`, `GET /guardian/{guardian_id}/report` | 여러 고령자 카드, 점수, 위험 상태, 활동 지표 |
 | 보호자 일기·반응 | `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions` | 일기 열람, 하트·감정·메시지 반응 |
-| 보호자 위험 추이 | `GET /guardian/{guardian_id}/report`, `GET /analysis/cognitive/{user_id}/history` | 기간별 참고 점수와 추이 |
-| 알림 | `GET /notifications/{user_id}`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` | 검사 결과, AI 대화 완료, 일일 리포트, 캠페인(Phase 2), 주간 리포트 |
+| 보호자 위험 추이 | `GET /guardian/{guardian_id}/report`, `GET /analysis/cognitive/{user_id}/history`, `GET /analysis/cognitive/{user_id}/benchmark`, `GET /guardian/{guardian_id}/report/export` | 기간별 참고 점수·지역 기준선·리포트 내보내기 |
+| 고령자 알림 | `GET /notifications/{user_id}`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` | 일기 생성·미완료, 보호자 반응, 검사 결과, 읽음 상태·화면 이동 |
+| 보호자 알림 | `GET /notifications/{user_id}`, `PATCH /notifications/{id}/read`, `PATCH /notifications/read-all` | 인지 점수 하락 경보, AI 대화 완료, 주간 리포트, 캠페인 참여 |
 
-### 13.1 Figma 화면에서 확인했지만 MVP 확정 전인 항목
+### 13.1 전체 구현 범위와 단계 구분
 
-아래 기능은 화면에 버튼 또는 영역이 보이지만 실제 서비스 범위·외부 연동 여부가 확정되지 않았으므로 v1.2 MVP 엔드포인트 목록에는 포함하지 않는다. 제품 결정 후 별도 Issue에서 계약을 확정한다.
+Figma에 노출된 기능은 모두 구현 대상으로 확정한다. 외부 데이터·기관 연동이 필요한 기능은 계약과 개인정보 기준을 먼저 확정하되, 범위에서 삭제하지 않는다. 현재 Figma에 보이지 않는 기존 계획 기능도 Phase 2 구현 대상으로 유지한다.
 
-| 화면 기능 | 후보 API | 확정 전 확인 사항 |
+| 기능 | 구현 단계 | 구현 전 확정 사항 |
 | --- | --- | --- |
-| 지역 기준선 비교 | `GET /analysis/cognitive/{user_id}/benchmark?region=...` | 지역별 기준 데이터의 출처, 개인정보·표본 기준, 차트 표시 여부 |
-| 리포트 내보내기 | `GET /guardian/{guardian_id}/report/export?elder_id=...&format=pdf\|csv` | 파일 형식, 비동기 생성 여부, 다운로드 권한·보존 기간 |
-| 전문 상담 예약 | `GET /counseling/centers/{center_id}/availability`, `POST /counseling/appointments`, `DELETE /counseling/appointments/{appointment_id}` | 외부 기관 API 연동, 개인정보 제공 동의, 예약·취소 정책, MVP 제외 여부 |
+| 지역 기준선 비교 | MVP | 공신력 있는 집계 데이터 출처, 최소 표본 수, 갱신 주기 |
+| 리포트 내보내기 | MVP | PDF·CSV 양식, 서명 URL 만료, 파일 보존·감사 로그 |
+| 전문 상담 기관 검색·외부 지도 | MVP | 행정구역 코드, 기관 기준정보 출처, 링크 갱신 방식 |
+| 전문 상담 예약 | Phase 2 | 외부 기관 API, 개인정보 제공 동의, 예약·취소 정책 |
+| 지역 캠페인·참여 보상 | Phase 2 | 지역·기간·완료 기준, 중복 참여·XP 정책 |
+| 안내 음성 TTS·립싱크 | Phase 2 | provider, 비용·cache, viseme 형식, 장애 대체 동작 |
 
 ## 14. 백엔드 구현 우선순위
 
@@ -1824,9 +2090,11 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 3. AI 분석 파이프라인: AST·KcELECTRA 결과 저장 및 세션 단위 집계
 4. 고령자 화면: 홈, 캐릭터, 알림, 결과·일기, 캘린더, 마이페이지·설정
 5. 보호자 화면: 다중 고령자 연결, 대시보드, 일일 리포트, 일기 반응
-6. 상담 센터 목록과 외부 지도·기관 사이트 연결
-7. 지역 캠페인 및 참여 보상은 Phase 2로 분리
-8. TTS·립싱크 연동은 핵심 검사 흐름 안정화 이후 확장
+6. Figma 보완 화면: 비밀번호 변경, 대화 내역, 음성 일기, 게임 상세 지표, XP 내역, 알림 유형·이동
+7. 보호자 분석 확장: 지역 기준선 비교와 리포트 내보내기
+8. 상담 센터 목록과 외부 지도·기관 사이트 연결
+9. 상담 예약, 지역 캠페인·참여 보상은 Phase 2로 분리하되 구현 범위에서 유지
+10. TTS·립싱크 연동은 핵심 검사 흐름 안정화 이후 확장
 
 ## 15. 구현 시 확인할 사항
 
