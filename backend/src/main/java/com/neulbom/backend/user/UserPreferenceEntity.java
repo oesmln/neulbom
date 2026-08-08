@@ -32,6 +32,21 @@ public class UserPreferenceEntity {
     @Column(name = "sound_effect_enabled", nullable = false)
     private boolean soundEffectEnabled;
 
+    @Column(name = "push_notification_enabled", nullable = false)
+    private boolean pushNotificationEnabled;
+
+    @Column(name = "guardian_reaction_notification_enabled", nullable = false)
+    private boolean guardianReactionNotificationEnabled;
+
+    @Column(name = "screening_notification_enabled", nullable = false)
+    private boolean screeningNotificationEnabled;
+
+    @Column(name = "diary_notification_enabled", nullable = false)
+    private boolean diaryNotificationEnabled;
+
+    @Column(name = "weekly_report_notification_enabled", nullable = false)
+    private boolean weeklyReportNotificationEnabled;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 }

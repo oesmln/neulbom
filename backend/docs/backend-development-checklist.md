@@ -382,6 +382,7 @@
 - [x] `recordings` 테이블을 만든다.
   - [x] `client_recording_id` unique
   - [x] `user_id`, `session_id`, `question_id`
+  - [x] `purpose=answer|diary`와 목적별 세션·질문 nullable 제약
   - [x] 저장 위치와 파일 metadata
   - [x] `sync_status`
   - [x] `transcript_status`
@@ -408,9 +409,11 @@
 - [x] `campaign_participations` 테이블에 사용자·캠페인 unique 제약을 추가한다.
 - [x] `notifications` 테이블을 만든다.
 - [x] `audit_logs` 테이블과 보호자 접근·동의 변경 기록 구조를 만든다.
-- [ ] `user_preferences`에 전체·보호자 반응·검사·일기·주간 리포트 알림 설정 컬럼을 추가한다.
-- [ ] `game_results`에 `client_game_result_id` unique와 짝 수·시도·시간·재시작·완료 지표를 추가한다.
-- [ ] 날짜별 일기 생성 작업 상태·실패·재시도를 저장할 `diary_generation_jobs` 구조를 추가한다.
+- [x] `user_preferences`에 전체·보호자 반응·검사·일기·주간 리포트 알림 설정 컬럼을 추가한다.
+- [x] `game_results`에 `client_game_result_id` unique와 짝 수·시도·시간·재시작·완료 지표를 추가한다.
+- [x] 날짜별 일기 생성 작업 상태·실패·재시도를 저장할 `diary_generation_jobs` 구조를 추가한다.
+- [x] `daily_summaries`에 사용자·기준일 unique와 일일 분석 상태를 추가한다.
+- [x] `report_exports`에 요청 멱등키·작업 상태·파일 만료 구조를 추가한다.
 - [ ] 상담 기관 기준정보와 Phase 2 예약·상태 이력을 저장할 테이블을 설계한다.
 
 ### 2.6 migration·무결성 검증
@@ -427,6 +430,9 @@
   - [x] `cognitive_analyses.user_id, analyzed_at`
   - [x] `diaries.user_id, written_at`
   - [x] `notifications.recipient_user_id, is_read, created_at`
+  - [x] `daily_summaries.user_id, local_date`
+  - [x] `diary_generation_jobs.user_id, status, target_date`
+  - [x] `report_exports.guardian_id, created_at`
 - [x] migration을 빈 DB에서 처음부터 재현한다.
 - [ ] migration rollback 또는 복구 절차를 문서화한다.
 

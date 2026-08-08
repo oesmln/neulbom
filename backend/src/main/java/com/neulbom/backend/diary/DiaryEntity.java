@@ -33,6 +33,9 @@ public class DiaryEntity {
     @Column(name = "session_id")
     private UUID sessionId;
 
+    @Column(name = "daily_summary_id", unique = true)
+    private UUID dailySummaryId;
+
     @Column(length = 20)
     private String mood;
 

@@ -45,15 +45,16 @@ class DatabaseMigrationTest {
                               'SCREENING_RESULTS', 'SESSION_SUMMARIES', 'DIARIES', 'DIARY_REACTIONS',
                               'GAME_RESULTS', 'CHARACTERS', 'XP_LEDGER', 'CAMPAIGNS',
                               'CAMPAIGN_PARTICIPATIONS', 'NOTIFICATIONS', 'AUDIT_LOGS',
-                              'PASSWORD_RESET_TOKENS', 'OAUTH_ACCOUNTS'
+                              'PASSWORD_RESET_TOKENS', 'OAUTH_ACCOUNTS', 'DAILY_SUMMARIES',
+                              'DIARY_GENERATION_JOBS', 'REPORT_EXPORTS'
                           )
                         """,
                 Integer.class);
 
-        assertThat(migrationCount).isGreaterThanOrEqualTo(7);
+        assertThat(migrationCount).isGreaterThanOrEqualTo(8);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(8);
-        assertThat(coreTableCount).isEqualTo(30);
+        assertThat(coreTableCount).isEqualTo(33);
     }
 
     @Test
@@ -116,6 +117,77 @@ class DatabaseMigrationTest {
         insertRecording(firstRecordingId, clientRecordingId, userId, sessionId);
 
         assertThatThrownBy(() -> insertRecording(secondRecordingId, clientRecordingId, userId, sessionId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void diaryRecordingAllowsNoSessionOrQuestionButAnswerRecordingRequiresBoth() {
+        UUID userId = UUID.randomUUID();
+        insertUser(userId, "diary-recording-" + userId + "@example.com");
+
+        int inserted = jdbcTemplate.update(
+                """
+                        INSERT INTO recordings (
+                            id, client_recording_id, user_id, purpose, session_id, question_id,
+                            storage_key, mime_type, file_size_bytes, recorded_at
+                        ) VALUES (?, ?, ?, 'diary', NULL, NULL, 'migration/diary.wav', 'audio/wav', 1, CURRENT_TIMESTAMP)
+                        """,
+                UUID.randomUUID(), UUID.randomUUID(), userId);
+
+        assertThat(inserted).isEqualTo(1);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO recordings (
+                            id, client_recording_id, user_id, purpose, session_id, question_id,
+                            storage_key, mime_type, file_size_bytes, recorded_at
+                        ) VALUES (?, ?, ?, 'answer', NULL, NULL, 'migration/answer.wav', 'audio/wav', 1, CURRENT_TIMESTAMP)
+                        """,
+                UUID.randomUUID(), UUID.randomUUID(), userId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void gameResultsRejectDuplicateClientResultId() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        UUID clientResultId = UUID.randomUUID();
+        insertUser(userId, "game-result-" + userId + "@example.com");
+        insertSession(sessionId, userId);
+
+        insertGameResult(UUID.randomUUID(), clientResultId, userId, sessionId);
+
+        assertThatThrownBy(() -> insertGameResult(UUID.randomUUID(), clientResultId, userId, sessionId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void dailySummariesRejectDuplicateUserAndLocalDate() {
+        UUID userId = UUID.randomUUID();
+        insertUser(userId, "daily-summary-" + userId + "@example.com");
+        jdbcTemplate.update(
+                "INSERT INTO daily_summaries (id, user_id, local_date) VALUES (?, ?, DATE '2026-08-08')",
+                UUID.randomUUID(), userId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO daily_summaries (id, user_id, local_date) VALUES (?, ?, DATE '2026-08-08')",
+                UUID.randomUUID(), userId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void reportExportsRejectInvalidDateRange() {
+        UUID guardianId = UUID.randomUUID();
+        UUID elderId = UUID.randomUUID();
+        insertUser(guardianId, "report-guardian-" + guardianId + "@example.com", "guardian");
+        insertUser(elderId, "report-elder-" + elderId + "@example.com", "elder");
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                """
+                        INSERT INTO report_exports (
+                            id, guardian_id, elder_id, request_key, from_date, to_date, format
+                        ) VALUES (?, ?, ?, ?, DATE '2026-08-09', DATE '2026-08-08', 'pdf')
+                        """,
+                UUID.randomUUID(), guardianId, elderId, UUID.randomUUID().toString()))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -186,5 +258,21 @@ class DatabaseMigrationTest {
                         ) VALUES (?, ?, '00000000-0000-0000-0000-000000000101', ?, 'migration answer', CURRENT_TIMESTAMP)
                         """,
                 answerId, sessionId, clientAnswerId);
+    }
+
+    private void insertGameResult(
+            UUID resultId,
+            UUID clientResultId,
+            UUID userId,
+            UUID sessionId
+    ) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO game_results (
+                            id, client_game_result_id, user_id, session_id, game_type, score,
+                            response_times, error_count, total_questions, matched_pairs, attempt_count
+                        ) VALUES (?, ?, ?, ?, 'image_match', 100, '[]', 0, 6, 6, 6)
+                        """,
+                resultId, clientResultId, userId, sessionId);
     }
 }

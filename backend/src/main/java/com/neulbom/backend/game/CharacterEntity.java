@@ -22,11 +22,17 @@ public class CharacterEntity {
     @Column(nullable = false)
     private int level;
 
+    @Column(name = "display_name", nullable = false, length = 100)
+    private String displayName;
+
+    @Column(nullable = false, length = 20)
+    private String stage;
+
     @Column(name = "xp_current", nullable = false)
     private int xpCurrent;
 
-    @Column(name = "xp_next", nullable = false)
-    private int xpNext;
+    @Column(name = "xp_goal", nullable = false)
+    private int xpGoal;
 
     @Column(name = "skin_id", length = 100)
     private String skinId;

@@ -24,10 +24,13 @@ public class RecordingEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "session_id", nullable = false)
+    @Column(nullable = false, length = 20)
+    private String purpose;
+
+    @Column(name = "session_id")
     private UUID sessionId;
 
-    @Column(name = "question_id", nullable = false)
+    @Column(name = "question_id")
     private UUID questionId;
 
     @Column(name = "storage_key", nullable = false, length = 500)
