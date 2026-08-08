@@ -717,13 +717,13 @@
 
 ### 8.1 외부 서비스 추상화
 
-- [ ] `SpeechToTextClient` 인터페이스를 만든다.
-- [ ] `AcousticAnalysisClient` 또는 AST 실행 adapter를 만든다.
-- [ ] `CognitiveAnalysisClient` 또는 KcELECTRA 실행 adapter를 만든다.
-- [ ] `SessionSummaryClient` 또는 Gemini 실행 adapter를 만든다.
+- [x] `SpeechToTextClient` 인터페이스를 만든다.
+- [x] `AcousticAnalysisClient` 또는 AST 실행 adapter를 만든다.
+- [x] `CognitiveAnalysisClient` 또는 KcELECTRA 실행 adapter를 만든다.
+- [x] `SessionSummaryClient` 또는 Gemini 실행 adapter를 만든다.
 - [ ] 실제 외부 서비스와 mock 구현을 분리한다.
-- [ ] API key, model name, timeout, retry를 설정값으로 관리한다.
-- [ ] 외부 서비스 응답 스키마를 내부 DTO로 변환한다.
+- [x] API key, model name, timeout, retry를 설정값으로 관리한다.
+- [x] 외부 서비스 응답 스키마를 내부 DTO로 변환한다.
 
 ### 8.2 비동기 작업 흐름
 

@@ -1,5 +1,6 @@
 package com.neulbom.backend.analysis;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -18,12 +19,19 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.neulbom.backend.common.exception.ApiException;
+import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.analysis.integration.AcousticAnalysisClient;
+import com.neulbom.backend.analysis.integration.CognitiveAnalysisClient;
+import com.neulbom.backend.analysis.integration.SessionSummaryClient;
+import com.neulbom.backend.analysis.integration.SpeechToTextClient;
+import com.neulbom.backend.config.ExternalApiProperties;
 import com.neulbom.backend.guardian.GuardianAccessService;
 import com.neulbom.backend.notification.NotificationService;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
+import com.neulbom.backend.recording.RecordingStorage;
 import com.neulbom.backend.recording.TranscriptEntity;
 import com.neulbom.backend.recording.TranscriptRepository;
 import com.neulbom.backend.analysis.api.AcousticAnalysisRequest;
@@ -61,6 +69,7 @@ public class AnalysisService {
     private final SessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
     private final RecordingRepository recordingRepository;
+    private final RecordingStorage recordingStorage;
     private final TranscriptRepository transcriptRepository;
     private final AcousticAnalysisRepository acousticAnalysisRepository;
     private final CognitiveAnalysisRepository cognitiveAnalysisRepository;
@@ -71,12 +80,18 @@ public class AnalysisService {
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
     private final NotificationService notificationService;
+    private final SpeechToTextClient speechToTextClient;
+    private final AcousticAnalysisClient acousticAnalysisClient;
+    private final CognitiveAnalysisClient cognitiveAnalysisClient;
+    private final SessionSummaryClient sessionSummaryClient;
+    private final ExternalApiProperties externalApiProperties;
 
     public AnalysisService(
             UserRepository userRepository,
             SessionRepository sessionRepository,
             QuestionRepository questionRepository,
             RecordingRepository recordingRepository,
+            RecordingStorage recordingStorage,
             TranscriptRepository transcriptRepository,
             AcousticAnalysisRepository acousticAnalysisRepository,
             CognitiveAnalysisRepository cognitiveAnalysisRepository,
@@ -86,12 +101,18 @@ public class AnalysisService {
             ObjectMapper objectMapper,
             UuidGenerator uuidGenerator,
             Clock clock,
-            NotificationService notificationService
+            NotificationService notificationService,
+            SpeechToTextClient speechToTextClient,
+            AcousticAnalysisClient acousticAnalysisClient,
+            CognitiveAnalysisClient cognitiveAnalysisClient,
+            SessionSummaryClient sessionSummaryClient,
+            ExternalApiProperties externalApiProperties
     ) {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.recordingRepository = recordingRepository;
+        this.recordingStorage = recordingStorage;
         this.transcriptRepository = transcriptRepository;
         this.acousticAnalysisRepository = acousticAnalysisRepository;
         this.cognitiveAnalysisRepository = cognitiveAnalysisRepository;
@@ -102,6 +123,11 @@ public class AnalysisService {
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
         this.notificationService = notificationService;
+        this.speechToTextClient = speechToTextClient;
+        this.acousticAnalysisClient = acousticAnalysisClient;
+        this.cognitiveAnalysisClient = cognitiveAnalysisClient;
+        this.sessionSummaryClient = sessionSummaryClient;
+        this.externalApiProperties = externalApiProperties;
     }
 
     @Transactional
@@ -123,17 +149,25 @@ public class AnalysisService {
             return toTranscribeResponse(existing);
         }
 
+        SpeechToTextClient.TranscriptionResult providerResult = null;
+        if (speechToTextClient.isConfigured()) {
+            providerResult = speechToTextClient.transcribe(audioFile(recording, ignoredAudioFile));
+        } else if (!externalApiProperties.allowFallback()) {
+            throw new ExternalServiceUnavailableException("Whisper provider 설정이 없습니다.");
+        }
         Instant now = clock.instant();
-        // 외부 Whisper adapter 경계. 실제 모델 연결 전에도 상태·계약을 검증할 수 있는 deterministic fallback이다.
+        String transcriptText = providerResult == null
+                ? "음성 답변 전사가 완료되었습니다." : providerResult.transcript();
         TranscriptEntity transcript = new TranscriptEntity(
                 uuidGenerator.generate(),
                 recordingId,
-                "음성 답변 전사가 완료되었습니다.",
-                new BigDecimal("1.000"),
-                new BigDecimal("0.80"),
-                "ko",
-                "whisper-adapter-placeholder",
-                "v1",
+                transcriptText,
+                providerResult == null || providerResult.durationSec() == null
+                        ? new BigDecimal("1.000") : providerResult.durationSec(),
+                providerResult == null ? new BigDecimal("0.80") : providerResult.confidence(),
+                providerResult == null || providerResult.language() == null ? "ko" : providerResult.language(),
+                providerResult == null ? "whisper-fallback" : providerResult.modelName(),
+                providerResult == null ? "fallback" : providerResult.modelVersion(),
                 "completed",
                 now,
                 now,
@@ -158,18 +192,30 @@ public class AnalysisService {
         if (existing != null) {
             return toAcousticResponse(existing);
         }
+        AcousticAnalysisClient.AcousticResult providerResult = null;
+        if (acousticAnalysisClient.isConfigured()) {
+            providerResult = acousticAnalysisClient.analyze(
+                    recording.getId().toString(),
+                    audioFile(recording, null),
+                    request.segmentLengthSec() == null ? 8 : request.segmentLengthSec(),
+                    modelVersion);
+        } else if (!externalApiProperties.allowFallback()) {
+            throw new ExternalServiceUnavailableException("AST provider 설정이 없습니다.");
+        }
         Instant now = clock.instant();
         AcousticAnalysisEntity analysis = new AcousticAnalysisEntity(
                 uuidGenerator.generate(),
                 recording.getId(),
-                "AST",
-                modelVersion,
-                new BigDecimal("0.750000"),
-                json(Map.of("pause", false, "stability", true)),
-                new BigDecimal("3.2000"),
-                new BigDecimal("0.150000"),
-                new BigDecimal("0.6000"),
-                new BigDecimal("0.800000"),
+                providerResult == null ? "AST" : providerResult.modelName(),
+                providerResult == null ? modelVersion : providerResult.modelVersion(),
+                providerResult == null ? new BigDecimal("0.750000") : providerResult.acousticReferenceScore(),
+                providerResult == null
+                        ? json(Map.of("pause", false, "stability", true))
+                        : json(providerResult.acousticFlags()),
+                providerResult == null ? new BigDecimal("3.2000") : providerResult.speechRate(),
+                providerResult == null ? new BigDecimal("0.150000") : providerResult.pauseRatio(),
+                providerResult == null ? new BigDecimal("0.6000") : providerResult.energyVariability(),
+                providerResult == null ? new BigDecimal("0.800000") : providerResult.speechStability(),
                 now,
                 now);
         acousticAnalysisRepository.save(analysis);
@@ -198,26 +244,29 @@ public class AnalysisService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "fusion_mode 허용값을 확인하세요.");
         }
 
-        BigDecimal languageScore = heuristicScore(request.transcript());
+        CognitiveAnalysisClient.CognitiveResult providerResult = null;
+        if (cognitiveAnalysisClient.isConfigured()) {
+            providerResult = cognitiveAnalysisClient.analyze(request.transcript(), request.questionType(), "v1");
+        } else if (!externalApiProperties.allowFallback()) {
+            throw new ExternalServiceUnavailableException("KcELECTRA provider 설정이 없습니다.");
+        }
+        BigDecimal languageScore = providerResult == null
+                ? heuristicScore(request.transcript()) : boundedScore(providerResult.languageReferenceScore());
         BigDecimal acousticScore = request.acousticAnalysisId() == null ? null
                 : acousticAnalysisRepository.findById(request.acousticAnalysisId())
                 .map(AcousticAnalysisEntity::getAcousticReferenceScore)
+                .map(this::boundedScore)
                 .orElse(null);
         BigDecimal screeningScore = acousticScore == null || "none".equals(fusionMode)
                 ? languageScore : combine(languageScore, acousticScore, fusionMode);
+        screeningScore = boundedScore(screeningScore);
         String label = screeningScore.compareTo(new BigDecimal("0.60")) >= 0 ? "normal" : "attention_required";
         String riskLevel = screeningScore.compareTo(new BigDecimal("0.75")) >= 0
                 ? "normal" : screeningScore.compareTo(new BigDecimal("0.50")) >= 0 ? "caution" : "warning";
-        ObjectNode flags = objectMapper.createObjectNode();
-        flags.put("orientation", "orientation".equals(request.questionType()) && screeningScore.compareTo(new BigDecimal("0.60")) < 0);
-        flags.put("memory", "memory".equals(request.questionType()) && screeningScore.compareTo(new BigDecimal("0.60")) < 0);
-        flags.put("attention", "attention".equals(request.questionType()) && screeningScore.compareTo(new BigDecimal("0.60")) < 0);
-        flags.put("language", "language".equals(request.questionType()) && screeningScore.compareTo(new BigDecimal("0.60")) < 0);
-        ObjectNode domains = objectMapper.createObjectNode();
-        ObjectNode domain = domains.putObject(request.questionType());
-        domain.put("correct", screeningScore.compareTo(new BigDecimal("0.60")) >= 0 ? 1 : 0);
-        domain.put("total", 1);
-        domain.put("score_rate", screeningScore);
+        JsonNode flags = providerResult == null ? fallbackFlags(request.questionType(), screeningScore)
+                : providerResult.cognitiveFlags();
+        JsonNode domains = providerResult == null ? fallbackDomains(request.questionType(), screeningScore)
+                : providerResult.domainScores();
         Instant now = clock.instant();
         CognitiveAnalysisEntity analysis = new CognitiveAnalysisEntity(
                 uuidGenerator.generate(),
@@ -228,15 +277,16 @@ public class AnalysisService {
                 request.questionId(),
                 request.questionType(),
                 fusionMode,
-                "KcELECTRA",
-                "v1",
+                providerResult == null ? "KcELECTRA-fallback" : providerResult.modelName(),
+                providerResult == null ? "fallback" : providerResult.modelVersion(),
                 languageScore,
                 screeningScore,
                 label,
                 riskLevel,
                 flags.toString(),
                 domains.toString(),
-                modelBreakdown(languageScore, acousticScore),
+                providerResult == null ? modelBreakdown(languageScore, acousticScore)
+                        : json(providerResult.modelBreakdown()),
                 now,
                 now);
         cognitiveAnalysisRepository.save(analysis);
@@ -259,18 +309,24 @@ public class AnalysisService {
         if (existing != null) {
             return toSessionSummaryResponse(existing);
         }
-        String summary = request.qaPairs().stream()
+        SessionSummaryClient.SummaryResult providerResult = null;
+        if (sessionSummaryClient.isConfigured()) {
+            providerResult = sessionSummaryClient.summarize(request.qaPairs());
+        } else if (!externalApiProperties.allowFallback()) {
+            throw new ExternalServiceUnavailableException("Gemini provider 설정이 없습니다.");
+        }
+        String summary = providerResult == null ? request.qaPairs().stream()
                 .map(pair -> pair.question() + " " + pair.answer())
                 .reduce((first, second) -> first + " " + second)
-                .orElse("대화 내용이 없습니다.");
-        List<String> keywords = List.of("대화", "오늘");
+                .orElse("대화 내용이 없습니다.") : providerResult.summary();
+        List<String> keywords = providerResult == null ? List.of("대화", "오늘") : providerResult.keywords();
         Instant now = clock.instant();
         SessionSummaryEntity entity = new SessionSummaryEntity(
                 uuidGenerator.generate(),
                 session.getId(),
                 user.getId(),
                 summary,
-                vocabularyScore(request.qaPairs()),
+                providerResult == null ? vocabularyScore(request.qaPairs()) : providerResult.vocabularyScore(),
                 json(keywords),
                 request.qaPairs().size(),
                 "completed",
@@ -353,6 +409,47 @@ public class AnalysisService {
                 summaries.size(),
                 page,
                 limit);
+    }
+
+    private SpeechToTextClient.AudioFile audioFile(RecordingEntity recording, MultipartFile directFile) {
+        if (directFile != null && !directFile.isEmpty()) {
+            try {
+                return new SpeechToTextClient.AudioFile(
+                        directFile.getBytes(),
+                        directFile.getOriginalFilename(),
+                        directFile.getContentType());
+            } catch (IOException exception) {
+                throw new ExternalServiceUnavailableException("업로드된 녹음 파일을 읽을 수 없습니다.");
+            }
+        }
+        RecordingStorage.StoredAudio stored = recordingStorage.load(recording.getStorageKey());
+        return new SpeechToTextClient.AudioFile(stored.content(), stored.filename(), stored.contentType());
+    }
+
+    private JsonNode fallbackFlags(String questionType, BigDecimal screeningScore) {
+        ObjectNode flags = objectMapper.createObjectNode();
+        boolean attentionRequired = screeningScore.compareTo(new BigDecimal("0.60")) < 0;
+        flags.put("orientation", "orientation".equals(questionType) && attentionRequired);
+        flags.put("memory", "memory".equals(questionType) && attentionRequired);
+        flags.put("attention", "attention".equals(questionType) && attentionRequired);
+        flags.put("language", "language".equals(questionType) && attentionRequired);
+        return flags;
+    }
+
+    private JsonNode fallbackDomains(String questionType, BigDecimal screeningScore) {
+        ObjectNode domains = objectMapper.createObjectNode();
+        ObjectNode domain = domains.putObject(questionType);
+        domain.put("correct", screeningScore.compareTo(new BigDecimal("0.60")) >= 0 ? 1 : 0);
+        domain.put("total", 1);
+        domain.put("score_rate", screeningScore);
+        return domains;
+    }
+
+    private BigDecimal boundedScore(BigDecimal score) {
+        if (score == null) {
+            throw new ExternalServiceUnavailableException("분석 provider가 점수를 반환하지 않았습니다.");
+        }
+        return score.max(BigDecimal.ZERO).min(BigDecimal.ONE).setScale(6, RoundingMode.HALF_UP);
     }
 
     private RecordingEntity ownedRecording(UUID userId, UUID recordingId) {

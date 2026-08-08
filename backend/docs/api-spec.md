@@ -1535,6 +1535,21 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 `daily_summaries[]`에는 `daily_summary_id`, `user_id`, `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `status`, `display_label`, `message`, `recommendation`, `diary_id`를 포함한다. 보호자에게는 `screening_reference_score`, `domain_scores`, `trend` 등 수치·상세 집계 필드를 추가하고, 고령자 본인에게는 정성 결과 필드만 반환한다.
 
+### 7.12 외부 STT·AI provider 실행 계약
+
+분석 endpoint는 `SCOPE_server:write`를 가진 서버 작업만 호출한다. 앱은 외부 provider URL이나 API key를 직접 알 수 없으며, provider 응답은 내부 adapter DTO로 검증한 뒤 저장 모델로 변환한다.
+
+| 작업 | 기본 provider | 설정값 | 요청 계약 |
+| --- | --- | --- | --- |
+| STT | OpenAI Whisper | `WHISPER_API_KEY`, `WHISPER_API_BASE_URL`, `WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
+| 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
+| 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `transcript`, `question_type`, `model_version` |
+| 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
+
+모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.
+
+로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다.
+
 ## 8. 일기·보호자 반응 API
 
 ### 8.1 `POST /diaries` - 일기 생성

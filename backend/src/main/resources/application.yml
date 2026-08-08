@@ -58,6 +58,19 @@ app:
     connect-timeout: ${EXTERNAL_API_CONNECT_TIMEOUT:3s}
     read-timeout: ${EXTERNAL_API_READ_TIMEOUT:30s}
     retry-count: ${EXTERNAL_API_RETRY_COUNT:2}
+    allow-fallback: ${EXTERNAL_API_ALLOW_FALLBACK:true}
+    whisper-api-key: ${WHISPER_API_KEY:}
+    whisper-base-url: ${WHISPER_API_BASE_URL:https://api.openai.com}
+    whisper-model: ${WHISPER_MODEL:whisper-1}
+    ast-api-url: ${AST_API_URL:}
+    ast-api-key: ${AST_API_KEY:}
+    ast-model: ${AST_MODEL:v1}
+    kc-electra-api-url: ${KCELECTRA_API_URL:}
+    kc-electra-api-key: ${KCELECTRA_API_KEY:}
+    kc-electra-model: ${KCELECTRA_MODEL:v1}
+    gemini-api-key: ${GEMINI_API_KEY:}
+    gemini-base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
+    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
   security:
     jwt:
       secret: ${JWT_SECRET:local-only-change-this-jwt-secret-key-please}
