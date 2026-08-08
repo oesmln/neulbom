@@ -455,6 +455,7 @@
 - [x] 로그인 실패 시 이메일 존재 여부를 노출하지 않는다.
 - [x] `POST /auth/oauth/{provider}`를 구현하고 `kakao`, `naver` provider만 허용한다.
 - [x] provider authorization code를 서버에서 교환하고 code·provider token을 로그에 남기지 않는다.
+- [x] provider별 허용 `redirect_uri`를 환경변수 allowlist로 검증한다.
 - [x] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
 - [x] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
 - [x] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.

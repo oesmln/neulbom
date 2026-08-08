@@ -310,6 +310,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `authorization_code` | string | Y | provider에서 발급한 일회성 authorization code |
 | `redirect_uri` | string | Y | provider에 등록한 redirect URI |
 | `role` | enum | 조건부 | 신규 계정일 때 `elder`, `guardian`; 기존 계정이면 서버의 기존 역할 사용 |
+| `state` | string | N | provider OAuth 요청과 함께 전달할 state 값 |
 
 #### Response `200`
 
@@ -325,7 +326,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `profile_completed` | boolean | 초기 정보 입력 완료 여부 |
 | `is_new_user` | boolean | 이번 소셜 로그인으로 최초 가입했는지 여부 |
 
-지원하지 않는 provider, 만료된 authorization code, provider 계정의 이메일 검증 실패는 `400` 또는 `401`로 반환한다. provider access token과 authorization code는 로그에 기록하지 않는다.
+지원하지 않는 provider, 등록되지 않은 `redirect_uri`, 만료된 authorization code, provider 계정의 이메일 검증 실패는 `400` 또는 `401`로 반환한다. credential 미설정 또는 provider 장애는 `503`으로 반환한다. provider access token, authorization code, client secret은 로그에 기록하지 않는다. `redirect_uri`는 provider별 `*_ALLOWED_REDIRECT_URIS`에 정확히 일치해야 한다.
 
 ### 3.2.2 `POST /auth/password/reset/request` - 비밀번호 재설정 요청
 

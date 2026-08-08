@@ -34,11 +34,13 @@ app:
       client-secret: test-kakao-secret
       token-uri: http://localhost:9999/kakao/token
       user-info-uri: http://localhost:9999/kakao/user
+      allowed-redirect-uris: http://localhost/callback
     naver:
       client-id: test-naver-client
       client-secret: test-naver-secret
       token-uri: http://localhost:9999/naver/token
       user-info-uri: http://localhost:9999/naver/user
+      allowed-redirect-uris: http://localhost/callback
 
 logging:
   level:

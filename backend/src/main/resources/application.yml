@@ -70,11 +70,13 @@ app:
       client-secret: ${KAKAO_CLIENT_SECRET:}
       token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
+      allowed-redirect-uris: ${KAKAO_ALLOWED_REDIRECT_URIS:}
     naver:
       client-id: ${NAVER_CLIENT_ID:}
       client-secret: ${NAVER_CLIENT_SECRET:}
       token-uri: ${NAVER_TOKEN_URI:https://nid.naver.com/oauth2.0/token}
       user-info-uri: ${NAVER_USER_INFO_URI:https://openapi.naver.com/v1/nid/me}
+      allowed-redirect-uris: ${NAVER_ALLOWED_REDIRECT_URIS:}
 
 logging:
   level:
