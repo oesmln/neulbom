@@ -90,17 +90,19 @@
 
 기반: `questions`, `sessions`, `answers` 테이블과 질문 seed 데이터
 
-- [ ] `POST /sessions` - `cist`, `emotional_qa`, `game`, `mixed` 세션 시작
-- [ ] `GET /sessions/{session_id}` - 세션 상태·현재 문항·진행률 조회
-- [ ] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
-- [ ] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
-- [ ] `GET /sessions` - 사용자별 세션 목록 조회
-- [ ] `GET /sessions/{session_id}/answers` - 대화 질문·답변·전사 내역 조회
-- [ ] `GET /questions/daily` - 세션 유형별 질문 목록 조회
-- [ ] `GET /questions/{question_id}` - 질문 단건 조회
-- [ ] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
+- [x] `POST /sessions` - `cist`, `emotional_qa`, `game`, `mixed` 세션 시작
+- [x] `GET /sessions/{session_id}` - 세션 상태·현재 문항·진행률 조회
+- [x] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
+- [x] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
+- [x] `GET /sessions` - 사용자별 세션 목록 조회
+- [x] `GET /sessions/{session_id}/answers` - 대화 질문·답변·전사 내역 조회
+- [x] `GET /questions/daily` - 세션 유형별 질문 목록 조회
+- [x] `GET /questions/{question_id}` - 질문 단건 조회
+- [x] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
 
 완료 조건: CIST 5문항을 중단 후 이어서 진행할 수 있고, AI 정서 문답은 별도 세션으로 동작한다.
+
+구현 근거: `SessionController`·`SessionService`와 세션/질문/답변 Repository를 추가했다. 본인 쓰기, 보호자 `screening`/`summary` scope 읽기, 세션 설정 검증, 답변 콘텐츠·순서·시간 검증, `client_answer_id` 멱등 처리, 종료 후 변경 차단 테스트를 반영했다. STT 전사 ID의 실제 처리와 분석 결과·경험치 연동은 후속 녹음/분석/게임 단계에서 연결한다.
 
 ### 5차. 음성 업로드·오프라인 동기화 API
 
