@@ -139,4 +139,5 @@ public class CognitiveAnalysisEntity {
     public String getDomainScores() { return domainScores; }
     public String getModelBreakdown() { return modelBreakdown; }
     public Instant getAnalyzedAt() { return analyzedAt; }
+    public Instant getCreatedAt() { return createdAt; }
 }

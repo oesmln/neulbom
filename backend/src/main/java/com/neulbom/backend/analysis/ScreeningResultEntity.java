@@ -61,4 +61,57 @@ public class ScreeningResultEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected ScreeningResultEntity() {
+    }
+
+    public ScreeningResultEntity(
+            UUID id,
+            UUID sessionId,
+            UUID userId,
+            String status,
+            BigDecimal screeningReferenceScore,
+            BigDecimal displayScore,
+            BigDecimal scoreMax,
+            BigDecimal scoreRate,
+            String riskLevel,
+            String displayLabel,
+            String recommendation,
+            String domainScores,
+            Instant completedAt,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.sessionId = sessionId;
+        this.userId = userId;
+        this.status = status;
+        this.screeningReferenceScore = screeningReferenceScore;
+        this.displayScore = displayScore;
+        this.scoreMax = scoreMax;
+        this.scoreRate = scoreRate;
+        this.riskLevel = riskLevel;
+        this.displayLabel = displayLabel;
+        this.recommendation = recommendation;
+        this.domainScores = domainScores;
+        this.completedAt = completedAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getSessionId() { return sessionId; }
+    public UUID getUserId() { return userId; }
+    public String getStatus() { return status; }
+    public BigDecimal getScreeningReferenceScore() { return screeningReferenceScore; }
+    public BigDecimal getDisplayScore() { return displayScore; }
+    public BigDecimal getScoreMax() { return scoreMax; }
+    public BigDecimal getScoreRate() { return scoreRate; }
+    public String getRiskLevel() { return riskLevel; }
+    public String getDisplayLabel() { return displayLabel; }
+    public String getRecommendation() { return recommendation; }
+    public String getDomainScores() { return domainScores; }
+    public Instant getCompletedAt() { return completedAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

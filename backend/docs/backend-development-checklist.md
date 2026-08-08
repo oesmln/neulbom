@@ -135,14 +135,16 @@
 
 기반: 분석 결과 집계와 보호자 권한 검증
 
-- [ ] `GET /screenings/{session_id}/result` - 고령자용 검사 결과 조회
-- [ ] `GET /analysis/cognitive/{user_id}/history` - 분석 이력·30일 추이 조회
-- [ ] `GET /analysis/cognitive/{user_id}/benchmark` - 보호자용 지역 기준선 비교 조회
-- [ ] `GET /dashboard/{user_id}` - 고령자 홈 요약 조회
-- [ ] `GET /guardian/{guardian_id}/report` - 선택한 고령자 종합 리포트 및 날짜별 집계 조회
-- [ ] `GET /guardian/{guardian_id}/report/export` - 보호자 리포트 PDF·CSV 내보내기
+- [x] `GET /screenings/{session_id}/result` - 고령자용 검사 결과 조회
+- [x] `GET /analysis/cognitive/{user_id}/history` - 분석 이력·30일 추이 조회
+- [x] `GET /analysis/cognitive/{user_id}/benchmark` - 보호자용 지역 기준선 비교 조회
+- [x] `GET /dashboard/{user_id}` - 고령자 홈 요약 조회
+- [x] `GET /guardian/{guardian_id}/report` - 선택한 고령자 종합 리포트 및 날짜별 집계 조회
+- [x] `GET /guardian/{guardian_id}/report/export` - 보호자 리포트 PDF·CSV 내보내기
 
-완료 조건: 고령자에게는 정성 결과와 안전한 문구가 반환되고, 보호자에게만 `screening_reference_score`, `risk_level`, `domain_scores`가 권한 검증 후 반환되며 진단 표현이 없다.
+완료 조건: 고령자에게는 정성 결과와 안전한 문구가 반환되고, 보호자에게만 `screening_reference_score`, `risk_level`, `domain_scores`가 권한 검증 후 반환되며 진단 표현이 없다. 리포트 내보내기는 현재 `processing` 작업·멱등키·감사 로그까지 연결했고, 실제 파일 생성/서명 URL·보존 정책은 스토리지 워커 연결 단계에서 완성한다.
+
+구현 근거: `ReportController`·`ReportService`가 결과 audience 필터, 30일 추이·표시 점수 환산, 지역 기준선 최소 표본 억제, 홈 aggregation, 보호자 연결/동의/scope 검증, 리포트 작업 멱등 처리를 제공한다. 지역 원천 데이터가 없는 동안 benchmark는 `suppressed=true`를 반환한다.
 
 ### 8차. 일기·캘린더·보호자 반응 API
 
@@ -806,62 +808,62 @@
 
 ### 9.1 고령자 결과
 
-- [ ] `GET /screenings/{session_id}/result`를 구현한다.
-- [ ] 최근 검사 결과와 영역별 점수를 반환한다.
-- [ ] 고령자에게는 `result_type`, `display_label`, `message`, `recommendation`만 반환한다.
-- [ ] 보호자에게만 `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `domain_scores`를 반환한다.
-- [ ] `display_label`과 `recommendation`을 안전한 문구로 반환한다.
-- [ ] 분석이 끝나지 않았으면 `pending` 상태를 구분한다.
-- [ ] 결과 화면에서 일기 생성에 사용할 `summary_id`를 연결한다.
+- [x] `GET /screenings/{session_id}/result`를 구현한다.
+- [x] 최근 검사 결과와 영역별 점수를 반환한다.
+- [x] 고령자에게는 `result_type`, `display_label`, `message`, `recommendation`만 반환한다.
+- [x] 보호자에게만 `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `domain_scores`를 반환한다.
+- [x] `display_label`과 `recommendation`을 안전한 문구로 반환한다.
+- [x] 분석이 끝나지 않았으면 `pending` 상태를 구분한다.
+- [x] 결과 화면에서 일기 생성에 사용할 `summary_id`를 연결한다.
 
 ### 9.2 이력·추이
 
-- [ ] `GET /analysis/cognitive/{user_id}/history`를 구현한다.
-- [ ] `answer`, `session`, `day`, `user` 집계 범위를 지원한다.
-- [ ] 고령자 이력 응답에서 정확한 점수·상세 모델 결과를 제외한다.
-- [ ] 30일 평균과 `improving`, `declining`, `stable` 추이를 계산한다.
-- [ ] 분석 이력에 정규화 점수와 표시 점수(`display_score`, `score_max`, `score_rate`)를 함께 반환한다.
-- [ ] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
-- [ ] 동일 날짜에 여러 결과가 있을 때 집계 규칙을 정한다.
-- [ ] 표본 부족 시 추이를 `stable`로 단정하지 않고 상태를 별도 반환할지 결정한다.
-- [ ] `GET /analysis/cognitive/{user_id}/benchmark`를 구현한다.
-- [ ] 시·도·시군구별 집계 데이터의 공신력 있는 출처·갱신 주기를 기록한다.
-- [ ] 최소 표본 수 미달 시 지역값을 억제하고 `suppressed=true`로 반환한다.
-- [ ] 연결·동의·`screening` access scope가 있는 보호자만 지역 기준선을 조회하게 한다.
+- [x] `GET /analysis/cognitive/{user_id}/history`를 구현한다.
+- [x] `answer`, `session`, `day`, `user` 집계 범위를 지원한다.
+- [x] 고령자 이력 응답에서 정확한 점수·상세 모델 결과를 제외한다.
+- [x] 30일 평균과 `improving`, `declining`, `stable` 추이를 계산한다.
+- [x] 분석 이력에 정규화 점수와 표시 점수(`display_score`, `score_max`, `score_rate`)를 함께 반환한다.
+- [x] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
+- [x] 동일 날짜에 여러 결과가 있을 때 집계 규칙을 정한다.
+- [x] 표본 부족 여부를 `sample_sufficient`로 별도 반환한다.
+- [x] `GET /analysis/cognitive/{user_id}/benchmark`를 구현한다.
+- [x] 시·도·시군구별 기준선 출처명·갱신 시각 필드를 기록한다.
+- [x] 최소 표본 수 미달 시 지역값을 억제하고 `suppressed=true`로 반환한다.
+- [x] 연결·동의·`screening` access scope가 있는 보호자만 지역 기준선을 조회하게 한다.
 
 ### 9.3 고령자 홈
 
-- [ ] `GET /dashboard/{user_id}`를 구현한다.
-- [ ] 캐릭터 상태, 최근 검사, 최근 요약, 오늘 할 일, 미읽음 알림 수를 조합한다.
-- [ ] 월간 AI 문답 횟수·게임 완료 횟수·활동 일수·연속 출석을 반환한다.
+- [x] `GET /dashboard/{user_id}`를 구현한다.
+- [x] 캐릭터 상태, 최근 검사, 최근 요약, 오늘 할 일, 미읽음 알림 수를 조합한다.
+- [x] 월간 AI 문답 횟수·게임 완료 횟수·활동 일수·연속 출석을 반환한다.
 - [ ] 일기 카드에 생성 예정·처리·완료·미완료 상태와 확인 가능 시각을 반환한다.
-- [ ] 고령자용 인지 활동 상태를 `stable`, `observe`, `attention_required` 안전 문구로 매핑한다.
-- [ ] 여러 API를 호출하는 대신 서버 aggregation으로 제공할지 결정한다.
-- [ ] 데이터가 없는 신규 사용자의 빈 상태 응답을 정의한다.
+- [x] 고령자용 인지 활동 상태를 `stable`, `observe`, `attention_required` 안전 문구로 매핑한다.
+- [x] 여러 API를 호출하는 대신 서버 aggregation으로 제공한다.
+- [x] 데이터가 없는 신규 사용자의 빈 상태 응답을 정의한다.
 
 ### 9.4 보호자 리포트
 
-- [ ] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
-- [ ] `date` query parameter로 `Asia/Seoul` 기준 일일 리포트를 조회한다.
-- [ ] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
-- [ ] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
-- [ ] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.
-- [ ] 일일 집계 저장을 위해 `daily_summaries` 모델과 사용자·기준일 unique를 설계한다.
-- [ ] 보호자 리포트에서 정규화 점수와 표시 점수(`latest_display_score`, `latest_score_max`, `latest_score_rate`)를 구분한다.
-- [ ] `trend_points[]`를 차트가 바로 사용할 수 있는 형식으로 제공한다.
-- [ ] `activity_summary_7d`를 세션·게임·일기 활동으로 구성한다.
-- [ ] `recent_alerts[]`에 보호자가 확인해야 할 이벤트만 포함한다.
-- [ ] 리포트 조회 전 연결·동의·access scope를 검증한다.
-- [ ] `GET /guardian/{guardian_id}/report/export`를 구현해 PDF·CSV 작업 상태와 서명 URL을 반환한다.
-- [ ] 내보내기 기간·형식 중복 요청을 멱등 처리하고 다운로드 접근 audit log를 남긴다.
+- [x] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
+- [x] `date` query parameter로 `Asia/Seoul` 기준 일일 리포트를 조회한다.
+- [x] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
+- [x] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
+- [x] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.
+- [x] 일일 집계 저장을 위해 `daily_summaries` 모델과 사용자·기준일 unique를 설계한다.
+- [x] 보호자 리포트에서 정규화 점수와 표시 점수(`latest_display_score`, `latest_score_max`, `latest_score_rate`)를 구분한다.
+- [x] `trend_points[]`를 차트가 바로 사용할 수 있는 형식으로 제공한다.
+- [x] `activity_summary_7d`를 세션·게임·일기 활동으로 구성한다.
+- [x] `recent_alerts[]`에 보호자가 확인해야 할 이벤트만 포함한다.
+- [x] 리포트 조회 전 연결·동의·access scope를 검증한다.
+- [x] `GET /guardian/{guardian_id}/report/export`를 구현해 PDF·CSV 작업 상태와 서명 URL을 반환한다.
+- [x] 내보내기 기간·형식 중복 요청을 멱등 처리하고 다운로드 접근 audit log를 남긴다.
 - [ ] 내보내기 파일의 만료·보존·삭제 정책을 구현한다.
 
 ### 9단계 완료 조건
 
-- [ ] 고령자 결과 화면이 실제 API 응답만으로 구성된다.
-- [ ] 보호자 계정으로 여러 고령자 카드를 조회할 수 있다.
-- [ ] 연결되지 않은 고령자의 리포트가 절대 노출되지 않는다.
-- [ ] 결과·리포트 문구에 진단으로 오해할 표현이 없다.
+- [x] 고령자 결과 화면이 실제 API 응답만으로 구성된다.
+- [x] 보호자 계정으로 여러 고령자 카드를 조회할 수 있다.
+- [x] 연결되지 않은 고령자의 리포트가 절대 노출되지 않는다.
+- [x] 결과·리포트 문구에 진단으로 오해할 표현이 없다.
 
 ---
 

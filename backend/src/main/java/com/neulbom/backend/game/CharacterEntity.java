@@ -46,4 +46,42 @@ public class CharacterEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected CharacterEntity() {
+    }
+
+    public CharacterEntity(
+            UUID userId,
+            int level,
+            String displayName,
+            String stage,
+            int xpCurrent,
+            int xpGoal,
+            String skinId,
+            String unlocked,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.userId = userId;
+        this.level = level;
+        this.displayName = displayName;
+        this.stage = stage;
+        this.xpCurrent = xpCurrent;
+        this.xpGoal = xpGoal;
+        this.skinId = skinId;
+        this.unlocked = unlocked;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getUserId() { return userId; }
+    public int getLevel() { return level; }
+    public String getDisplayName() { return displayName; }
+    public String getStage() { return stage; }
+    public int getXpCurrent() { return xpCurrent; }
+    public int getXpGoal() { return xpGoal; }
+    public String getSkinId() { return skinId; }
+    public String getUnlocked() { return unlocked; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }
