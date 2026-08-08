@@ -88,7 +88,7 @@
 - [ ] `POST /sessions` - `cist`, `emotional_qa`, `game`, `mixed` 세션 시작
 - [ ] `GET /sessions/{session_id}` - 세션 상태·현재 문항·진행률 조회
 - [ ] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
-- [ ] `PATCH /sessions/{session_id}/end` - 세션 종료 및 분석 예약
+- [ ] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
 - [ ] `GET /sessions` - 사용자별 세션 목록 조회
 - [ ] `GET /questions/daily` - 세션 유형별 질문 목록 조회
 - [ ] `GET /questions/{question_id}` - 질문 단건 조회
@@ -114,6 +114,8 @@
 - [ ] `POST /analysis/cognitive` - KcELECTRA 텍스트 분석 및 선택적 결과 결합
 - [ ] `POST /summary/session` - Gemini 문답 요약 생성
 - [ ] `GET /summary/session/{session_id}` - 문답 요약 조회
+- [ ] `POST /summary/daily` - 하루 대화 분석 결과 집계
+- [ ] `GET /summary/daily/{user_id}` - 날짜별 대화 집계 요약 조회
 
 완료 조건: 음성 업로드 후 STT → AST/KcELECTRA → 점수 집계 → Gemini 요약 순서로 처리되고, 실패 시 재시도 가능하다.
 
@@ -124,9 +126,9 @@
 - [ ] `GET /screenings/{session_id}/result` - 고령자용 검사 결과 조회
 - [ ] `GET /analysis/cognitive/{user_id}/history` - 분석 이력·30일 추이 조회
 - [ ] `GET /dashboard/{user_id}` - 고령자 홈 요약 조회
-- [ ] `GET /guardian/{guardian_id}/report` - 선택한 고령자 종합 리포트 조회
+- [ ] `GET /guardian/{guardian_id}/report` - 선택한 고령자 종합 리포트 및 날짜별 집계 조회
 
-완료 조건: `screening_reference_score`, `risk_level`, `domain_scores`가 화면에서 사용할 수 있는 형태로 반환되고 진단 표현이 없다.
+완료 조건: 고령자에게는 정성 결과와 안전한 문구가 반환되고, 보호자에게만 `screening_reference_score`, `risk_level`, `domain_scores`가 권한 검증 후 반환되며 진단 표현이 없다.
 
 ### 8차. 일기·캘린더·보호자 반응 API
 
@@ -134,6 +136,7 @@
 
 - [ ] `POST /diaries` - 텍스트·음성 일기 생성
 - [ ] `POST /diaries/from-session` - AI 문답 요약으로 일기 생성
+- [ ] `POST /diaries/from-daily-summary` - 하루 대화 집계 요약으로 일기 생성
 - [ ] `GET /diaries/{user_id}` - 날짜별 일기 목록 조회
 - [ ] `GET /diaries/{diary_id}` - 일기 상세 조회
 - [ ] `PATCH /diaries/{diary_id}` - 일기 수정
@@ -151,15 +154,21 @@
 - [ ] `POST /game/result` - 미니게임 결과 저장
 - [ ] `GET /game/{user_id}/history` - 게임 이력 조회
 - [ ] `GET /character/{user_id}` - 캐릭터 레벨·경험치·아이템 조회
-- [ ] `POST /character/{user_id}/xp` - 출석·방문·대화·게임·캠페인 경험치 적립
-- [ ] `GET /campaigns` - 지역 캠페인 목록 조회
-- [ ] `GET /campaigns/{campaign_id}` - 지역 캠페인 상세 조회
-- [ ] `POST /campaigns/{campaign_id}/participation` - 캠페인 참여
-- [ ] `GET /campaigns/{campaign_id}/participation` - 캠페인 참여 상태 조회
+- [ ] `POST /character/{user_id}/xp` - 정서 문답·게임 완료 이벤트 기반 경험치 자동 적립
+- [ ] `GET /campaigns` - 지역 캠페인 목록 조회 (Phase 2)
+- [ ] `GET /campaigns/{campaign_id}` - 지역 캠페인 상세 조회 (Phase 2)
+- [ ] `POST /campaigns/{campaign_id}/participation` - 캠페인 참여 (Phase 2)
+- [ ] `GET /campaigns/{campaign_id}/participation` - 캠페인 참여 상태 조회 (Phase 2)
 
 완료 조건: 게임 결과와 경험치가 중복 없이 반영되고, 캠페인 참여·완료·보상이 동작한다.
 
-### 10차. 알림 API
+### 10차. 상담 센터 API
+
+- [ ] `GET /counseling/centers` - 지역별 상담 센터 목록·지도·기관 사이트 링크 조회
+
+완료 조건: 지역 선택 후 센터 목록을 조회하고 외부 지도 또는 기관 사이트로 이동할 수 있다. 실시간 예약은 후속 Issue로 분리한다.
+
+### 11차. 알림 API
 
 기반: `notifications` 테이블과 검사·요약·반응·캠페인 이벤트
 
@@ -193,6 +202,11 @@
 - [ ] 초대 코드는 `invite_code` 6자리, 만료·1회성 소비·검증 시도 제한 규칙을 따른다.
 - [ ] 기존 `dementia_score`는 신규 응답에서 사용하지 않고 deprecated alias 유지 여부를 결정한다.
 - [ ] 날짜·시간은 타임존을 포함한 ISO 8601 문자열로 통일한다.
+- [ ] AI 정서 문답 세션 종료 시 고령자에게 `result_type`, `display_label`, `message`, `recommendation`만 제공하고 정확한 점수는 보호자에게만 제공한다.
+- [ ] 하루 집계 기준을 `Asia/Seoul`의 `00:00~다음 날 00:00`으로 고정한다.
+- [ ] 세션별 분석은 종료 후 생성하고, 일일 집계·보호자 리포트·일기 생성은 하루 종료 후 실행한다.
+- [ ] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 제한하고 실시간 예약은 후속 범위로 분리한다.
+- [ ] 지역 지정 캠페인은 초기 MVP에서 제외하고 Phase 2로 관리한다.
 - [ ] ID 생성 규칙을 UUID 또는 프로젝트 공통 ID 규칙으로 확정한다.
 
 ### 0.2 작업 방식
@@ -575,6 +589,11 @@
 - [ ] 세션별 자막 설정 변경 권한을 검증한다.
 - [ ] `PATCH /sessions/{session_id}/end`를 구현한다.
 - [ ] 종료 시 분석 작업을 예약한다.
+- [ ] `emotional_qa` 종료 시 `result_type`, `display_label`, `message`, `recommendation`을 반환한다.
+- [ ] 고령자 응답에서 정확한 점수·원본 모델 출력·상세 영역 점수를 제외한다.
+- [ ] 보호자 응답에서만 연결·동의·access scope 확인 후 정확한 점수와 상세 분석을 반환한다.
+- [ ] 분석이 비동기이면 `GET /screenings/{session_id}/result` 재조회로 결과를 확인한다.
+- [ ] 정서 문답 완료 이벤트를 `event_id=session_id`로 경험치 적립과 연결한다.
 - [ ] `GET /sessions`를 구현한다.
 - [ ] 날짜·세션 유형·페이지네이션 필터를 구현한다.
 
@@ -596,6 +615,7 @@
 - [ ] `다음`, `다시 듣기`, `처음으로` 동작에 필요한 상태를 프론트엔드가 복구할 수 있다.
 - [ ] 앱을 종료했다가 다시 열어도 세션 진행 상태를 조회할 수 있다.
 - [ ] AI 정서 문답은 CIST와 다른 질문 세트·세션 유형으로 동작한다.
+- [ ] 하루에 여러 정서 문답 세션을 생성할 수 있다.
 
 ### 6단계 완료 조건
 
@@ -721,6 +741,18 @@
 - [ ] 요약 결과가 없을 때 `source_status=pending`을 반환한다.
 - [ ] 모델 응답에 의료적 진단 표현이 포함되지 않도록 후처리·검수 정책을 정한다.
 
+### 8.8 일일 대화 집계
+
+- [ ] `POST /summary/daily`를 서버 작업 큐 전용으로 구현한다.
+- [ ] `GET /summary/daily/{user_id}`를 구현한다.
+- [ ] `Asia/Seoul` 기준 `00:00~다음 날 00:00`의 여러 세션을 집계한다.
+- [ ] `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `status`를 반환한다.
+- [ ] 일일 집계 결과에 포함된 세션별 결과와 일일 종합 결과를 구분한다.
+- [ ] `daily_summary_id`와 사용자·기준일을 unique로 관리한다.
+- [ ] 재시도·재집계 시 동일 일일 결과와 경험치·알림이 중복 생성되지 않게 한다.
+- [ ] 집계 실패 시 `failed` 상태와 재처리 가능 상태를 제공한다.
+- [ ] 일일 집계 스케줄러의 시간대, 실행 시각, 재시도 정책을 문서화한다.
+
 ### 8단계 완료 조건
 
 - [ ] mock 외부 서비스로 업로드 → STT → AST/KcELECTRA → 집계 → 요약 전체 흐름이 통과한다.
@@ -736,7 +768,8 @@
 
 - [ ] `GET /screenings/{session_id}/result`를 구현한다.
 - [ ] 최근 검사 결과와 영역별 점수를 반환한다.
-- [ ] `display_score`, `score_max`, `score_rate`를 반환해 화면 점수 형식을 구성한다.
+- [ ] 고령자에게는 `result_type`, `display_label`, `message`, `recommendation`만 반환한다.
+- [ ] 보호자에게만 `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `domain_scores`를 반환한다.
 - [ ] `display_label`과 `recommendation`을 안전한 문구로 반환한다.
 - [ ] 분석이 끝나지 않았으면 `pending` 상태를 구분한다.
 - [ ] 결과 화면에서 일기 생성에 사용할 `summary_id`를 연결한다.
@@ -744,7 +777,8 @@
 ### 9.2 이력·추이
 
 - [ ] `GET /analysis/cognitive/{user_id}/history`를 구현한다.
-- [ ] `answer`, `session`, `user` 집계 범위를 지원한다.
+- [ ] `answer`, `session`, `day`, `user` 집계 범위를 지원한다.
+- [ ] 고령자 이력 응답에서 정확한 점수·상세 모델 결과를 제외한다.
 - [ ] 30일 평균과 `improving`, `declining`, `stable` 추이를 계산한다.
 - [ ] 분석 이력에 정규화 점수와 표시 점수(`display_score`, `score_max`, `score_rate`)를 함께 반환한다.
 - [ ] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
@@ -761,7 +795,11 @@
 ### 9.4 보호자 리포트
 
 - [ ] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
+- [ ] `date` query parameter로 `Asia/Seoul` 기준 일일 리포트를 조회한다.
 - [ ] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
+- [ ] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
+- [ ] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.
+- [ ] 일일 집계 저장을 위해 `daily_summaries` 모델과 사용자·기준일 unique를 설계한다.
 - [ ] 보호자 리포트에서 정규화 점수와 표시 점수(`latest_display_score`, `latest_score_max`, `latest_score_rate`)를 구분한다.
 - [ ] `trend_points[]`를 차트가 바로 사용할 수 있는 형식으로 제공한다.
 - [ ] `activity_summary_7d`를 세션·게임·일기 활동으로 구성한다.
@@ -783,11 +821,15 @@
 
 - [ ] `POST /diaries`를 구현한다.
 - [ ] `POST /diaries/from-session`을 구현한다.
+- [ ] `POST /diaries/from-daily-summary`를 구현한다.
 - [ ] `GET /diaries/{user_id}`를 구현한다.
 - [ ] `GET /diaries/{diary_id}`를 구현한다.
 - [ ] `PATCH /diaries/{diary_id}`를 구현한다.
 - [ ] `DELETE /diaries/{diary_id}`를 구현한다.
-- [ ] `source_type`을 `manual`, `voice`, `session`으로 관리한다.
+- [ ] `source_type`을 `manual`, `voice`, `session`, `daily_summary`로 관리한다.
+- [ ] `daily_summary_id`를 일기와 nullable 관계로 연결한다.
+- [ ] `Asia/Seoul` 기준 하루 대화 집계를 0시 이후 일기로 생성한다.
+- [ ] 같은 `daily_summary_id`로 일기가 중복 생성되지 않게 한다.
 - [ ] 일기에 `mood`와 `mood_level`을 저장하고 캘린더 활동의 `metadata`에 포함한다.
 - [ ] `mood`를 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`로 제한하고 `mood_level`을 `1~5`로 검증한다.
 - [ ] 문답 요약에서 일기를 만들 때 사용자가 본문을 수정할 수 있게 한다.
@@ -810,6 +852,7 @@
 - [ ] 각 활동의 `reference_id`로 상세 화면 이동이 가능하게 한다.
 - [ ] 일기 활동의 감정 아이콘을 `metadata.mood`와 `metadata.mood_level`로 표시한다.
 - [ ] 활동이 없는 날짜의 빈 응답을 정의한다.
+- [ ] 여러 대화 세션과 일일 집계·일기를 같은 `local_date` 기준으로 표시한다.
 
 ### 10단계 완료 조건
 
@@ -819,7 +862,7 @@
 
 ---
 
-## 11. 게임·캐릭터·지역 캠페인
+## 11. 게임·캐릭터·지역 캠페인·상담 센터
 
 ### 11.1 미니게임
 
@@ -834,27 +877,40 @@
 
 - [ ] `GET /character/{user_id}`를 구현한다.
 - [ ] `POST /character/{user_id}/xp`를 구현한다.
-- [ ] 출석·방문·대화·캠페인·게임별 경험치 정책을 정한다.
+- [ ] 정서 문답·게임 완료 시 서버 이벤트로 경험치를 자동 적립한다.
+- [ ] `event_id=session_id` 또는 `event_id=game_result_id`로 중복 적립을 차단한다.
+- [ ] 클라이언트가 임의의 경험치 `amount`를 직접 적립하지 못하게 한다.
+- [ ] 출석·방문·정서 문답·게임별 경험치 정책을 정한다. 캠페인 보상은 Phase 2로 분리한다.
 - [ ] 동일 이벤트가 재처리돼도 경험치가 중복 적립되지 않게 한다.
 - [ ] 레벨업 transaction과 응답 필드를 구현한다.
 - [ ] 캐릭터 상태가 고령자 홈에 표시되도록 dashboard와 연결한다.
 
 ### 11.3 지역 캠페인
 
-- [ ] 캠페인 관리용 초기 데이터를 등록한다.
-- [ ] `GET /campaigns`를 구현한다.
-- [ ] `GET /campaigns/{campaign_id}`를 구현한다.
-- [ ] `POST /campaigns/{campaign_id}/participation`을 구현한다.
-- [ ] `GET /campaigns/{campaign_id}/participation`을 구현한다.
-- [ ] 지역·기간·상태 필터를 지원한다.
-- [ ] 동일 사용자의 중복 참여를 차단한다.
-- [ ] 캠페인 완료 시 경험치와 알림을 연결한다.
+- [ ] 지역 캠페인은 Phase 2로 관리한다.
+- [ ] 캠페인 관리용 초기 데이터를 등록한다. (Phase 2)
+- [ ] `GET /campaigns`를 구현한다. (Phase 2)
+- [ ] `GET /campaigns/{campaign_id}`를 구현한다. (Phase 2)
+- [ ] `POST /campaigns/{campaign_id}/participation`을 구현한다. (Phase 2)
+- [ ] `GET /campaigns/{campaign_id}/participation`을 구현한다. (Phase 2)
+- [ ] 지역·기간·상태 필터를 지원한다. (Phase 2)
+- [ ] 동일 사용자의 중복 참여를 차단한다. (Phase 2)
+- [ ] 캠페인 완료 시 경험치와 알림을 연결한다. (Phase 2)
+
+### 11.4 상담 센터
+
+- [ ] `GET /counseling/centers`를 구현한다.
+- [ ] `region`으로 시·도 또는 시·군·구 필터를 지원한다.
+- [ ] 센터명, 주소, 연락처, 지도 URL, 기관 홈페이지 URL을 반환한다.
+- [ ] MVP에서는 `reservation_mode=external_link`만 제공한다.
+- [ ] 실시간 예약 가능 여부·예약 생성·취소는 외부 기관 연동 확정 후 별도 Issue로 분리한다.
 
 ### 11단계 완료 조건
 
 - [ ] 게임 결과가 이력과 캐릭터 경험치에 반영된다.
 - [ ] 동일 게임 결과 재전송으로 경험치가 중복되지 않는다.
-- [ ] 캠페인 목록 조회·참여·완료 상태가 동작한다.
+- [ ] 캠페인 목록 조회·참여·완료 상태가 동작한다. (Phase 2)
+- [ ] 지역 선택 후 상담 센터 목록과 외부 연결이 동작한다.
 
 ---
 
@@ -944,9 +1000,14 @@
 #### 시나리오 D. AI 정서 문답 → 일기 → 보호자 반응
 
 - [ ] `emotional_qa` 세션 시작
+- [ ] 하루에 두 번 이상 정서 문답 세션 진행
 - [ ] 질문·답변 저장
+- [ ] 세션 종료 후 고령자에게 정성 결과·격려 메시지 안내
+- [ ] 고령자 응답에 정확한 점수·상세 영역 결과가 포함되지 않는지 확인
+- [ ] 보호자 응답에 연결·동의·access scope 확인 후 수치 결과가 포함되는지 확인
 - [ ] Gemini 요약 생성
 - [ ] 요약으로 일기 생성
+- [ ] 0시 이후 하루 대화 집계로 일일 일기 생성
 - [ ] 보호자 일기 조회
 - [ ] 보호자 반응 저장
 - [ ] 고령자 알림 생성·조회
@@ -955,11 +1016,18 @@
 
 - [ ] 게임 결과 저장
 - [ ] 게임 이력 조회
-- [ ] 경험치 적립
+- [ ] 게임 완료 이벤트로 경험치 자동 적립
 - [ ] 레벨업 여부 확인
-- [ ] 캠페인 목록 조회
-- [ ] 캠페인 참여
-- [ ] 완료 보상과 알림 확인
+- [ ] 캠페인 목록 조회 (Phase 2)
+- [ ] 캠페인 참여 (Phase 2)
+- [ ] 완료 보상과 알림 확인 (Phase 2)
+
+#### 시나리오 F. 지역 선택 → 상담 센터 외부 연결
+
+- [ ] 지역 선택
+- [ ] `GET /counseling/centers` 호출
+- [ ] 상담 센터 목록·주소·연락처 조회
+- [ ] 지도 또는 기관 홈페이지 외부 링크 이동
 
 ### 13.3 API 계약 검증
 
@@ -969,6 +1037,10 @@
 - [ ] enum 값이 프론트엔드 상수와 일치하는지 확인한다.
 - [ ] `null` 가능 여부를 명세에 맞춘다.
 - [ ] 기본값과 페이지네이션 동작을 확인한다.
+- [ ] 고령자·보호자 역할별 결과 필드 노출 차이를 계약 테스트한다.
+- [ ] `Asia/Seoul` 기준 `local_date` 일일 집계와 `date` 리포트 query를 계약 테스트한다.
+- [ ] `POST /summary/daily`와 `POST /diaries/from-daily-summary`의 중복 실행 방지를 계약 테스트한다.
+- [ ] `GET /counseling/centers`의 지역 필터와 외부 URL 응답을 계약 테스트한다.
 - [ ] 초대 코드 입력 API에서 code가 path/query로 노출되지 않고, 발급·검증·수락 endpoint의 상태 전이가 일치하는지 확인한다.
 - [ ] 사용·만료 초대 코드의 `410`, 반복 검증 실패의 `429`, 동의 거부의 `422` 응답을 계약 테스트한다.
 - [ ] `PATCH /notifications/read-all`이 개별 읽음 endpoint와 충돌하지 않고 현재 사용자 알림만 변경하는지 확인한다.
