@@ -16,6 +16,22 @@ public class GuardianLinkScopeId implements Serializable {
     @Column(nullable = false, length = 20)
     private String scope;
 
+    protected GuardianLinkScopeId() {
+    }
+
+    public GuardianLinkScopeId(UUID linkId, String scope) {
+        this.linkId = linkId;
+        this.scope = scope;
+    }
+
+    public UUID getLinkId() {
+        return linkId;
+    }
+
+    public String getScope() {
+        return scope;
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object) {

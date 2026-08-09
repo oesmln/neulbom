@@ -769,6 +769,14 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 
 응답 본문 없음. 연결을 삭제하는 대신 감사 로그에는 해제 이력을 보존한다.
 
+#### 구현 권한·수명 규칙
+
+- 초대 발급은 `guardian`, 초대 수락은 `elder` 역할만 허용한다. 초대 원문은 발급 응답에서만 반환하고 `code_hash`만 저장한다.
+- 초대 기본 유효 기간은 600초, 최대 검증 시도는 5회이며, 검증 실패가 반복되면 IP 기준 `429`를 반환한다. 만료·사용·폐기 코드는 `410`이다.
+- 초대 수락은 `consent_agreed=true`일 때만 가능하며, 성공 시 `guardian_access` 동의 이력과 `active` 연결을 함께 생성한다. 직접 연결 요청은 동의 전 `pending`으로 저장한다.
+- 연결 수정·해제와 고령자 목록 조회는 JWT의 보호자 본인만 수행할 수 있다. 다른 `guardian_id` 또는 `link_id`를 지정한 요청은 `403`이다.
+- 보호자 데이터 접근은 `active` 연결, 보호자 접근 동의, 연결 `access_scope`를 모두 확인한다. `all`을 제외한 scope 밖의 데이터는 `403`이다.
+
 ## 5. 홈·캘린더·상담 센터·지역 캠페인 API
 
 지역 캠페인 endpoint와 홈의 `upcoming_campaigns[]`는 Phase 2 확장 범위다. 초기 MVP는 홈·캘린더·상담 센터 목록 및 외부 연결을 우선 구현한다.
@@ -1153,6 +1161,12 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 > 화면은 한 번에 하나의 질문만 표시하며, `다음`, `다시 듣기`, `처음으로` 동작은 프론트엔드에서 처리한다. 서버는 세션 진행 상태와 답변 저장을 담당한다.
 
+#### 구현 권한·진행 규칙
+
+- 세션 시작·설정 변경·종료·답변 저장은 고령자 본인만 수행한다. 보호자는 활성 연결과 동의가 있고 `screening` 또는 `summary` scope가 있을 때 세션·답변을 읽을 수 있다.
+- 세션 설정이 생략되면 사용자 환경 설정 또는 `preferred_hearing_side=unknown`, `speech_rate=0.90`, 자막·효과음 `false`를 사용한다. `voice_profile_id`는 활성 한국어 음성만 허용한다.
+- 동일 세션의 `client_answer_id`를 재전송하면 기존 답변을 다시 반환하고 답변 수를 증가시키지 않는다. 종료된 세션과 다른 세션 유형의 질문은 `422`로 거부한다.
+
 ## 7. 녹음·STT·AI 분석 API
 
 ### 7.1 `POST /recordings` - 문항 답변·음성 일기 업로드 및 동기화
@@ -1196,6 +1210,13 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
   "deduplicated": false
 }
 ```
+
+#### 구현 권한·동기화 규칙
+
+- 녹음 업로드는 고령자 본인만 수행한다. `purpose=answer`는 본인 소유 세션·활성 질문의 `session_id`와 `question_id`를 함께 받아야 하고, `purpose=diary`는 두 필드를 받지 않는다.
+- 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, 최대 25MB이며 MIME type도 함께 검증한다.
+- 동일 `client_recording_id`를 본인이 재전송하면 기존 `recording_id`와 처리 상태를 `deduplicated=true`로 반환한다. 다른 사용자가 해당 ID를 사용하면 `403`이다.
+- 상태 조회는 본인 또는 활성 보호자 연결의 `screening`(답변)·`diary`(음성 일기) scope만 허용한다. STT·AST·KcELECTRA 결과 ID는 처리 완료 시 adapter가 채우며 초기 업로드 응답에서는 `pending`이다.
 
 ### 7.2 `GET /recordings/{recording_id}` - 녹음 처리 상태
 

@@ -15,6 +15,9 @@ import jakarta.persistence.Table;
 @Table(name = "sessions")
 public class SessionEntity {
 
+    public static final String ACTIVE = "active";
+    public static final String ENDED = "ended";
+
     @Id
     private UUID id;
 
@@ -48,4 +51,88 @@ public class SessionEntity {
 
     @Column(name = "ended_at")
     private Instant endedAt;
+
+    protected SessionEntity() {
+    }
+
+    public SessionEntity(
+            UUID id,
+            UUID userId,
+            String sessionType,
+            int totalQuestions,
+            String settings,
+            boolean offlineMode,
+            Instant startedAt
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.sessionType = sessionType;
+        this.status = ACTIVE;
+        this.currentQuestionOrder = 1;
+        this.answeredCount = 0;
+        this.totalQuestions = totalQuestions;
+        this.settings = settings;
+        this.offlineMode = offlineMode;
+        this.startedAt = startedAt;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public UUID getUserId() {
+        return userId;
+    }
+
+    public String getSessionType() {
+        return sessionType;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public int getCurrentQuestionOrder() {
+        return currentQuestionOrder;
+    }
+
+    public int getAnsweredCount() {
+        return answeredCount;
+    }
+
+    public int getTotalQuestions() {
+        return totalQuestions;
+    }
+
+    public String getSettings() {
+        return settings;
+    }
+
+    public boolean isOfflineMode() {
+        return offlineMode;
+    }
+
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public Instant getEndedAt() {
+        return endedAt;
+    }
+
+    public void updateSettings(String settings) {
+        this.settings = settings;
+    }
+
+    public void recordAnswer() {
+        if (answeredCount < totalQuestions) {
+            answeredCount++;
+        }
+        currentQuestionOrder = Math.min(totalQuestions, answeredCount + 1);
+    }
+
+    public void end(Instant endedAt) {
+        this.status = ENDED;
+        this.endedAt = endedAt;
+    }
 }
