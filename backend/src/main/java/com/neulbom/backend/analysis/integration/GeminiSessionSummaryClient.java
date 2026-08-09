@@ -136,6 +136,6 @@ public class GeminiSessionSummaryClient implements SessionSummaryClient {
     }
 
     private String model() {
-        return StringUtils.hasText(properties.geminiModel()) ? properties.geminiModel() : "gemini-2.0-flash";
+        return StringUtils.hasText(properties.geminiModel()) ? properties.geminiModel() : "gemini-2.5-flash";
     }
 }

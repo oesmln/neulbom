@@ -10,9 +10,18 @@ public record ExternalApiProperties(
         Duration readTimeout,
         int retryCount,
         boolean allowFallback,
+        String sttProvider,
         String whisperApiKey,
         String whisperBaseUrl,
         String whisperModel,
+        String localWhisperBaseUrl,
+        String localWhisperApiKey,
+        String localWhisperModel,
+        String googleSttBaseUrl,
+        String googleSttProjectId,
+        String googleSttLocation,
+        String googleSttModel,
+        String googleSttLanguageCode,
         String astApiUrl,
         String astApiKey,
         String astModel,
@@ -26,6 +35,18 @@ public record ExternalApiProperties(
 
     public boolean whisperConfigured() {
         return hasText(whisperApiKey);
+    }
+
+    public boolean localWhisperConfigured() {
+        return hasText(localWhisperBaseUrl);
+    }
+
+    public boolean googleSttConfigured() {
+        return hasText(googleSttProjectId);
+    }
+
+    public String normalizedSttProvider() {
+        return hasText(sttProvider) ? sttProvider.trim().toLowerCase(java.util.Locale.ROOT) : "auto";
     }
 
     public boolean astConfigured() {
