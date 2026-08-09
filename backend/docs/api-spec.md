@@ -2047,6 +2047,12 @@ MVP에서는 지역을 선택하면 상담 센터 목록과 네이버 지도·�
 
 시·도와 시·군·구 선택지는 행정구역 기준정보를 사용하며, 프론트엔드는 자유 입력 지역명을 API 식별자로 사용하지 않는다.
 
+#### 백엔드 구현 메모 (v1.3)
+
+- `counseling_centers` 기준 테이블을 migration으로 생성하고 부산광역시 해운대구 MVP seed를 등록한다.
+- `province_code`는 필수이며 `district_code`, `facility_type`, `page`, `limit`을 서버에서 필터·페이지네이션한다. 응답의 `homepage_url`과 `naver_map_url`은 외부 연결용 URL이다.
+- MVP의 `reservation_mode`는 `external_link`로 고정한다. availability·appointment endpoint는 Phase 2로 유지한다.
+
 ### 12.2 `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 (Phase 2)
 
 `from_date`, `to_date`를 받아 `slots[]`의 `slot_id`, `starts_at`, `ends_at`, `status=available|unavailable`을 반환한다. 외부 기관이 실시간 연동을 지원하지 않으면 `501 COUNSELING_INTEGRATION_UNAVAILABLE`을 반환하고 센터의 외부 예약 URL을 안내한다.

@@ -46,7 +46,7 @@ class DatabaseMigrationTest {
                               'GAME_RESULTS', 'CHARACTERS', 'XP_LEDGER', 'CAMPAIGNS',
                               'CAMPAIGN_PARTICIPATIONS', 'NOTIFICATIONS', 'AUDIT_LOGS',
                               'PASSWORD_RESET_TOKENS', 'OAUTH_ACCOUNTS', 'DAILY_SUMMARIES',
-                              'DIARY_GENERATION_JOBS', 'REPORT_EXPORTS'
+                              'DIARY_GENERATION_JOBS', 'REPORT_EXPORTS', 'COUNSELING_CENTERS'
                           )
                         """,
                 Integer.class);
@@ -54,7 +54,7 @@ class DatabaseMigrationTest {
         assertThat(migrationCount).isGreaterThanOrEqualTo(8);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(8);
-        assertThat(coreTableCount).isEqualTo(33);
+        assertThat(coreTableCount).isEqualTo(34);
     }
 
     @Test

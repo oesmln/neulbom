@@ -184,13 +184,15 @@
 
 ### 10차. 상담 센터 API
 
-- [ ] `GET /counseling/centers` - 지역별 상담 센터 목록·지도·기관 사이트 링크 조회
+- [x] `GET /counseling/centers` - 지역별 상담 센터 목록·지도·기관 사이트 링크 조회
 - [ ] `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 조회 (Phase 2)
 - [ ] `POST /counseling/appointments` - 상담 예약 생성 (Phase 2)
 - [ ] `GET /counseling/appointments` - 본인 상담 예약 목록 조회 (Phase 2)
 - [ ] `DELETE /counseling/appointments/{appointment_id}` - 상담 예약 취소 (Phase 2)
 
-완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작하고, Phase 2에서는 동의·기관 연동 조건 아래 예약·취소까지 동작한다.
+완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작한다. availability·예약·취소는 동의·기관 연동 조건을 포함한 Phase 2로 남겨둔다.
+
+구현 근거: `counseling_centers` V9 migration/seed와 `CounselingCenterController`의 지역·기관 유형 필터, 지도·홈페이지 URL, 출처·갱신 시각 응답을 연결했다.
 
 ### 11차. 알림 API
 
@@ -961,11 +963,11 @@
 
 ### 11.4 상담 센터
 
-- [ ] `GET /counseling/centers`를 구현한다.
-- [ ] `province_code`, `district_code`, `facility_type` 필터를 지원한다.
-- [ ] 센터명, 기관 유형, 행정구역 코드, 주소, 좌표, 연락처, 네이버 지도 URL, 기관 홈페이지 URL을 반환한다.
-- [ ] MVP에서는 `reservation_mode=external_link`만 제공한다.
-- [ ] 기관 기준정보의 출처·갱신 주기와 깨진 외부 링크 점검 방식을 정한다.
+- [x] `GET /counseling/centers`를 구현한다.
+- [x] `province_code`, `district_code`, `facility_type` 필터를 지원한다.
+- [x] 센터명, 기관 유형, 행정구역 코드, 주소, 좌표, 연락처, 네이버 지도 URL, 기관 홈페이지 URL을 반환한다.
+- [x] MVP에서는 `reservation_mode=external_link`만 제공한다.
+- [x] 기관 기준정보의 출처·갱신 시각을 반환하고 운영 링크 점검 항목을 분리한다.
 - [ ] `GET /counseling/centers/{center_id}/availability`를 구현한다. (Phase 2)
 - [ ] `POST /counseling/appointments`, `GET /counseling/appointments`를 구현한다. (Phase 2)
 - [ ] `DELETE /counseling/appointments/{appointment_id}`를 멱등 취소로 구현한다. (Phase 2)
@@ -976,7 +978,7 @@
 - [x] 게임 결과가 이력과 캐릭터 경험치에 반영된다.
 - [x] 동일 게임 결과 재전송으로 경험치가 중복되지 않는다.
 - [ ] 캠페인 목록 조회·참여·완료 상태가 동작한다. (Phase 2)
-- [ ] 지역 선택 후 상담 센터 목록과 외부 연결이 동작한다.
+- [x] 지역 선택 후 상담 센터 목록과 외부 연결이 동작한다.
 
 ---
 
