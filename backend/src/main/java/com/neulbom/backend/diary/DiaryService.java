@@ -40,6 +40,7 @@ import com.neulbom.backend.diary.api.ReactionsResponse;
 import com.neulbom.backend.game.GameResultEntity;
 import com.neulbom.backend.game.GameResultRepository;
 import com.neulbom.backend.guardian.GuardianAccessService;
+import com.neulbom.backend.notification.NotificationService;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
 import com.neulbom.backend.session.SessionEntity;
@@ -74,6 +75,7 @@ public class DiaryService {
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     public DiaryService(
             UserRepository userRepository,
@@ -89,7 +91,8 @@ public class DiaryService {
             GuardianAccessService guardianAccessService,
             UuidGenerator uuidGenerator,
             Clock clock,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.diaryRepository = diaryRepository;
@@ -105,6 +108,7 @@ public class DiaryService {
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -120,9 +124,11 @@ public class DiaryService {
         if ("voice".equals(request.sourceType()) && request.recordingId() == null) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "음성 일기 원본이 필요합니다.", "recording_id를 확인하세요.");
         }
-        return toResponse(diaryRepository.save(new DiaryEntity(uuidGenerator.generate(), request.userId(), request.sourceType(),
+        DiaryEntity diary = diaryRepository.save(new DiaryEntity(uuidGenerator.generate(), request.userId(), request.sourceType(),
                 normalizeTitle(request.title()), normalizeContent(request.content()), request.recordingId(), request.sessionId(), null,
-                request.mood(), request.moodLevel(), request.writtenAt(), clock.instant(), clock.instant())));
+                request.mood(), request.moodLevel(), request.writtenAt(), clock.instant(), clock.instant()));
+        notificationService.notifyDiaryGenerated(diary.getUserId(), diary.getId());
+        return toResponse(diary);
     }
 
     @Transactional
@@ -135,9 +141,11 @@ public class DiaryService {
                 .orElseThrow(() -> new ResourceNotFoundException("세션 요약을 찾을 수 없습니다."));
         validateMood(request.mood(), request.moodLevel());
         Instant now = clock.instant();
-        return toResponse(diaryRepository.save(new DiaryEntity(uuidGenerator.generate(), request.userId(), "session",
+        DiaryEntity diary = diaryRepository.save(new DiaryEntity(uuidGenerator.generate(), request.userId(), "session",
                 normalizeTitle(request.title() == null ? "오늘의 이야기" : request.title()), normalizeContent(request.content() == null ? summary.getSummary() : request.content()),
-                null, session.getId(), null, request.mood(), request.moodLevel(), now, now, now)));
+                null, session.getId(), null, request.mood(), request.moodLevel(), now, now, now));
+        notificationService.notifyDiaryGenerated(diary.getUserId(), diary.getId());
+        return toResponse(diary);
     }
 
     @Transactional
@@ -173,6 +181,11 @@ public class DiaryService {
         DiaryGenerationJobEntity job = new DiaryGenerationJobEntity(uuidGenerator.generate(), request.userId(), summary.getId(), summary.getLocalDate(),
                 status, now, availableAt, diaryId, failureReason, 0, 3, null, now, now);
         generationJobRepository.save(job);
+        if ("completed".equals(status) && diaryId != null) {
+            notificationService.notifyDiaryGenerated(request.userId(), diaryId);
+        } else if ("conversation_incomplete".equals(status) || "failed".equals(status)) {
+            notificationService.notifyDiaryGenerationFailed(request.userId(), job.getId(), failureReason);
+        }
         return toGenerationStatus(job);
     }
 
@@ -241,8 +254,14 @@ public class DiaryService {
         String message = request.message() == null ? null : request.message().trim();
         if ("message".equals(type) && (message == null || message.isBlank())) throw new ApiException(HttpStatus.BAD_REQUEST, "메시지가 필요합니다.", "message 반응은 본문이 필요합니다.");
         String normalizedMessage = "message".equals(type) ? message : null;
-        DiaryReactionEntity reaction = reactionRepository.findByDiaryIdAndReactorIdAndReactionType(diaryId, authenticatedUserId, type)
-                .orElseGet(() -> reactionRepository.save(new DiaryReactionEntity(uuidGenerator.generate(), diaryId, authenticatedUserId, type, normalizedMessage, clock.instant())));
+        DiaryReactionEntity reaction = reactionRepository
+                .findByDiaryIdAndReactorIdAndReactionType(diaryId, authenticatedUserId, type)
+                .orElse(null);
+        if (reaction == null) {
+            reaction = reactionRepository.save(new DiaryReactionEntity(
+                    uuidGenerator.generate(), diaryId, authenticatedUserId, type, normalizedMessage, clock.instant()));
+            notificationService.notifyGuardianReaction(diary.getUserId(), diary.getId(), reaction.getId());
+        }
         return toReactionResponse(reaction);
     }
 

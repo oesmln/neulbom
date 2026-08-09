@@ -72,9 +72,10 @@ public class SecurityConfig {
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
-            var authorities = new ArrayList<>(scopeConverter.convert(jwt));
+            java.util.Set<org.springframework.security.core.GrantedAuthority> authorities = new java.util.LinkedHashSet<>(
+                    scopeConverter.convert(jwt));
             String role = jwt.getClaimAsString("role");
             if (role != null && !role.isBlank()) {
                 authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority(

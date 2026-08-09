@@ -25,6 +25,7 @@ import com.neulbom.backend.game.api.XpAwardResponse;
 import com.neulbom.backend.game.api.XpHistoryItem;
 import com.neulbom.backend.game.api.XpHistoryResponse;
 import com.neulbom.backend.guardian.GuardianAccessService;
+import com.neulbom.backend.notification.NotificationService;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -50,6 +51,7 @@ public class GameService {
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     public GameService(
             UserRepository userRepository,
@@ -60,7 +62,8 @@ public class GameService {
             GuardianAccessService guardianAccessService,
             UuidGenerator uuidGenerator,
             Clock clock,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            NotificationService notificationService
     ) {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
@@ -71,6 +74,7 @@ public class GameService {
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -95,6 +99,9 @@ public class GameService {
         gameResultRepository.save(result);
         XpAwardResponse xp = request.completed() ? awardXpInternal(request.userId(), COMPLETED_GAME_XP, "game", result.getId().toString())
                 : new XpAwardResponse(ensureCharacter(request.userId()).getXpCurrent(), ensureCharacter(request.userId()).getLevel(), false, false);
+        if (request.completed()) {
+            notificationService.notifyGameCompleted(request.userId(), result.getId(), result.getSessionId());
+        }
         return new GameResultResponse(result.getId(), cognitiveIndex, request.completed() ? COMPLETED_GAME_XP : 0, xp.level(), xp.levelUp(), false);
     }
 
