@@ -2,6 +2,7 @@ package com.neulbom.backend.auth.api;
 
 import com.neulbom.backend.auth.service.AuthService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth")
 public class AuthController {
 
     private final AuthService authService;
@@ -41,9 +42,10 @@ public class AuthController {
 
     @PostMapping("/password/reset/request")
     public ResponseEntity<PasswordResetRequestResponse> requestPasswordReset(
-            @Valid @RequestBody PasswordResetRequest request
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest httpRequest
     ) {
-        return ResponseEntity.accepted().body(authService.requestPasswordReset(request));
+        return ResponseEntity.accepted().body(authService.requestPasswordReset(request, httpRequest.getRemoteAddr()));
     }
 
     @PostMapping("/password/reset/confirm")
