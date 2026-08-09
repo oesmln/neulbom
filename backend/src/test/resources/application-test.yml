@@ -28,6 +28,11 @@ app:
       issuer: neulbom-test
       access-token-ttl: 1h
       refresh-token-ttl: 30d
+    password-reset-rate-limit:
+      email-max-attempts: 2
+      email-window: 1m
+      ip-max-attempts: 3
+      ip-window: 1m
   oauth:
     kakao:
       client-id: test-kakao-client
