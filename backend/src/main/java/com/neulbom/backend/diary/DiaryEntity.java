@@ -50,4 +50,57 @@ public class DiaryEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    protected DiaryEntity() {
+    }
+
+    public DiaryEntity(
+            UUID id,
+            UUID userId,
+            String sourceType,
+            String title,
+            String content,
+            UUID recordingId,
+            UUID sessionId,
+            UUID dailySummaryId,
+            String mood,
+            Integer moodLevel,
+            Instant writtenAt,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this.id = id;
+        this.userId = userId;
+        this.sourceType = sourceType;
+        this.title = title;
+        this.content = content;
+        this.recordingId = recordingId;
+        this.sessionId = sessionId;
+        this.dailySummaryId = dailySummaryId;
+        this.mood = mood;
+        this.moodLevel = moodLevel;
+        this.writtenAt = writtenAt;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
+    public String getSourceType() { return sourceType; }
+    public String getTitle() { return title; }
+    public String getContent() { return content; }
+    public UUID getRecordingId() { return recordingId; }
+    public UUID getSessionId() { return sessionId; }
+    public UUID getDailySummaryId() { return dailySummaryId; }
+    public String getMood() { return mood; }
+    public Integer getMoodLevel() { return moodLevel; }
+    public Instant getWrittenAt() { return writtenAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+
+    public void update(String title, String content, Instant updatedAt) {
+        if (title != null) this.title = title;
+        if (content != null) this.content = content;
+        this.updatedAt = updatedAt;
+    }
 }

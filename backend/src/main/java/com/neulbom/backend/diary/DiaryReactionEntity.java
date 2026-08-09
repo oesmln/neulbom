@@ -29,4 +29,23 @@ public class DiaryReactionEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected DiaryReactionEntity() {
+    }
+
+    public DiaryReactionEntity(UUID id, UUID diaryId, UUID reactorId, String reactionType, String message, Instant createdAt) {
+        this.id = id;
+        this.diaryId = diaryId;
+        this.reactorId = reactorId;
+        this.reactionType = reactionType;
+        this.message = message;
+        this.createdAt = createdAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getDiaryId() { return diaryId; }
+    public UUID getReactorId() { return reactorId; }
+    public String getReactionType() { return reactionType; }
+    public String getMessage() { return message; }
+    public Instant getCreatedAt() { return createdAt; }
 }
