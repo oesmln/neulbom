@@ -64,4 +64,59 @@ public class GameResultEntity {
 
     @Column(name = "played_at", nullable = false)
     private Instant playedAt;
+
+    protected GameResultEntity() {
+    }
+
+    public GameResultEntity(
+            UUID id,
+            UUID clientGameResultId,
+            UUID userId,
+            UUID sessionId,
+            String gameType,
+            int score,
+            String responseTimes,
+            int errorCount,
+            int totalQuestions,
+            Integer matchedPairs,
+            Integer attemptCount,
+            int durationSec,
+            int restartedCount,
+            boolean completed,
+            BigDecimal cognitiveIndex,
+            Instant playedAt
+    ) {
+        this.id = id;
+        this.clientGameResultId = clientGameResultId;
+        this.userId = userId;
+        this.sessionId = sessionId;
+        this.gameType = gameType;
+        this.score = score;
+        this.responseTimes = responseTimes;
+        this.errorCount = errorCount;
+        this.totalQuestions = totalQuestions;
+        this.matchedPairs = matchedPairs;
+        this.attemptCount = attemptCount;
+        this.durationSec = durationSec;
+        this.restartedCount = restartedCount;
+        this.completed = completed;
+        this.cognitiveIndex = cognitiveIndex;
+        this.playedAt = playedAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getClientGameResultId() { return clientGameResultId; }
+    public UUID getUserId() { return userId; }
+    public UUID getSessionId() { return sessionId; }
+    public String getGameType() { return gameType; }
+    public int getScore() { return score; }
+    public int getErrorCount() { return errorCount; }
+    public int getTotalQuestions() { return totalQuestions; }
+    public Integer getMatchedPairs() { return matchedPairs; }
+    public Integer getAttemptCount() { return attemptCount; }
+    public int getDurationSec() { return durationSec; }
+    public int getRestartedCount() { return restartedCount; }
+    public boolean isCompleted() { return completed; }
+    public BigDecimal getCognitiveIndex() { return cognitiveIndex; }
+    public Instant getPlayedAt() { return playedAt; }
 }

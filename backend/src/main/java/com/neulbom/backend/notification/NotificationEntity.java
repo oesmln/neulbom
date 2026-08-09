@@ -48,4 +48,17 @@ public class NotificationEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected NotificationEntity() {
+    }
+
+    public UUID getId() { return id; }
+    public UUID getRecipientUserId() { return recipientUserId; }
+    public String getTitle() { return title; }
+    public String getBody() { return body; }
+    public String getType() { return type; }
+    public String getSeverity() { return severity; }
+    public String getStatusLabel() { return statusLabel; }
+    public boolean isRead() { return read; }
+    public Instant getCreatedAt() { return createdAt; }
 }
