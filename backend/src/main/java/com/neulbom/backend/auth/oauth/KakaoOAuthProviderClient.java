@@ -32,7 +32,7 @@ public class KakaoOAuthProviderClient implements OAuthProviderClient {
 
     @Override
     public OAuthProfile fetchProfile(OAuthLoginRequest request) {
-        validateConfigured();
+        validateConfigured(request.redirectUri());
         try {
             MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
             form.add("grant_type", "authorization_code");
@@ -73,9 +73,13 @@ public class KakaoOAuthProviderClient implements OAuthProviderClient {
         }
     }
 
-    private void validateConfigured() {
+    private void validateConfigured(String redirectUri) {
         if (properties == null || properties.clientId() == null || properties.clientId().isBlank()) {
             throw new ExternalServiceUnavailableException("카카오 OAuth 설정이 없습니다.");
+        }
+        if (!properties.allowsRedirectUri(redirectUri)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "소셜 로그인 요청이 올바르지 않습니다.",
+                    "등록되지 않은 카카오 redirect_uri입니다.");
         }
     }
 
