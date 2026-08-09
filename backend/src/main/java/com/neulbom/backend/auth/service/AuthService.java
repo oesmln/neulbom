@@ -11,6 +11,7 @@ import com.neulbom.backend.auth.api.OAuthLoginRequest;
 import com.neulbom.backend.auth.api.PasswordResetConfirmRequest;
 import com.neulbom.backend.auth.api.PasswordResetRequest;
 import com.neulbom.backend.auth.api.PasswordResetRequestResponse;
+import com.neulbom.backend.auth.api.PasswordChangeRequest;
 import com.neulbom.backend.auth.api.RefreshRequest;
 import com.neulbom.backend.auth.api.RegisterRequest;
 import com.neulbom.backend.auth.api.RegisterResponse;
@@ -18,6 +19,8 @@ import com.neulbom.backend.auth.api.LogoutRequest;
 import com.neulbom.backend.auth.oauth.OAuthProfile;
 import com.neulbom.backend.auth.oauth.OAuthProviderClientRegistry;
 import com.neulbom.backend.common.exception.ApiException;
+import com.neulbom.backend.common.audit.AuditLogEntity;
+import com.neulbom.backend.common.audit.AuditLogRepository;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.user.OAuthAccountEntity;
@@ -49,6 +52,8 @@ public class AuthService {
     private final JwtTokenService jwtTokenService;
     private final PasswordResetNotifier passwordResetNotifier;
     private final OAuthProviderClientRegistry oauthProviderClientRegistry;
+    private final AuditLogRepository auditLogRepository;
+    private final PasswordResetRateLimiter passwordResetRateLimiter;
 
     public AuthService(
             UserRepository userRepository,
@@ -61,7 +66,9 @@ public class AuthService {
             TokenHasher tokenHasher,
             JwtTokenService jwtTokenService,
             PasswordResetNotifier passwordResetNotifier,
-            OAuthProviderClientRegistry oauthProviderClientRegistry
+            OAuthProviderClientRegistry oauthProviderClientRegistry,
+            AuditLogRepository auditLogRepository,
+            PasswordResetRateLimiter passwordResetRateLimiter
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -74,6 +81,8 @@ public class AuthService {
         this.jwtTokenService = jwtTokenService;
         this.passwordResetNotifier = passwordResetNotifier;
         this.oauthProviderClientRegistry = oauthProviderClientRegistry;
+        this.auditLogRepository = auditLogRepository;
+        this.passwordResetRateLimiter = passwordResetRateLimiter;
     }
 
     @Transactional
@@ -176,7 +185,8 @@ public class AuthService {
     }
 
     @Transactional
-    public PasswordResetRequestResponse requestPasswordReset(PasswordResetRequest request) {
+    public PasswordResetRequestResponse requestPasswordReset(PasswordResetRequest request, String clientIp) {
+        passwordResetRateLimiter.check(request.email(), clientIp);
         Instant now = jwtTokenService.now();
         Instant expiresAt = now.plus(PASSWORD_RESET_TTL);
         UUID requestId = uuidGenerator.generate();
@@ -213,6 +223,34 @@ public class AuthService {
         user.changePassword(passwordEncoder.encode(request.newPassword()), now);
         resetToken.markUsed(now);
         revokeAllRefreshTokens(user.getId(), now);
+    }
+
+    @Transactional
+    public void changePassword(UUID authenticatedUserId, PasswordChangeRequest request) {
+        UserEntity user = userRepository.findById(authenticatedUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("사용자 정보를 찾을 수 없습니다."));
+        if (!user.isActive() || user.getPasswordHash() == null
+                || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "현재 비밀번호가 올바르지 않습니다.", "현재 비밀번호를 확인하세요.");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "현재 비밀번호와 다른 비밀번호를 사용하세요.", "새 비밀번호를 변경하세요.");
+        }
+
+        Instant now = jwtTokenService.now();
+        user.changePassword(passwordEncoder.encode(request.newPassword()), now);
+        if (request.shouldLogoutOtherSessions()) {
+            revokeAllRefreshTokens(user.getId(), now);
+        }
+        auditLogRepository.save(new AuditLogEntity(
+                uuidGenerator.generate(),
+                user.getId(),
+                user.getId(),
+                "password_changed",
+                "user",
+                user.getId(),
+                "{\"refresh_tokens_revoked\":" + request.shouldLogoutOtherSessions() + "}",
+                now));
     }
 
     @Transactional

@@ -77,6 +77,11 @@ app:
       issuer: ${JWT_ISSUER:neulbom}
       access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:1h}
       refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:30d}
+    password-reset-rate-limit:
+      email-max-attempts: ${PASSWORD_RESET_EMAIL_RATE_LIMIT_MAX_ATTEMPTS:3}
+      email-window: ${PASSWORD_RESET_EMAIL_RATE_LIMIT_WINDOW:15m}
+      ip-max-attempts: ${PASSWORD_RESET_IP_RATE_LIMIT_MAX_ATTEMPTS:10}
+      ip-window: ${PASSWORD_RESET_IP_RATE_LIMIT_WINDOW:1h}
   oauth:
     kakao:
       client-id: ${KAKAO_CLIENT_ID:}
