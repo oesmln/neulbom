@@ -52,5 +52,5 @@ Issue에는 아래 내용을 포함합니다.
 - `test`
 - `chore`
 - `fe`
-- `be`
+- `backend`
 - `common`
