@@ -29,4 +29,23 @@ public class XpLedgerEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected XpLedgerEntity() {
+    }
+
+    public XpLedgerEntity(UUID id, UUID userId, String eventId, int amount, String reason, Instant createdAt) {
+        this.id = id;
+        this.userId = userId;
+        this.eventId = eventId;
+        this.amount = amount;
+        this.reason = reason;
+        this.createdAt = createdAt;
+    }
+
+    public UUID getId() { return id; }
+    public UUID getUserId() { return userId; }
+    public String getEventId() { return eventId; }
+    public int getAmount() { return amount; }
+    public String getReason() { return reason; }
+    public Instant getCreatedAt() { return createdAt; }
 }

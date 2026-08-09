@@ -1834,6 +1834,13 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 }
 ```
 
+#### 백엔드 구현 메모 (v1.3)
+
+- `client_game_result_id`와 `xp_ledger.event_id=game_result_id`를 함께 unique로 관리해 오프라인 재전송에서도 게임 결과와 XP를 한 번만 반영한다.
+- `cognitive_index`는 `score / total_questions * 100`으로 계산하며, `image_match`는 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 함께 검증한다.
+- 캐릭터 XP 적립 endpoint는 `server:write` scope 전용이다. 보호자·고령자 앱 토큰은 직접 호출할 수 없고, 이력 조회는 본인 또는 연결된 `activity` scope 보호자만 가능하다.
+- 캠페인 목록·참여·보상은 Phase 2 범위로 유지한다.
+
 ## 10. 보호자 리포트 API
 
 ### 10.1 `GET /guardian/{guardian_id}/report` - 고령자 종합 리포트

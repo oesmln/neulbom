@@ -170,17 +170,17 @@
 
 기반: `game_results`, `characters`, `xp_ledger`, `campaigns`, `campaign_participations` 테이블
 
-- [ ] `POST /game/result` - 미니게임 결과 저장
-- [ ] `GET /game/{user_id}/history` - 게임 이력 조회
-- [ ] `GET /character/{user_id}` - 캐릭터 레벨·경험치·아이템 조회
-- [ ] `GET /character/{user_id}/xp-history` - 경험치 획득 내역 조회
-- [ ] `POST /character/{user_id}/xp` - 정서 문답·게임 완료 이벤트 기반 경험치 자동 적립
+- [x] `POST /game/result` - 미니게임 결과 저장
+- [x] `GET /game/{user_id}/history` - 게임 이력 조회
+- [x] `GET /character/{user_id}` - 캐릭터 레벨·경험치·아이템 조회
+- [x] `GET /character/{user_id}/xp-history` - 경험치 획득 내역 조회
+- [x] `POST /character/{user_id}/xp` - 정서 문답·게임 완료 이벤트 기반 경험치 자동 적립
 - [ ] `GET /campaigns` - 지역 캠페인 목록 조회 (Phase 2)
 - [ ] `GET /campaigns/{campaign_id}` - 지역 캠페인 상세 조회 (Phase 2)
 - [ ] `POST /campaigns/{campaign_id}/participation` - 캠페인 참여 (Phase 2)
 - [ ] `GET /campaigns/{campaign_id}/participation` - 캠페인 참여 상태 조회 (Phase 2)
 
-완료 조건: 게임 결과와 경험치가 중복 없이 반영되고, 캠페인 참여·완료·보상이 동작한다.
+완료 조건: 게임 결과와 경험치가 중복 없이 반영된다. 지역 캠페인 참여·완료·보상은 명세대로 Phase 2에 남겨둔다.
 
 ### 10차. 상담 센터 API
 
@@ -924,28 +924,28 @@
 
 ### 11.1 미니게임
 
-- [ ] `POST /game/result`를 구현한다.
-- [ ] `image_match`, `consonant`, `word_match`를 허용한다.
-- [ ] 점수, 응답 시간 배열, 오답 수, 전체 문항 수를 검증한다.
-- [ ] 기억력 게임의 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 저장·검증한다.
-- [ ] `client_game_result_id` unique로 결과 재전송을 멱등 처리하고 `deduplicated`를 반환한다.
-- [ ] `cognitive_index` 계산 규칙을 문서화한다.
-- [ ] `GET /game/{user_id}/history`를 구현한다.
-- [ ] 보호자에게 게임 이력을 노출할 때 access scope를 검증한다.
+- [x] `POST /game/result`를 구현한다.
+- [x] `image_match`, `consonant`, `word_match`를 허용한다.
+- [x] 점수, 응답 시간 배열, 오답 수, 전체 문항 수를 검증한다.
+- [x] 기억력 게임의 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 저장·검증한다.
+- [x] `client_game_result_id` unique로 결과 재전송을 멱등 처리하고 `deduplicated`를 반환한다.
+- [x] `cognitive_index` 계산 규칙을 `score / total_questions * 100`으로 고정한다.
+- [x] `GET /game/{user_id}/history`를 구현한다.
+- [x] 보호자에게 게임 이력을 노출할 때 `activity` access scope를 검증한다.
 
 ### 11.2 캐릭터·경험치
 
-- [ ] `GET /character/{user_id}`를 구현한다.
-- [ ] 캐릭터 응답에 이름·레벨·5단계 성장 상태·XP 목표·남은 XP를 포함한다.
-- [ ] `GET /character/{user_id}/xp-history`를 구현해 마이페이지 획득 내역을 cursor 페이지네이션으로 반환한다.
-- [ ] `POST /character/{user_id}/xp`를 구현한다.
-- [ ] 정서 문답·게임 완료 시 서버 이벤트로 경험치를 자동 적립한다.
-- [ ] `event_id=session_id` 또는 `event_id=game_result_id`로 중복 적립을 차단한다.
-- [ ] 클라이언트가 임의의 경험치 `amount`를 직접 적립하지 못하게 한다.
-- [ ] 출석·방문·정서 문답·게임별 경험치 정책을 정한다. 캠페인 보상은 Phase 2로 분리한다.
-- [ ] 동일 이벤트가 재처리돼도 경험치가 중복 적립되지 않게 한다.
-- [ ] 레벨업 transaction과 응답 필드를 구현한다.
-- [ ] 캐릭터 상태가 고령자 홈에 표시되도록 dashboard와 연결한다.
+- [x] `GET /character/{user_id}`를 구현한다.
+- [x] 캐릭터 응답에 이름·레벨·5단계 성장 상태·XP 목표·남은 XP를 포함한다.
+- [x] `GET /character/{user_id}/xp-history`를 구현해 마이페이지 획득 내역을 cursor 페이지네이션으로 반환한다.
+- [x] `POST /character/{user_id}/xp`를 구현한다.
+- [x] 정서 문답·게임 완료 시 서버 이벤트로 경험치를 자동 적립한다.
+- [x] `event_id=game_result_id` 또는 서버 이벤트 ID로 중복 적립을 차단한다.
+- [x] 클라이언트가 임의의 경험치 `amount`를 직접 적립하지 못하게 한다.
+- [x] 출석·방문·정서 문답·게임별 경험치 정책을 정하고 캠페인 보상은 Phase 2로 분리한다.
+- [x] 동일 이벤트가 재처리돼도 경험치가 중복 적립되지 않게 한다.
+- [x] 레벨업 transaction과 응답 필드를 구현한다.
+- [x] 캐릭터 상태가 고령자 홈에 표시되도록 dashboard와 연결한다.
 
 ### 11.3 지역 캠페인
 
@@ -973,8 +973,8 @@
 
 ### 11단계 완료 조건
 
-- [ ] 게임 결과가 이력과 캐릭터 경험치에 반영된다.
-- [ ] 동일 게임 결과 재전송으로 경험치가 중복되지 않는다.
+- [x] 게임 결과가 이력과 캐릭터 경험치에 반영된다.
+- [x] 동일 게임 결과 재전송으로 경험치가 중복되지 않는다.
 - [ ] 캠페인 목록 조회·참여·완료 상태가 동작한다. (Phase 2)
 - [ ] 지역 선택 후 상담 센터 목록과 외부 연결이 동작한다.
 

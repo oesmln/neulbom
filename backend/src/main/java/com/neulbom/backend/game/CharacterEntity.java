@@ -84,4 +84,23 @@ public class CharacterEntity {
     public String getUnlocked() { return unlocked; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public int awardXp(int amount, Instant updatedAt) {
+        int previousLevel = level;
+        xpCurrent += amount;
+        while (xpCurrent >= xpGoal) {
+            xpCurrent -= xpGoal;
+            level++;
+            xpGoal += 100;
+        }
+        stage = switch (Math.min(level, 5)) {
+            case 1 -> "egg";
+            case 2 -> "puppy";
+            case 3 -> "sprout";
+            case 4 -> "flower";
+            default -> "star";
+        };
+        this.updatedAt = updatedAt;
+        return level > previousLevel ? level - previousLevel : 0;
+    }
 }
