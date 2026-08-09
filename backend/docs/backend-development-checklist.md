@@ -202,28 +202,28 @@
 
 ### 0.1 API 계약 고정
 
-- [ ] 팀 저장소의 [API 명세서](api-spec.md)를 기준 버전 `v1.3`으로 확정한다.
+- [x] 팀 저장소의 [API 명세서](api-spec.md)를 기준 버전 `v1.3`으로 확정한다.
 - [ ] Base URL을 `local`, `dev`, `prod` 환경별로 분리한다.
 - [ ] API 경로, HTTP method, 상태 코드, 필드명, enum을 프론트엔드와 함께 확인한다.
-- [ ] `elder`, `guardian` 역할을 확정한다.
-- [ ] `session_type`을 `cist`, `emotional_qa`, `game`, `mixed`로 확정한다.
-- [ ] 분석 결과의 정규화 필드와 화면 표시 필드를 구분한다: `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `risk_level`, `display_label`.
+- [x] `elder`, `guardian` 역할을 확정한다.
+- [x] `session_type`을 `cist`, `emotional_qa`, `game`, `mixed`로 확정한다.
+- [x] 분석 결과의 정규화 필드와 화면 표시 필드를 구분한다: `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `risk_level`, `display_label`.
 - [ ] `display_score`와 `score_max`로 `27/30`, `21/30`, `24.1` 형태의 화면 표시를 지원한다.
-- [ ] 초대 코드는 `invite_code` 6자리, 만료·1회성 소비·검증 시도 제한 규칙을 따른다.
-- [ ] 기존 `dementia_score`는 신규 응답에서 사용하지 않고 deprecated alias 유지 여부를 결정한다.
-- [ ] 날짜·시간은 타임존을 포함한 ISO 8601 문자열로 통일한다.
+- [x] 초대 코드는 `invite_code` 6자리, 만료·1회성 소비·검증 시도 제한 규칙을 따른다.
+- [x] 기존 `dementia_score`는 신규 응답에서 사용하지 않고 deprecated alias 유지 여부를 결정한다.
+- [x] 날짜·시간은 타임존을 포함한 ISO 8601 문자열로 통일한다.
 - [ ] AI 정서 문답 세션 종료 시 고령자에게 `result_type`, `display_label`, `message`, `recommendation`만 제공하고 정확한 점수는 보호자에게만 제공한다.
 - [ ] 하루 집계 기준을 `Asia/Seoul`의 `00:00~다음 날 00:00`으로 고정한다.
 - [ ] 세션별 분석은 종료 후 생성하고, 일일 집계·보호자 리포트·일기 생성은 하루 종료 후 실행한다.
-- [ ] Figma에 노출된 모든 화면 기능을 구현 범위로 확정하고 화면별 API 연결표와 체크리스트를 1:1로 유지한다.
-- [ ] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 구현하고, 실시간 예약은 Phase 2 구현 범위로 유지한다.
-- [ ] 지역 지정 캠페인은 초기 MVP에서 제외하고 Phase 2로 관리한다.
-- [ ] ID 생성 규칙을 UUID 또는 프로젝트 공통 ID 규칙으로 확정한다.
+- [x] Figma에 노출된 모든 화면 기능을 구현 범위로 확정하고 화면별 API 연결표와 체크리스트를 1:1로 유지한다.
+- [x] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 구현하고, 실시간 예약은 Phase 2 구현 범위로 유지한다.
+- [x] 지역 지정 캠페인은 초기 MVP에서 제외하고 Phase 2로 관리한다.
+- [x] ID 생성 규칙을 UUID 또는 프로젝트 공통 ID 규칙으로 확정한다.
 
 ### 0.2 작업 방식
 
 - [ ] 각 단계별 Issue를 생성한다.
-- [ ] 작업 브랜치를 작업 유형에 따라 `feature/be/#이슈번호-작업명` 또는 `docs/be/#이슈번호-작업명` 형식으로 만든다.
+- [x] 작업 브랜치를 작업 유형에 따라 `feature/be/#이슈번호-작업명` 또는 `docs/be/#이슈번호-작업명` 형식으로 만든다.
 - [ ] API 변경이 생기면 명세서와 프론트엔드 계약을 함께 수정한다.
 - [ ] 하나의 PR에는 하나의 기능 흐름만 포함한다.
 - [ ] PR마다 테스트 방법과 미완료 항목을 기록한다.
@@ -241,64 +241,64 @@
 
 ### 1.1 Spring Boot 프로젝트 초기화
 
-- [ ] Spring Boot와 Java 버전을 팀에서 확정한다.
-- [ ] Gradle 프로젝트를 초기화한다.
-- [ ] 패키지 구조를 정한다.
-  - [ ] `config`
-  - [ ] `common`
-  - [ ] `auth`
-  - [ ] `user`
-  - [ ] `guardian`
-  - [ ] `session`
-  - [ ] `recording`
-  - [ ] `analysis`
-  - [ ] `diary`
-  - [ ] `game`
-  - [ ] `campaign`
-  - [ ] `notification`
-- [ ] 로컬에서 `./gradlew bootRun`이 실행되는지 확인한다.
-- [ ] 기본 `/actuator/health` 또는 `/health` 응답을 추가한다.
+- [x] Spring Boot와 Java 버전을 팀에서 확정한다.
+- [x] Gradle 프로젝트를 초기화한다.
+- [x] 패키지 구조를 정한다.
+  - [x] `config`
+  - [x] `common`
+  - [x] `auth`
+  - [x] `user`
+  - [x] `guardian`
+  - [x] `session`
+  - [x] `recording`
+  - [x] `analysis`
+  - [x] `diary`
+  - [x] `game`
+  - [x] `campaign`
+  - [x] `notification`
+- [x] 로컬에서 `./gradlew bootRun`이 실행되는지 확인한다.
+- [x] 기본 `/actuator/health` 또는 `/health` 응답을 추가한다.
 
 ### 1.2 환경 설정
 
-- [ ] `application.yml`의 공통 설정을 작성한다.
-- [ ] `application-local.yml`을 작성한다.
-- [ ] `application-dev.yml`을 작성한다.
-- [ ] `application-prod.yml`을 작성한다.
-- [ ] `.env.example`에 필요한 변수명만 작성한다.
-- [ ] JWT secret, DB password, AI API key를 Git에 커밋하지 않는다.
-- [ ] PostgreSQL 접속 정보와 connection pool 설정을 추가한다.
-- [ ] 파일 저장소 설정을 추가한다. 로컬은 파일 시스템 또는 MinIO, 운영은 object storage를 사용한다.
-- [ ] 외부 API timeout, retry 횟수, 최대 업로드 크기를 환경변수로 분리한다.
+- [x] `application.yml`의 공통 설정을 작성한다.
+- [x] `application-local.yml`을 작성한다.
+- [x] `application-dev.yml`을 작성한다.
+- [x] `application-prod.yml`을 작성한다.
+- [x] `.env.example`에 필요한 변수명만 작성한다.
+- [x] JWT secret, DB password, AI API key를 Git에 커밋하지 않는다.
+- [x] PostgreSQL 접속 정보와 connection pool 설정을 추가한다.
+- [x] 파일 저장소 설정을 추가한다. 로컬은 파일 시스템 또는 MinIO, 운영은 object storage를 사용한다.
+- [x] 외부 API timeout, retry 횟수, 최대 업로드 크기를 환경변수로 분리한다.
 
 ### 1.3 공통 응답·오류 처리
 
-- [ ] 요청 검증용 `@Valid`와 Bean Validation을 설정한다.
-- [ ] 공통 오류 응답을 `{ error, code, detail, request_id }` 형식으로 통일한다.
-- [ ] `GlobalExceptionHandler`를 구현한다.
-- [ ] `400`, `401`, `403`, `404`, `409`, `413`, `422`, `500`, `503` 예외 매핑을 추가한다.
-- [ ] 존재하지 않는 리소스 오류를 일관된 예외로 처리한다.
-- [ ] enum·날짜·파일 형식 오류를 명확하게 반환한다.
-- [ ] 요청마다 `request_id`를 생성하고 로그와 응답에 연결한다.
-- [ ] 사용자 음성·건강 정보·토큰을 애플리케이션 로그에 남기지 않는다.
+- [x] 요청 검증용 `@Valid`와 Bean Validation을 설정한다.
+- [x] 공통 오류 응답을 `{ error, code, detail, request_id }` 형식으로 통일한다.
+- [x] `GlobalExceptionHandler`를 구현한다.
+- [x] `400`, `401`, `403`, `404`, `409`, `413`, `422`, `500`, `503` 예외 매핑을 추가한다.
+- [x] 존재하지 않는 리소스 오류를 일관된 예외로 처리한다.
+- [x] enum·날짜·파일 형식 오류를 명확하게 반환한다.
+- [x] 요청마다 `request_id`를 생성하고 로그와 응답에 연결한다.
+- [x] 사용자 음성·건강 정보·토큰을 애플리케이션 로그에 남기지 않는다.
 
 ### 1.4 공통 기술 요소
 
-- [ ] UUID 생성 및 ID 직렬화 규칙을 구현한다.
-- [ ] 서버 시간과 사용자 표시 시간을 분리한다.
-- [ ] 공통 `PageResponse`를 구현한다.
-- [ ] `page`, `limit`, `from_date`, `to_date` 파라미터 검증을 공통화한다.
-- [ ] CORS 허용 origin을 환경별로 설정한다.
-- [ ] 파일 업로드 확장자·MIME type·용량 검증을 추가한다.
-- [ ] API 문서 자동 생성을 위해 OpenAPI 또는 springdoc을 연결한다.
-- [ ] 개발용 SQL 로그와 운영용 로그 수준을 분리한다.
+- [x] UUID 생성 및 ID 직렬화 규칙을 구현한다.
+- [x] 서버 시간과 사용자 표시 시간을 분리한다.
+- [x] 공통 `PageResponse`를 구현한다.
+- [x] `page`, `limit`, `from_date`, `to_date` 파라미터 검증을 공통화한다.
+- [x] CORS 허용 origin을 환경별로 설정한다.
+- [x] 파일 업로드 확장자·MIME type·용량 검증을 추가한다.
+- [x] API 문서 자동 생성을 위해 OpenAPI 또는 springdoc을 연결한다.
+- [x] 개발용 SQL 로그와 운영용 로그 수준을 분리한다.
 
 ### 1단계 완료 조건
 
-- [ ] 로컬 DB에 연결된 상태로 서버가 실행된다.
-- [ ] 잘못된 요청이 공통 오류 JSON으로 반환된다.
-- [ ] `/health` 또는 `/actuator/health`가 정상 응답한다.
-- [ ] 테스트 코드가 최소 1개 이상 실행된다.
+- [x] 로컬 DB에 연결된 상태로 서버가 실행된다.
+- [x] 잘못된 요청이 공통 오류 JSON으로 반환된다.
+- [x] `/health` 또는 `/actuator/health`가 정상 응답한다.
+- [x] 테스트 코드가 최소 1개 이상 실행된다.
 
 ---
 

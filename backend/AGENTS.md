@@ -196,8 +196,8 @@ cd backend
 - 작업은 반드시 Issue를 만든 뒤 `develop`에서 작업 브랜치를 생성한다.
 - `main`과 `develop`에 직접 커밋하지 않는다.
 - 브랜치 형식은 `type/scope/#issue-number-short-description`을 따른다.
-- 백엔드 scope는 `backend`를 사용한다.
-- 커밋 형식은 `type(scope): 작업 요약`을 사용한다. 예: `feature(backend): 공통 오류 처리 구현`
+- 백엔드 scope는 저장소 브랜치 전략에 따라 `be`를 사용한다.
+- 커밋 형식은 `type(scope): 작업 요약`을 사용한다. 예: `feature(be): 공통 오류 처리 구현`
 - 한 커밋에는 하나의 논리적 의도만 담는다.
 - API 코드와 테스트는 가능하면 같은 작업 단위로 작성한다.
 - PR 대상은 항상 `develop`이다.
