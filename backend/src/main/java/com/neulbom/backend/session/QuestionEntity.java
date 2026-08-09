@@ -38,39 +38,4 @@ public class QuestionEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    protected QuestionEntity() {
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public String getQuestionType() {
-        return questionType;
-    }
-
-    public String getSessionType() {
-        return sessionType;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public String getHint() {
-        return hint;
-    }
-
-    public int getDisplayOrder() {
-        return displayOrder;
-    }
-
-    public boolean isSubtitleAvailable() {
-        return subtitleAvailable;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
 }

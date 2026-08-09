@@ -12,10 +12,6 @@ import jakarta.persistence.Table;
 @Table(name = "guardian_links")
 public class GuardianLinkEntity {
 
-    public static final String PENDING = "pending";
-    public static final String ACTIVE = "active";
-    public static final String REVOKED = "revoked";
-
     @Id
     private UUID id;
 
@@ -39,70 +35,4 @@ public class GuardianLinkEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    protected GuardianLinkEntity() {
-    }
-
-    public GuardianLinkEntity(
-            UUID id,
-            UUID guardianId,
-            UUID elderId,
-            String relation,
-            String status,
-            boolean consentRequired,
-            Instant createdAt,
-            Instant updatedAt
-    ) {
-        this.id = id;
-        this.guardianId = guardianId;
-        this.elderId = elderId;
-        this.relation = relation;
-        this.status = status;
-        this.consentRequired = consentRequired;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public UUID getGuardianId() {
-        return guardianId;
-    }
-
-    public UUID getElderId() {
-        return elderId;
-    }
-
-    public String getRelation() {
-        return relation;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public boolean isConsentRequired() {
-        return consentRequired;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void update(String status, String relation, Instant updatedAt) {
-        this.status = status;
-        this.relation = relation;
-        this.updatedAt = updatedAt;
-    }
-
-    public void updateScopesConsent(boolean consentRequired, Instant updatedAt) {
-        this.consentRequired = consentRequired;
-        this.updatedAt = updatedAt;
-    }
 }

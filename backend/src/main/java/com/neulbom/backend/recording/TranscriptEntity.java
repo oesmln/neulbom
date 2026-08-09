@@ -48,23 +48,4 @@ public class TranscriptEntity {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    protected TranscriptEntity() {
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public UUID getRecordingId() {
-        return recordingId;
-    }
-
-    public String getTranscript() {
-        return transcript;
-    }
-
-    public String getStatus() {
-        return status;
-    }
 }

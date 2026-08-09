@@ -22,8 +22,6 @@ spring:
       password: test
 
 app:
-  storage:
-    local-root: build/test-uploads
   security:
     jwt:
       secret: test-only-jwt-secret-key-that-is-long-enough

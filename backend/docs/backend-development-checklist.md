@@ -74,46 +74,40 @@
 
 기반: `guardian_links` 테이블, 역할·동의·access scope 검사
 
-- [x] `POST /guardian/invitations` - 6자리 초대 코드 발급
-- [x] `POST /guardian/invitations/verify` - 초대 코드 검증 및 연결 정보 미리보기
-- [x] `POST /guardian/invitations/accept` - 초대 코드 수락 및 보호자 연결 생성
-- [x] `POST /guardian/link` - 고령자 연결 요청
-- [x] `GET /guardian/{guardian_id}/elders` - 연결된 고령자 목록 조회
-- [x] `PATCH /guardian/link/{link_id}` - 연결 상태·접근 범위 수정
-- [x] `DELETE /guardian/link/{link_id}` - 연결 해제
+- [ ] `POST /guardian/invitations` - 6자리 초대 코드 발급
+- [ ] `POST /guardian/invitations/verify` - 초대 코드 검증 및 연결 정보 미리보기
+- [ ] `POST /guardian/invitations/accept` - 초대 코드 수락 및 보호자 연결 생성
+- [ ] `POST /guardian/link` - 고령자 연결 요청
+- [ ] `GET /guardian/{guardian_id}/elders` - 연결된 고령자 목록 조회
+- [ ] `PATCH /guardian/link/{link_id}` - 연결 상태·접근 범위 수정
+- [ ] `DELETE /guardian/link/{link_id}` - 연결 해제
 
 완료 조건: 초대 코드 입력부터 연결 생성까지 동작하고, 한 보호자가 여러 고령자를 관리하며, 연결·동의·접근 범위에 따라 데이터가 제한된다.
-
-구현 근거: `GuardianController`·`GuardianService`·`GuardianAccessService`와 초대/연결 scope Repository를 추가했다. 원문 코드 비저장, 만료·1회성 소비·IP 실패 제한, 역할·소유권·동의·scope 테스트를 반영했으며, 분석/리포트 API에서 `GuardianAccessService`를 재사용한다.
 
 ### 4차. CIST·AI 정서 문답 세션 API
 
 기반: `questions`, `sessions`, `answers` 테이블과 질문 seed 데이터
 
-- [x] `POST /sessions` - `cist`, `emotional_qa`, `game`, `mixed` 세션 시작
-- [x] `GET /sessions/{session_id}` - 세션 상태·현재 문항·진행률 조회
-- [x] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
-- [x] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
-- [x] `GET /sessions` - 사용자별 세션 목록 조회
-- [x] `GET /sessions/{session_id}/answers` - 대화 질문·답변·전사 내역 조회
-- [x] `GET /questions/daily` - 세션 유형별 질문 목록 조회
-- [x] `GET /questions/{question_id}` - 질문 단건 조회
-- [x] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
+- [ ] `POST /sessions` - `cist`, `emotional_qa`, `game`, `mixed` 세션 시작
+- [ ] `GET /sessions/{session_id}` - 세션 상태·현재 문항·진행률 조회
+- [ ] `PATCH /sessions/{session_id}/settings` - 세션별 음성·청취·자막 설정 적용
+- [ ] `PATCH /sessions/{session_id}/end` - 세션 종료·정성 결과·경험치 적립 상태 반환
+- [ ] `GET /sessions` - 사용자별 세션 목록 조회
+- [ ] `GET /sessions/{session_id}/answers` - 대화 질문·답변·전사 내역 조회
+- [ ] `GET /questions/daily` - 세션 유형별 질문 목록 조회
+- [ ] `GET /questions/{question_id}` - 질문 단건 조회
+- [ ] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
 
 완료 조건: CIST 5문항을 중단 후 이어서 진행할 수 있고, AI 정서 문답은 별도 세션으로 동작한다.
-
-구현 근거: `SessionController`·`SessionService`와 세션/질문/답변 Repository를 추가했다. 본인 쓰기, 보호자 `screening`/`summary` scope 읽기, 세션 설정 검증, 답변 콘텐츠·순서·시간 검증, `client_answer_id` 멱등 처리, 종료 후 변경 차단 테스트를 반영했다. STT 전사 ID의 실제 처리와 분석 결과·경험치 연동은 후속 녹음/분석/게임 단계에서 연결한다.
 
 ### 5차. 음성 업로드·오프라인 동기화 API
 
 기반: `recordings` 테이블, 파일 저장소, `client_recording_id` 중복 방지
 
-- [x] `POST /recordings` - 문항 답변 또는 독립 음성 일기 파일 업로드
-- [x] `GET /recordings/{recording_id}` - 업로드·STT·분석 처리 상태 조회
+- [ ] `POST /recordings` - 문항 답변 또는 독립 음성 일기 파일 업로드
+- [ ] `GET /recordings/{recording_id}` - 업로드·STT·분석 처리 상태 조회
 
 완료 조건: 오프라인에서 저장한 음성을 재전송할 수 있고, 같은 `client_recording_id`가 중복 저장되지 않는다.
-
-구현 근거: `RecordingController`·`RecordingService`·local `RecordingStorage`와 파일 형식/용량/목적별 참조/소유권 검증을 추가했다. 동일 `client_recording_id` 재전송은 기존 상태를 반환하고, 음성 일기는 세션·문항 없이 저장하며, 보호자는 `screening` 또는 `diary` scope로 상태를 읽는다. 외부 object storage adapter와 STT/분석 처리는 다음 단계에서 연결한다.
 
 ### 6차. STT·AI 분석·요약 API
 
