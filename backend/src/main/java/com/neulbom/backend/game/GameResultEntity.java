@@ -19,6 +19,9 @@ public class GameResultEntity {
     @Id
     private UUID id;
 
+    @Column(name = "client_game_result_id", nullable = false, unique = true)
+    private UUID clientGameResultId;
+
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
@@ -40,6 +43,21 @@ public class GameResultEntity {
 
     @Column(name = "total_questions", nullable = false)
     private int totalQuestions;
+
+    @Column(name = "matched_pairs")
+    private Integer matchedPairs;
+
+    @Column(name = "attempt_count")
+    private Integer attemptCount;
+
+    @Column(name = "duration_sec", nullable = false)
+    private int durationSec;
+
+    @Column(name = "restarted_count", nullable = false)
+    private int restartedCount;
+
+    @Column(nullable = false)
+    private boolean completed;
 
     @Column(name = "cognitive_index", precision = 8, scale = 2)
     private BigDecimal cognitiveIndex;

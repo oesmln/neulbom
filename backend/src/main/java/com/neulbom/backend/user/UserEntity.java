@@ -110,6 +110,22 @@ public class UserEntity {
         return role;
     }
 
+    public LocalDate getBirthDate() {
+        return birthDate;
+    }
+
+    public String getAgeGroup() {
+        return ageGroup;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
     public String getAccountStatus() {
         return accountStatus;
     }
@@ -137,6 +153,24 @@ public class UserEntity {
     public void changePassword(String passwordHash, Instant changedAt) {
         this.passwordHash = passwordHash;
         this.updatedAt = changedAt;
+    }
+
+    public void updateProfile(
+            String name,
+            LocalDate birthDate,
+            String ageGroup,
+            String gender,
+            String phone,
+            boolean profileCompleted,
+            Instant updatedAt
+    ) {
+        this.name = name;
+        this.birthDate = birthDate;
+        this.ageGroup = ageGroup;
+        this.gender = gender;
+        this.phone = phone;
+        this.profileCompleted = profileCompleted;
+        this.updatedAt = updatedAt;
     }
 
     public void withdraw(Instant withdrawnAt) {

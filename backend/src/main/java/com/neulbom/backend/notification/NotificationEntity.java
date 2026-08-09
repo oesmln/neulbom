@@ -30,6 +30,12 @@ public class NotificationEntity {
     @Column(nullable = false, length = 30)
     private String type;
 
+    @Column(nullable = false, length = 20)
+    private String severity;
+
+    @Column(name = "status_label", length = 100)
+    private String statusLabel;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String data;

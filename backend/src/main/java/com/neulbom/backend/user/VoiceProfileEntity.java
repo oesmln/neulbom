@@ -38,4 +38,43 @@ public class VoiceProfileEntity {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    protected VoiceProfileEntity() {
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getLanguage() {
+        return language;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getPitchBand() {
+        return pitchBand;
+    }
+
+    public String getClarity() {
+        return clarity;
+    }
+
+    public String getPreviewAudioUrl() {
+        return previewAudioUrl;
+    }
+
+    public boolean isRecommendedForElder() {
+        return recommendedForElder;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }

@@ -600,6 +600,13 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `agreed_at` | string/null | 동의 일시 |
 | `version` | string | 적용한 문서 버전 |
 
+#### 구현 권한·기본값 규칙
+
+- 현재 MVP 구현은 JWT subject와 `user_id`가 일치하는 본인 요청만 허용한다. 다른 사용자의 프로필·설정·동의 조회·수정은 `403`을 반환한다. 보호자의 연결·동의·access scope 기반 조회는 4장 구현 이후 연결한다.
+- 사용 환경 설정 행이 없으면 `preferred_hearing_side=unknown`, `speech_rate=0.90`, `subtitle_enabled=false`, `sound_effect_enabled=false`, 알림 5종은 `true`인 기본값을 생성해 반환한다.
+- `voice_profile_id`는 활성 상태의 한국어 안내 음성만 선택할 수 있으며, 존재하지 않거나 비활성인 ID는 `404`로 거부한다. `language`가 없으면 `ko`를 사용한다.
+- 동의는 `(user_id, consent_type, version)` 단위로 이력을 보존한다. 동일 버전을 다시 저장하면 `409`를 반환하며, 허용되지 않은 동의 유형·미래 시각은 `400`으로 거부한다.
+
 ## 4. 보호자 연결 API
 
 ### 4.1 `POST /guardian/invitations` - 6자리 초대 코드 발급
