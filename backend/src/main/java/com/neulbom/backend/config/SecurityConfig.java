@@ -1,5 +1,7 @@
 package com.neulbom.backend.config;
 
+import java.util.ArrayList;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -9,6 +11,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.neulbom.backend.common.filter.RequestIdFilter;
@@ -47,11 +50,11 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
-                                "/auth/register",
-                                "/auth/login",
-                                "/auth/oauth/**",
-                                "/auth/password/reset/**",
-                                "/auth/refresh"
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/oauth/**",
+                                "/api/v1/auth/password/reset/**",
+                                "/api/v1/auth/refresh"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -70,13 +73,14 @@ public class SecurityConfig {
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
+            var authorities = new ArrayList<>(scopeConverter.convert(jwt));
             String role = jwt.getClaimAsString("role");
-            if (role == null || role.isBlank()) {
-                return java.util.List.of();
+            if (role != null && !role.isBlank()) {
+                authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                        "ROLE_" + role.toUpperCase(java.util.Locale.ROOT)));
             }
-            return java.util.List.of(
-                    new org.springframework.security.core.authority.SimpleGrantedAuthority(
-                            "ROLE_" + role.toUpperCase(java.util.Locale.ROOT)));
+            return authorities;
         });
         return converter;
     }
