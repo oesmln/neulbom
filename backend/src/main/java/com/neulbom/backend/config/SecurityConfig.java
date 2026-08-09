@@ -1,5 +1,7 @@
 package com.neulbom.backend.config;
 
+import java.util.ArrayList;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -48,11 +50,11 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/api-docs/**",
                                 "/v3/api-docs/**",
-                                "/auth/register",
-                                "/auth/login",
-                                "/auth/oauth/**",
-                                "/auth/password/reset/**",
-                                "/auth/refresh"
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/oauth/**",
+                                "/api/v1/auth/password/reset/**",
+                                "/api/v1/auth/refresh"
                         ).permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(AbstractHttpConfigurer::disable)

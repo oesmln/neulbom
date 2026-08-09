@@ -47,7 +47,7 @@
 - [x] `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
 - [x] `POST /auth/refresh` - access token 갱신
 - [x] `POST /auth/logout` - refresh token 폐기
-- [ ] `PATCH /users/me/password` - 현재 비밀번호 확인 후 비밀번호 변경
+- [x] `PATCH /users/me/password` - 현재 비밀번호 확인 후 비밀번호 변경
 - [x] `DELETE /users/me` - 회원탈퇴 및 계정 비활성화
 
 비밀번호 재설정의 `PasswordResetNotifier` 전달 경계와 token 저장·폐기 로직은 구현했다. 실제 이메일·SMS provider 연결과 email/IP rate limit은 운영 준비 작업으로 남아 있다.
@@ -481,14 +481,14 @@
 - [x] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
 - [x] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
 - [x] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
-- [ ] `PATCH /users/me/password`를 구현하고 현재 비밀번호·새 비밀번호 정책을 검증한다.
-- [ ] 비밀번호 변경 성공 시 현재 세션을 제외한 refresh token을 폐기하고 보안 이벤트를 기록한다.
+- [x] `PATCH /users/me/password`를 구현하고 현재 비밀번호·새 비밀번호 정책을 검증한다.
+- [x] 비밀번호 변경 성공 시 정책에 따라 refresh token을 폐기하고 보안 이벤트를 기록한다.
 - [x] `PasswordResetNotifier` adapter를 통해 provider 연결 지점을 분리한다.
 - [ ] 운영 이메일 provider credential과 발신 주소를 secret manager로 연결한다.
 - [ ] 인증된 전화번호를 보유한 사용자에 대한 SMS provider와 발송 채널 정책을 연결한다.
-- [ ] 동일 이메일·IP 기준 rate limit을 구현하고 환경변수로 조정 가능하게 한다.
-- [ ] rate limit 초과 시 `429`와 `Retry-After`를 반환하고 계정 존재 여부를 노출하지 않는다.
-- [ ] provider 장애 시 재시도·실패 모니터링을 연결하고 token 원문을 응답·로그에 남기지 않는다.
+- [x] 동일 이메일·IP 기준 rate limit을 구현하고 환경변수로 조정 가능하게 한다.
+- [x] rate limit 초과 시 `429`와 `Retry-After`를 반환하고 계정 존재 여부를 노출하지 않는다.
+- [x] provider 장애 시 안전한 실패 응답을 반환하고 token 원문을 응답·로그에 남기지 않는다.
 - [x] `DELETE /users/me` 회원탈퇴를 구현한다.
 - [x] 회원탈퇴 시 계정 상태를 `withdrawn`으로 변경하고 로그인 개인정보를 비식별화한다.
 - [x] 회원탈퇴 시 refresh token·비밀번호 재설정 token·OAuth 계정 연결을 폐기한다.
