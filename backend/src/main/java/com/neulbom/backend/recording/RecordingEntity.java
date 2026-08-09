@@ -176,4 +176,15 @@ public class RecordingEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void markTranscriptCompleted(Instant updatedAt) {
+        this.transcriptStatus = "completed";
+        this.updatedAt = updatedAt;
+    }
+
+    public void markAnalysisCompleted(Instant updatedAt) {
+        this.analysisStatus = "completed";
+        this.syncStatus = "analysis_completed";
+        this.updatedAt = updatedAt;
+    }
 }
