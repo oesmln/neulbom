@@ -225,12 +225,12 @@
 - [x] `elder`, `guardian` 역할을 확정한다.
 - [x] `session_type`을 `cist`, `emotional_qa`, `game`, `mixed`로 확정한다.
 - [x] 분석 결과의 정규화 필드와 화면 표시 필드를 구분한다: `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `risk_level`, `display_label`.
-- [ ] `display_score`와 `score_max`로 `27/30`, `21/30`, `24.1` 형태의 화면 표시를 지원한다.
+- [x] `display_score`와 `score_max`로 `27/30`, `21/30`, `24.1` 형태의 화면 표시를 지원한다.
 - [x] 초대 코드는 `invite_code` 6자리, 만료·1회성 소비·검증 시도 제한 규칙을 따른다.
 - [x] 기존 `dementia_score`는 신규 응답에서 사용하지 않고 deprecated alias 유지 여부를 결정한다.
 - [x] 날짜·시간은 타임존을 포함한 ISO 8601 문자열로 통일한다.
-- [ ] AI 정서 문답 세션 종료 시 고령자에게 `result_type`, `display_label`, `message`, `recommendation`만 제공하고 정확한 점수는 보호자에게만 제공한다.
-- [ ] 하루 집계 기준을 `Asia/Seoul`의 `00:00~다음 날 00:00`으로 고정한다.
+- [x] AI 정서 문답 세션 종료 시 고령자에게 `result_type`, `display_label`, `message`, `recommendation`만 제공하고 정확한 점수는 보호자에게만 제공한다.
+- [x] 하루 집계 기준을 `Asia/Seoul`의 `00:00~다음 날 00:00`으로 고정한다.
 - [ ] 세션별 분석은 종료 후 생성하고, 일일 집계·보호자 리포트·일기 생성은 하루 종료 후 실행한다.
 - [x] Figma에 노출된 모든 화면 기능을 구현 범위로 확정하고 화면별 API 연결표와 체크리스트를 1:1로 유지한다.
 - [x] 상담 센터 MVP는 지역별 목록과 외부 지도·기관 사이트 연결로 구현하고, 실시간 예약은 Phase 2 구현 범위로 유지한다.
@@ -239,10 +239,10 @@
 
 ### 0.2 작업 방식
 
-- [ ] 각 단계별 Issue를 생성한다.
+- [x] 각 단계별 Issue를 생성한다.
 - [x] 작업 브랜치를 작업 유형에 따라 `feature/be/#이슈번호-작업명` 또는 `docs/be/#이슈번호-작업명` 형식으로 만든다.
 - [ ] API 변경이 생기면 명세서와 프론트엔드 계약을 함께 수정한다.
-- [ ] 하나의 PR에는 하나의 기능 흐름만 포함한다.
+- [x] 하나의 PR에는 하나의 기능 흐름만 포함한다.
 - [ ] PR마다 테스트 방법과 미완료 항목을 기록한다.
 
 ### 0.3 개인정보·의료적 표현 기준
@@ -365,7 +365,7 @@
 - [x] `guardian_id`, `elder_id` 중복 연결을 unique로 차단하고 `status` 값을 제한한다.
 - [x] `access_scope`는 `guardian_link_scopes`와 `guardian_invitation_scopes` 별도 권한 테이블로 관리한다.
 - [x] `guardian_invitations` 테이블에 코드 hash·만료·사용·시도 횟수를 저장한다.
-- [ ] `pending`, `active`, `revoked` 상태 전환 규칙을 정한다.
+- [x] `pending`, `active`, `revoked` 상태 전환 규칙을 정한다.
 - [x] 연결 해제 시 감사 로그를 남길 수 있도록 `audit_logs` 테이블을 만든다.
 - [x] `guardian_id`, `elder_id`, `status`에 인덱스를 추가한다.
 
@@ -510,11 +510,11 @@
 
 ### 3.3 소유권·IDOR 방지
 
-- [ ] 모든 `/{user_id}` API에서 요청 사용자와 대상 사용자의 관계를 확인한다.
-- [ ] URL의 `user_id`만 바꿔 다른 고령자의 데이터를 조회할 수 없는지 테스트한다.
-- [ ] 보호자가 연결되지 않은 고령자의 데이터를 조회할 수 없는지 테스트한다.
-- [ ] 동의하지 않은 대상자의 결과·일기를 조회할 수 없는지 테스트한다.
-- [ ] 일기·녹음·세션 ID만 알아도 접근할 수 없는지 테스트한다.
+- [x] 모든 `/{user_id}` API에서 요청 사용자와 대상 사용자의 관계를 확인한다.
+- [x] URL의 `user_id`만 바꿔 다른 고령자의 데이터를 조회할 수 없는지 테스트한다.
+- [x] 보호자가 연결되지 않은 고령자의 데이터를 조회할 수 없는지 테스트한다.
+- [x] 동의하지 않은 대상자의 결과·일기를 조회할 수 없는지 테스트한다.
+- [x] 일기·녹음·세션 ID만 알아도 접근할 수 없는지 테스트한다.
 - [ ] 관리자 권한이 필요한 기능을 일반 보호자 권한과 분리한다.
 - [x] 회원탈퇴는 본인 JWT subject만 대상으로 처리해 `DELETE /users/me`의 IDOR 경로를 제거한다.
 
@@ -531,45 +531,45 @@
 
 ### 4.1 사용자 프로필
 
-- [ ] `GET /users/{user_id}`를 구현한다.
-- [ ] `PATCH /users/{user_id}`를 구현한다.
-- [ ] 이름, 연락처, 연령대, 성별을 저장한다.
-- [ ] 학력·교육 연수, 문해 여부를 저장한다.
-- [ ] 주요 질환, 음주, 흡연 정보를 선택형으로 저장한다.
-- [ ] 청력 상태와 의사소통 어려움을 저장한다.
-- [ ] 스마트폰 사용 수준을 저장한다.
-- [ ] 초기 정보 입력 완료 여부를 계산한다.
+- [x] `GET /users/{user_id}`를 구현한다.
+- [x] `PATCH /users/{user_id}`를 구현한다.
+- [x] 이름, 연락처, 연령대, 성별을 저장한다.
+- [x] 학력·교육 연수, 문해 여부를 저장한다.
+- [x] 주요 질환, 음주, 흡연 정보를 선택형으로 저장한다.
+- [x] 청력 상태와 의사소통 어려움을 저장한다.
+- [x] 스마트폰 사용 수준을 저장한다.
+- [x] 초기 정보 입력 완료 여부를 계산한다.
 - [ ] 민감 정보는 보호자에게 접근 범위가 있을 때만 반환한다.
 
 ### 4.2 동의
 
-- [ ] `POST /consent/{user_id}`를 구현한다.
-- [ ] `GET /consent/{user_id}`를 구현한다.
-- [ ] `data_sharing`, `guardian_access`, `analysis`, `voice_collection`, `research_use`를 관리한다.
-- [ ] 동의 문서 `version`과 동의 시각을 저장한다.
+- [x] `POST /consent/{user_id}`를 구현한다.
+- [x] `GET /consent/{user_id}`를 구현한다.
+- [x] `data_sharing`, `guardian_access`, `analysis`, `voice_collection`, `research_use`를 관리한다.
+- [x] 동의 문서 `version`과 동의 시각을 저장한다.
 - [ ] 동의 철회 시 이후 데이터 접근·분석 정책을 정의한다.
-- [ ] 보호자 연결 활성화 전에 `guardian_access` 동의 상태를 확인한다.
+- [x] 보호자 연결 활성화 전에 `guardian_access` 동의 상태를 확인한다.
 
 ### 4.3 안내 음성·청취 설정
 
-- [ ] `voice_profiles` seed 데이터를 등록한다.
-- [ ] `GET /voice-profiles`를 구현한다.
-- [ ] `GET /users/{user_id}/preferences`를 구현한다.
-- [ ] `PATCH /users/{user_id}/preferences`를 구현한다.
-- [ ] `preferred_hearing_side`를 `left`, `right`, `both`, `unknown`으로 제한한다.
-- [ ] `speech_rate` 허용 범위를 검증한다.
-- [ ] `subtitle_enabled` 기본값을 `false`로 설정한다.
+- [x] `voice_profiles` seed 데이터를 등록한다.
+- [x] `GET /voice-profiles`를 구현한다.
+- [x] `GET /users/{user_id}/preferences`를 구현한다.
+- [x] `PATCH /users/{user_id}/preferences`를 구현한다.
+- [x] `preferred_hearing_side`를 `left`, `right`, `both`, `unknown`으로 제한한다.
+- [x] `speech_rate` 허용 범위를 검증한다.
+- [x] `subtitle_enabled` 기본값을 `false`로 설정한다.
 - [ ] 보호자가 청력 보조 목적으로 자막을 켤 수 있는 조건을 구현한다.
-- [ ] 효과음 기본값을 꺼진 상태로 설정한다.
-- [ ] `push_notification_enabled`와 유형별 알림 설정 4종을 저장·조회한다.
-- [ ] 알림 설정을 꺼도 앱 내부 알림 저장과 OS push 발송을 구분해 처리한다.
+- [x] 효과음 기본값을 꺼진 상태로 설정한다.
+- [x] `push_notification_enabled`와 유형별 알림 설정 4종을 저장·조회한다.
+- [x] 알림 설정을 꺼도 앱 내부 알림 저장과 OS push 발송을 구분해 처리한다.
 
 ### 4단계 완료 조건
 
-- [ ] 회원가입 직후 초기 정보 입력 화면의 API 흐름이 완료된다.
-- [ ] 동의하지 않은 보호자 연결이 활성화되지 않는다.
-- [ ] 음성 profile 조회와 설정 저장이 정상 동작한다.
-- [ ] 설정 응답이 다음 세션 시작에 반영된다.
+- [x] 회원가입 직후 초기 정보 입력 화면의 API 흐름이 완료된다.
+- [x] 동의하지 않은 보호자 연결이 활성화되지 않는다.
+- [x] 음성 profile 조회와 설정 저장이 정상 동작한다.
+- [x] 설정 응답이 다음 세션 시작에 반영된다.
 
 ---
 
@@ -577,36 +577,36 @@
 
 ### 5.1 연결 API
 
-- [ ] `POST /guardian/invitations`로 숫자 6자리 초대 코드를 발급한다.
-- [ ] 초대 코드는 기본 만료 시간과 최대 만료 시간을 검증한다.
-- [ ] `POST /guardian/invitations/verify`는 연결을 생성하지 않는 미리보기 검증으로 구현한다.
-- [ ] `POST /guardian/invitations/accept` 성공 시에만 코드를 소비하고 `guardian_links`를 생성한다.
-- [ ] 사용·만료 초대 코드에 `410`, 반복 실패에 `429`를 반환한다.
-- [ ] 초대 코드 원문을 DB·URL·로그에 저장하지 않고 단방향 해시로 관리한다.
-- [ ] `POST /guardian/link`를 구현한다.
-- [ ] `GET /guardian/{guardian_id}/elders`를 구현한다.
-- [ ] `PATCH /guardian/link/{link_id}`를 구현한다.
-- [ ] `DELETE /guardian/link/{link_id}`를 구현한다.
-- [ ] 연결 생성 시 중복 연결을 차단한다.
-- [ ] 연결 상태를 `pending`, `active`, `revoked`로 관리한다.
-- [ ] 보호자 1명이 여러 고령자를 연결할 수 있는지 확인한다.
-- [ ] 한 고령자에게 여러 보호자를 연결할 수 있는지 정책을 반영한다.
+- [x] `POST /guardian/invitations`로 숫자 6자리 초대 코드를 발급한다.
+- [x] 초대 코드는 기본 만료 시간과 최대 만료 시간을 검증한다.
+- [x] `POST /guardian/invitations/verify`는 연결을 생성하지 않는 미리보기 검증으로 구현한다.
+- [x] `POST /guardian/invitations/accept` 성공 시에만 코드를 소비하고 `guardian_links`를 생성한다.
+- [x] 사용·만료 초대 코드에 `410`, 반복 실패에 `429`를 반환한다.
+- [x] 초대 코드 원문을 DB·URL·로그에 저장하지 않고 단방향 해시로 관리한다.
+- [x] `POST /guardian/link`를 구현한다.
+- [x] `GET /guardian/{guardian_id}/elders`를 구현한다.
+- [x] `PATCH /guardian/link/{link_id}`를 구현한다.
+- [x] `DELETE /guardian/link/{link_id}`를 구현한다.
+- [x] 연결 생성 시 중복 연결을 차단한다.
+- [x] 연결 상태를 `pending`, `active`, `revoked`로 관리한다.
+- [x] 보호자 1명이 여러 고령자를 연결할 수 있는지 확인한다.
+- [x] 한 고령자에게 여러 보호자를 연결할 수 있는지 정책을 반영한다.
 
 ### 5.2 접근 범위
 
-- [ ] `screening`, `summary`, `diary`, `activity`, `campaign`, `all` 범위를 구현한다.
-- [ ] 요청마다 연결 상태와 access scope를 확인한다.
-- [ ] `screening` 권한이 없으면 검사 결과·추이를 반환하지 않는다.
-- [ ] `diary` 권한이 없으면 일기와 반응을 반환하지 않는다.
-- [ ] `activity` 권한이 없으면 캘린더와 게임 활동을 반환하지 않는다.
-- [ ] 권한 변경 시 기존 토큰만으로 우회할 수 없는지 확인한다.
-- [ ] 연결 해제 후 기존 URL로 리소스 조회가 불가능한지 테스트한다.
+- [x] `screening`, `summary`, `diary`, `activity`, `campaign`, `all` 범위를 구현한다.
+- [x] 요청마다 연결 상태와 access scope를 확인한다.
+- [x] `screening` 권한이 없으면 검사 결과·추이를 반환하지 않는다.
+- [x] `diary` 권한이 없으면 일기와 반응을 반환하지 않는다.
+- [x] `activity` 권한이 없으면 캘린더와 게임 활동을 반환하지 않는다.
+- [x] 권한 변경 시 기존 토큰만으로 우회할 수 없는지 확인한다.
+- [x] 연결 해제 후 기존 URL로 리소스 조회가 불가능한지 테스트한다.
 
 ### 5단계 완료 조건
 
-- [ ] 보호자 대시보드에서 연결된 여러 고령자 목록을 조회할 수 있다.
-- [ ] `pending` 연결은 동의 전 데이터 조회가 불가능하다.
-- [ ] 접근 범위별 허용·거부 테스트가 모두 통과한다.
+- [x] 보호자 대시보드에서 연결된 여러 고령자 목록을 조회할 수 있다.
+- [x] `pending` 연결은 동의 전 데이터 조회가 불가능하다.
+- [x] 접근 범위별 허용·거부 테스트가 모두 통과한다.
 
 ---
 
@@ -614,60 +614,60 @@
 
 ### 6.1 질문 데이터
 
-- [ ] CIST 질문을 문항 ID와 순서로 seed한다.
-- [ ] 질문 유형을 `orientation`, `memory`, `attention`, `language`로 관리한다.
-- [ ] AI 정서 문답 질문을 `emotion` 유형으로 seed한다.
-- [ ] 질문별 자막 가능 여부를 저장한다.
+- [x] CIST 질문을 문항 ID와 순서로 seed한다.
+- [x] 질문 유형을 `orientation`, `memory`, `attention`, `language`로 관리한다.
+- [x] AI 정서 문답 질문을 `emotion` 유형으로 seed한다.
+- [x] 질문별 자막 가능 여부를 저장한다.
 - [ ] 질문 내용과 정답·채점 기준의 접근 권한을 분리한다.
 - [ ] 외부로 공개하면 안 되는 검사 원문·해설지 보관 범위를 검토한다.
 
 ### 6.2 세션 시작·조회·종료
 
-- [ ] `POST /sessions`를 구현한다.
-- [ ] `session_type`별 질문 세트를 선택한다.
-- [ ] 세션 시작 시 음성·청취·자막 설정을 snapshot으로 저장한다.
-- [ ] `GET /sessions/{session_id}`를 구현한다.
-- [ ] 현재 문항 순서, 답변 수, 전체 문항 수를 반환한다.
-- [ ] `PATCH /sessions/{session_id}/settings`를 구현한다.
-- [ ] 세션별 자막 설정 변경 권한을 검증한다.
-- [ ] `PATCH /sessions/{session_id}/end`를 구현한다.
+- [x] `POST /sessions`를 구현한다.
+- [x] `session_type`별 질문 세트를 선택한다.
+- [x] 세션 시작 시 음성·청취·자막 설정을 snapshot으로 저장한다.
+- [x] `GET /sessions/{session_id}`를 구현한다.
+- [x] 현재 문항 순서, 답변 수, 전체 문항 수를 반환한다.
+- [x] `PATCH /sessions/{session_id}/settings`를 구현한다.
+- [x] 세션별 자막 설정 변경 권한을 검증한다.
+- [x] `PATCH /sessions/{session_id}/end`를 구현한다.
 - [ ] 종료 시 분석 작업을 예약한다.
 - [ ] `emotional_qa` 종료 시 `result_type`, `display_label`, `message`, `recommendation`을 반환한다.
-- [ ] 고령자 응답에서 정확한 점수·원본 모델 출력·상세 영역 점수를 제외한다.
-- [ ] 보호자 응답에서만 연결·동의·access scope 확인 후 정확한 점수와 상세 분석을 반환한다.
-- [ ] 분석이 비동기이면 `GET /screenings/{session_id}/result` 재조회로 결과를 확인한다.
+- [x] 고령자 응답에서 정확한 점수·원본 모델 출력·상세 영역 점수를 제외한다.
+- [x] 보호자 응답에서만 연결·동의·access scope 확인 후 정확한 점수와 상세 분석을 반환한다.
+- [x] 분석이 비동기이면 `GET /screenings/{session_id}/result` 재조회로 결과를 확인한다.
 - [ ] 정서 문답 완료 이벤트를 `event_id=session_id`로 경험치 적립과 연결한다.
-- [ ] `GET /sessions`를 구현한다.
-- [ ] 날짜·세션 유형·페이지네이션 필터를 구현한다.
-- [ ] `GET /sessions/{session_id}/answers`를 구현해 질문·답변·전사문·녹음 연결을 순서대로 반환한다.
-- [ ] 대화 내역 조회 시 본인 또는 연결·동의·access scope를 검증한다.
+- [x] `GET /sessions`를 구현한다.
+- [x] 날짜·세션 유형·페이지네이션 필터를 구현한다.
+- [x] `GET /sessions/{session_id}/answers`를 구현해 질문·답변·전사문·녹음 연결을 순서대로 반환한다.
+- [x] 대화 내역 조회 시 본인 또는 연결·동의·access scope를 검증한다.
 
 ### 6.3 문항별 답변
 
-- [ ] `POST /sessions/{session_id}/answers`를 구현한다.
-- [ ] `client_answer_id`로 오프라인 재전송 중복을 방지한다.
-- [ ] 답변에 `recording_id`, `transcript_id`, `answer_text`를 연결한다.
-- [ ] 세션에 속하지 않은 질문 ID를 거부한다.
-- [ ] 종료된 세션에 새 답변을 저장하지 않는다.
-- [ ] 답변 저장과 `answered_count`, `current_question_order` 갱신을 하나의 transaction으로 처리한다.
+- [x] `POST /sessions/{session_id}/answers`를 구현한다.
+- [x] `client_answer_id`로 오프라인 재전송 중복을 방지한다.
+- [x] 답변에 `recording_id`, `transcript_id`, `answer_text`를 연결한다.
+- [x] 세션에 속하지 않은 질문 ID를 거부한다.
+- [x] 종료된 세션에 새 답변을 저장하지 않는다.
+- [x] 답변 저장과 `answered_count`, `current_question_order` 갱신을 하나의 transaction으로 처리한다.
 - [ ] 답변 순서가 뒤섞여도 데이터가 깨지지 않도록 정책을 정한다.
-- [ ] `GET /questions/daily`를 구현한다.
-- [ ] `GET /questions/{question_id}`를 구현한다.
+- [x] `GET /questions/daily`를 구현한다.
+- [x] `GET /questions/{question_id}`를 구현한다.
 
 ### 6.4 화면 흐름 검증
 
 - [ ] CIST 화면에서 한 번에 한 문항만 진행된다.
 - [ ] `다음`, `다시 듣기`, `처음으로` 동작에 필요한 상태를 프론트엔드가 복구할 수 있다.
-- [ ] 앱을 종료했다가 다시 열어도 세션 진행 상태를 조회할 수 있다.
-- [ ] AI 정서 문답은 CIST와 다른 질문 세트·세션 유형으로 동작한다.
-- [ ] 하루에 여러 정서 문답 세션을 생성할 수 있다.
+- [x] 앱을 종료했다가 다시 열어도 세션 진행 상태를 조회할 수 있다.
+- [x] AI 정서 문답은 CIST와 다른 질문 세트·세션 유형으로 동작한다.
+- [x] 하루에 여러 정서 문답 세션을 생성할 수 있다.
 
 ### 6단계 완료 조건
 
-- [ ] 테스트 계정으로 CIST 5문항 세션을 시작할 수 있다.
-- [ ] 각 답변이 문항과 세션에 정확히 연결된다.
-- [ ] 세션 중단 후 재진입하면 다음 문항부터 이어진다.
-- [ ] 세션 종료 시 분석 대기 상태가 생성된다.
+- [x] 테스트 계정으로 CIST 5문항 세션을 시작할 수 있다.
+- [x] 각 답변이 문항과 세션에 정확히 연결된다.
+- [x] 세션 중단 후 재진입하면 다음 문항부터 이어진다.
+- [x] 세션 종료 시 분석 대기 상태가 생성된다.
 
 ---
 
@@ -675,31 +675,31 @@
 
 ### 7.1 파일 저장
 
-- [ ] `POST /recordings` multipart 업로드를 구현한다.
-- [ ] `wav`, `m4a`, `mp3`만 허용한다.
-- [ ] 최대 25MB 파일 제한을 적용한다.
+- [x] `POST /recordings` multipart 업로드를 구현한다.
+- [x] `wav`, `m4a`, `mp3`만 허용한다.
+- [x] 최대 25MB 파일 제한을 적용한다.
 - [ ] 파일 확장자만 믿지 말고 MIME type과 실제 파일 형식을 함께 검증한다.
-- [ ] 저장 파일명에 이름·생년월일을 사용하지 않는다.
-- [ ] 서버 UUID 또는 가명화된 식별자로 파일명을 생성한다.
-- [ ] 파일 metadata에 사용자·세션·질문·녹음 시각을 저장한다.
-- [ ] `purpose=answer|diary`를 검증하고, `diary`이면 세션·질문 없이 업로드할 수 있게 한다.
-- [ ] 음성 일기의 `recording_id`를 `POST /diaries`의 `source_type=voice`와 연결한다.
+- [x] 저장 파일명에 이름·생년월일을 사용하지 않는다.
+- [x] 서버 UUID 또는 가명화된 식별자로 파일명을 생성한다.
+- [x] 파일 metadata에 사용자·세션·질문·녹음 시각을 저장한다.
+- [x] `purpose=answer|diary`를 검증하고, `diary`이면 세션·질문 없이 업로드할 수 있게 한다.
+- [x] 음성 일기의 `recording_id`를 `POST /diaries`의 `source_type=voice`와 연결한다.
 - [ ] 로컬 저장소와 운영 object storage를 adapter로 분리한다.
 
 ### 7.2 재전송·중복 방지
 
-- [ ] `client_recording_id`를 필수로 받는다.
-- [ ] 동일한 `client_recording_id` 재요청 시 기존 recording을 반환한다.
+- [x] `client_recording_id`를 필수로 받는다.
+- [x] 동일한 `client_recording_id` 재요청 시 기존 recording을 반환한다.
 - [ ] `Idempotency-Key` 지원 여부를 결정한다.
 - [ ] 네트워크 재연결 후 여러 파일을 순차 전송할 수 있게 한다.
 - [ ] 업로드 실패 시 원인을 `error_message`로 저장한다.
-- [ ] `GET /recordings/{recording_id}`를 구현한다.
+- [x] `GET /recordings/{recording_id}`를 구현한다.
 - [ ] `device_saved`, `server_pending`, `server_uploaded`, `analysis_completed`, `failed` 상태 전환을 구현한다.
-- [ ] 업로드 완료와 분석 완료를 별도 상태로 관리한다.
+- [x] 업로드 완료와 분석 완료를 별도 상태로 관리한다.
 
 ### 7.3 개인정보·보존
 
-- [ ] 음성 파일 접근 URL을 공개하지 않는다.
+- [x] 음성 파일 접근 URL을 공개하지 않는다.
 - [ ] 다운로드 URL은 짧은 만료 시간을 가진 signed URL로 제공한다.
 - [ ] 원본 보존 기간과 삭제 정책을 정한다.
 - [ ] 동의 철회 또는 계정 삭제 시 음성 데이터 처리 정책을 구현한다.
@@ -707,8 +707,8 @@
 
 ### 7단계 완료 조건
 
-- [ ] 정상 업로드, 용량 초과, 잘못된 형식, 네트워크 재전송 테스트가 통과한다.
-- [ ] 같은 파일을 2번 보내도 recording이 1개만 생성된다.
+- [x] 정상 업로드, 용량 초과, 잘못된 형식, 네트워크 재전송 테스트가 통과한다.
+- [x] 같은 파일을 2번 보내도 recording이 1개만 생성된다.
 - [ ] 앱이 오프라인이었다가 연결된 뒤 업로드 상태가 최종적으로 분석 대기까지 전환된다.
 
 ---
@@ -740,63 +740,63 @@
 
 ### 8.3 Whisper STT
 
-- [ ] `POST /voice/transcribe`를 구현한다.
-- [ ] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
-- [ ] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
-- [ ] 한국어 `ko` 결과를 기본값으로 처리한다.
+- [x] `POST /voice/transcribe`를 구현한다.
+- [x] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
+- [x] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
+- [x] 한국어 `ko` 결과를 기본값으로 처리한다.
 - [ ] STT 실패·빈 전사·낮은 confidence 처리 정책을 정한다.
 - [ ] 원본 전사문을 수정하지 않고 전처리본을 별도 저장한다.
 
 ### 8.4 AST 음향 분석
 
-- [ ] `POST /analysis/acoustic`를 구현한다.
+- [x] `POST /analysis/acoustic`를 구현한다.
 - [ ] 8초 segment 입력 규칙을 반영한다.
 - [ ] 짧은 음성의 padding 정책을 정한다.
 - [ ] 화자 분리·겹침 발화·소음 metadata 저장 구조를 구현한다.
-- [ ] `speech_rate`, `pause_ratio`, `energy_variability`, `speech_stability`를 저장한다.
-- [ ] `acoustic_reference_score`와 모델 버전을 저장한다.
-- [ ] AST 결과를 KcELECTRA 결과와 분리 보관한다.
+- [x] `speech_rate`, `pause_ratio`, `energy_variability`, `speech_stability`를 저장한다.
+- [x] `acoustic_reference_score`와 모델 버전을 저장한다.
+- [x] AST 결과를 KcELECTRA 결과와 분리 보관한다.
 
 ### 8.5 KcELECTRA 분석
 
-- [ ] `POST /analysis/cognitive`를 구현한다.
-- [ ] 전사문과 질문 유형을 함께 분석한다.
-- [ ] 지남력·기억·주의·언어 플래그를 저장한다.
+- [x] `POST /analysis/cognitive`를 구현한다.
+- [x] 전사문과 질문 유형을 함께 분석한다.
+- [x] 지남력·기억·주의·언어 플래그를 저장한다.
 - [ ] 문장 길이·어휘 다양성·의미 일관성 feature 저장 여부를 결정한다.
-- [ ] `language_reference_score`와 모델 버전을 저장한다.
-- [ ] AST 결과 ID를 선택적으로 연결한다.
+- [x] `language_reference_score`와 모델 버전을 저장한다.
+- [x] AST 결과 ID를 선택적으로 연결한다.
 
 ### 8.6 점수 집계·사용자 노출 결과
 
-- [ ] 모델별 점수와 결합 점수를 구분한다.
-- [ ] `fusion_mode`를 `none`, `average`, `weighted_average`로 관리한다.
+- [x] 모델별 점수와 결합 점수를 구분한다.
+- [x] `fusion_mode`를 `none`, `average`, `weighted_average`로 관리한다.
 - [ ] 결합 가중치는 설정값 또는 모델 버전별 configuration으로 분리한다.
-- [ ] `screening_reference_score`를 `0.0~1.0` 범위로 검증한다.
-- [ ] `risk_level`을 `normal`, `caution`, `warning`으로 변환한다.
-- [ ] `label`을 `normal`, `attention_required`로 반환한다.
-- [ ] 영역별 `correct`, `total`, `score_rate`를 저장한다.
-- [ ] 사용자 화면용 `display_score`, `score_max`, `score_rate`를 검사 유형별 환산 규칙으로 계산한다.
-- [ ] 분석 이력에 직전 동일 집계 결과 대비 `score_delta`를 제공하고 첫 기록은 `null`로 반환한다.
-- [ ] 사용자 노출 응답에 내부 모델 raw output을 포함하지 않는다.
+- [x] `screening_reference_score`를 `0.0~1.0` 범위로 검증한다.
+- [x] `risk_level`을 `normal`, `caution`, `warning`으로 변환한다.
+- [x] `label`을 `normal`, `attention_required`로 반환한다.
+- [x] 영역별 `correct`, `total`, `score_rate`를 저장한다.
+- [x] 사용자 화면용 `display_score`, `score_max`, `score_rate`를 검사 유형별 환산 규칙으로 계산한다.
+- [x] 분석 이력에 직전 동일 집계 결과 대비 `score_delta`를 제공하고 첫 기록은 `null`로 반환한다.
+- [x] 사용자 노출 응답에 내부 모델 raw output을 포함하지 않는다.
 
 ### 8.7 Gemini 문답 요약
 
-- [ ] `POST /summary/session`을 구현한다.
-- [ ] `GET /summary/session/{session_id}`를 구현한다.
-- [ ] 질문·답변 쌍을 문항 순서대로 전달한다.
-- [ ] `summary`, `vocabulary_score`, `keyword_flags`를 저장한다.
+- [x] `POST /summary/session`을 구현한다.
+- [x] `GET /summary/session/{session_id}`를 구현한다.
+- [x] 질문·답변 쌍을 문항 순서대로 전달한다.
+- [x] `summary`, `vocabulary_score`, `keyword_flags`를 저장한다.
 - [ ] 요약 결과가 없을 때 `source_status=pending`을 반환한다.
 - [ ] 모델 응답에 의료적 진단 표현이 포함되지 않도록 후처리·검수 정책을 정한다.
 
 ### 8.8 일일 대화 집계
 
-- [ ] `POST /summary/daily`를 서버 작업 큐 전용으로 구현한다.
-- [ ] `GET /summary/daily/{user_id}`를 구현한다.
-- [ ] `Asia/Seoul` 기준 `00:00~다음 날 00:00`의 여러 세션을 집계한다.
-- [ ] `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `status`를 반환한다.
+- [x] `POST /summary/daily`를 서버 작업 큐 전용으로 구현한다.
+- [x] `GET /summary/daily/{user_id}`를 구현한다.
+- [x] `Asia/Seoul` 기준 `00:00~다음 날 00:00`의 여러 세션을 집계한다.
+- [x] `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `status`를 반환한다.
 - [ ] 일일 집계 결과에 포함된 세션별 결과와 일일 종합 결과를 구분한다.
-- [ ] `daily_summary_id`와 사용자·기준일을 unique로 관리한다.
-- [ ] 재시도·재집계 시 동일 일일 결과와 경험치·알림이 중복 생성되지 않게 한다.
+- [x] `daily_summary_id`와 사용자·기준일을 unique로 관리한다.
+- [x] 재시도·재집계 시 동일 일일 결과와 경험치·알림이 중복 생성되지 않게 한다.
 - [ ] 집계 실패 시 `failed` 상태와 재처리 가능 상태를 제공한다.
 - [ ] 일일 집계 스케줄러의 시간대, 실행 시각, 재시도 정책을 문서화한다.
 
@@ -805,7 +805,7 @@
 - [ ] mock 외부 서비스로 업로드 → STT → AST/KcELECTRA → 집계 → 요약 전체 흐름이 통과한다.
 - [ ] 외부 서비스 실패 시 녹음·세션 데이터가 유실되지 않는다.
 - [ ] 동일 recording에 대한 중복 분석 결과가 생성되지 않는다.
-- [ ] 결과 API가 `screening_reference_score`와 안전한 화면 문구를 반환한다.
+- [x] 결과 API가 `screening_reference_score`와 안전한 화면 문구를 반환한다.
 
 ---
 
@@ -882,7 +882,7 @@
 - [x] 생성 요청은 `202`와 `processing|completed|failed|conversation_incomplete` 작업 상태를 반환한다.
 - [x] `GET /diaries/{user_id}/generation-status`를 구현한다.
 - [x] 0시 생성 예정·처리 중·완료·실패 상태와 재시도 가능 여부를 홈·대화 완료 화면에 제공한다.
-- [ ] 생성 완료·실패 시 설정을 확인해 알림 이벤트를 생성한다.
+- [x] 생성 완료·실패 시 설정을 확인해 알림 이벤트를 생성한다.
 - [x] `GET /diaries/{user_id}`를 구현한다.
 - [x] `GET /diaries/{diary_id}`를 구현한다.
 - [x] `PATCH /diaries/{diary_id}`를 구현한다.
