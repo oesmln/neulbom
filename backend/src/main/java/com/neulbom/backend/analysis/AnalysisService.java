@@ -153,7 +153,7 @@ public class AnalysisService {
         if (speechToTextClient.isConfigured()) {
             providerResult = speechToTextClient.transcribe(audioFile(recording, ignoredAudioFile));
         } else if (!externalApiProperties.allowFallback()) {
-            throw new ExternalServiceUnavailableException("Whisper provider 설정이 없습니다.");
+            throw new ExternalServiceUnavailableException("선택한 STT provider 설정이 없습니다.");
         }
         Instant now = clock.instant();
         String transcriptText = providerResult == null

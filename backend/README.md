@@ -30,6 +30,16 @@ cp .env.example .env
 - 사용자: 현재 OS 사용자명
 - 비밀번호: 환경변수 `DB_PASSWORD`
 
+## STT provider 선택
+
+`STT_PROVIDER`로 `openai`, `local`, `google`, `auto`, `none` 중 하나를 선택한다. 로컬 Whisper는 OpenAI 호환 `POST /v1/audio/transcriptions` 서버 주소를 `LOCAL_WHISPER_API_BASE_URL`에 넣는다. Google Cloud STT V2는 `GOOGLE_STT_PROJECT_ID`와 `GOOGLE_STT_LOCATION`을 설정하고, 로컬에서는 다음 명령으로 Application Default Credentials를 준비한다.
+
+```bash
+gcloud auth application-default login
+```
+
+실제 secret과 서비스 계정 JSON은 저장소에 커밋하지 않는다. 자세한 provider 계약은 [`docs/api-spec.md`](docs/api-spec.md)의 7.12절과 [`AGENTS.md`](AGENTS.md)를 따른다.
+
 실행 확인:
 
 ```bash

@@ -184,7 +184,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/recordings` | 문항 답변·음성 일기 녹음 업로드 및 동기화 | 필요 | 본인, 세션 사용자 | MVP |
 | `GET` | `/recordings/{recording_id}` | 녹음 업로드·분석 상태 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
-| `POST` | `/voice/transcribe` | Whisper STT 실행 | 필요/서버 전용 | 서버 작업 큐 | MVP |
+| `POST` | `/voice/transcribe` | 선택한 STT provider 실행 | 필요/서버 전용 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -1234,9 +1234,13 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `error_message` | string/null | 실패 시 오류 내용 |
 | `updated_at` | string | 최종 처리 일시 |
 
-### 7.3 `POST /voice/transcribe` - Whisper STT
+### 7.3 `POST /voice/transcribe` - 선택한 STT provider
 
 서버 작업 큐에서 `recording_id`를 기준으로 호출하는 것을 권장한다. 기존 클라이언트 직접 호출이 필요한 경우에도 동일한 메타데이터를 전송한다.
+
+STT provider는 `STT_PROVIDER`로 선택한다. `openai`는 OpenAI 호스팅 Whisper, `local`은 OpenAI 호환 로컬 Whisper 서버, `google`은 Google Cloud Speech-to-Text V2를 사용한다. `auto`는 설정된 OpenAI → 로컬 Whisper → Google Cloud STT 순서로 선택하고, `none`은 외부 STT를 사용하지 않는다.
+
+로컬 Whisper 서버는 `POST /v1/audio/transcriptions` multipart 계약(`file`, `model`, `language`, `response_format`)을 제공해야 한다. Google Cloud STT는 서버의 Application Default Credentials(로컬 `gcloud auth application-default login`, 운영 서비스 계정 또는 workload identity)를 사용하며 앱에 provider credential을 노출하지 않는다.
 
 #### Form Data
 
@@ -1541,14 +1545,16 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 | 작업 | 기본 provider | 설정값 | 요청 계약 |
 | --- | --- | --- | --- |
-| STT | OpenAI Whisper | `WHISPER_API_KEY`, `WHISPER_API_BASE_URL`, `WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
+| STT | OpenAI 호스팅 Whisper | `STT_PROVIDER=openai`, `WHISPER_API_KEY`, `WHISPER_API_BASE_URL`, `WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
+| STT | 로컬 Whisper | `STT_PROVIDER=local`, `LOCAL_WHISPER_API_BASE_URL`, `LOCAL_WHISPER_API_KEY`(선택), `LOCAL_WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
+| STT | Google Cloud Speech-to-Text V2 | `STT_PROVIDER=google`, `GOOGLE_STT_PROJECT_ID`, `GOOGLE_STT_LOCATION`, `GOOGLE_STT_MODEL`, `GOOGLE_STT_LANGUAGE_CODE`, ADC credential | `POST /v2/projects/{project}/locations/{location}/recognizers/_:recognize` JSON `config.autoDecodingConfig`, `languageCodes`, `model`, base64 `content` |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
 | 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `transcript`, `question_type`, `model_version` |
 | 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.
 
-로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다.
+로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다. Google Cloud STT의 `GOOGLE_APPLICATION_CREDENTIALS`는 서비스 계정 JSON 경로를 가리키거나 실행 환경의 ADC를 사용하며, JSON 원문은 저장소에 두지 않는다.
 
 ## 8. 일기·보호자 반응 API
 

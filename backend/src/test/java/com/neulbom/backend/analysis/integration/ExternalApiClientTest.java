@@ -47,11 +47,62 @@ class ExternalApiClientTest {
     }
 
     @Test
+    void localWhisperUsesTheOpenAiCompatibleContractWithoutAnApiKey() {
+        ExternalApiProperties properties = sttProperties("local", "http://local-whisper.test", "");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://local-whisper.test/v1/audio/transcriptions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("local-model")))
+                .andRespond(withSuccess("""
+                        {"text":"로컬 전사","duration":2.5,"language":"ko","model":"local-model"}
+                        """, MediaType.APPLICATION_JSON));
+
+        LocalWhisperClient client = new LocalWhisperClient(
+                builder.build(), properties, new ExternalApiExecutor(properties));
+        SpeechToTextClient.TranscriptionResult result = client.transcribe(
+                new SpeechToTextClient.AudioFile(new byte[]{1, 2}, "sample.wav", "audio/wav"));
+
+        assertThat(result.transcript()).isEqualTo("로컬 전사");
+        assertThat(result.modelName()).isEqualTo("local-model");
+        server.verify();
+    }
+
+    @Test
+    void googleSttV2ResponseIsMappedUsingApplicationDefaultCredentials() {
+        ExternalApiProperties properties = sttProperties(
+                "google", "", "neulbom-test");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://asia-northeast1-speech.googleapis.com/v2/projects/neulbom-test/locations/asia-northeast1/recognizers/_:recognize"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
+                .andExpect(header("x-goog-user-project", "neulbom-test"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("chirp_3")))
+                .andRespond(withSuccess("""
+                        {"results":[{"languageCode":"ko-KR","alternatives":[{"transcript":"구글 전사","confidence":0.91}]}],"metadata":{"totalBilledDuration":"2.5s"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        GoogleCloudSpeechToTextClient client = new GoogleCloudSpeechToTextClient(
+                builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper(),
+                () -> "test-token");
+        SpeechToTextClient.TranscriptionResult result = client.transcribe(
+                new SpeechToTextClient.AudioFile(new byte[]{1, 2}, "sample.webm", "audio/webm"));
+
+        assertThat(result.transcript()).isEqualTo("구글 전사");
+        assertThat(result.durationSec()).isEqualByComparingTo("2.5");
+        assertThat(result.confidence()).isEqualByComparingTo("0.91");
+        assertThat(result.language()).isEqualTo("ko-KR");
+        assertThat(result.modelName()).isEqualTo("chirp_3");
+        server.verify();
+    }
+
+    @Test
     void geminiResponseMapsStructuredSummary() {
         ExternalApiProperties properties = properties("", "", "", "gemini-secret");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"))
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("x-goog-api-key", "gemini-secret"))
                 .andRespond(withSuccess("""
@@ -119,9 +170,18 @@ class ExternalApiClientTest {
                 Duration.ofSeconds(1),
                 0,
                 true,
+                "auto",
                 whisperKey,
                 "https://api.openai.com",
                 "whisper-1",
+                "",
+                "",
+                "whisper-1",
+                "",
+                "",
+                "asia-northeast1",
+                "chirp_3",
+                "ko-KR",
                 astUrl,
                 "ast-secret",
                 "ast-v1",
@@ -130,6 +190,35 @@ class ExternalApiClientTest {
                 "kc-v1",
                 geminiKey,
                 "https://generativelanguage.googleapis.com",
-                "gemini-2.0-flash");
+                "gemini-2.5-flash");
+    }
+
+    private ExternalApiProperties sttProperties(String provider, String localUrl, String googleProjectId) {
+        return new ExternalApiProperties(
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1),
+                0,
+                true,
+                provider,
+                "",
+                "https://api.openai.com",
+                "whisper-1",
+                localUrl,
+                "",
+                "local-model",
+                "",
+                googleProjectId,
+                "asia-northeast1",
+                "chirp_3",
+                "ko-KR",
+                "",
+                "",
+                "ast-v1",
+                "",
+                "",
+                "kc-v1",
+                "",
+                "https://generativelanguage.googleapis.com",
+                "gemini-2.5-flash");
     }
 }

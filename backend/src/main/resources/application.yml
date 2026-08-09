@@ -59,9 +59,18 @@ app:
     read-timeout: ${EXTERNAL_API_READ_TIMEOUT:30s}
     retry-count: ${EXTERNAL_API_RETRY_COUNT:2}
     allow-fallback: ${EXTERNAL_API_ALLOW_FALLBACK:true}
+    stt-provider: ${STT_PROVIDER:auto}
     whisper-api-key: ${WHISPER_API_KEY:}
     whisper-base-url: ${WHISPER_API_BASE_URL:https://api.openai.com}
     whisper-model: ${WHISPER_MODEL:whisper-1}
+    local-whisper-base-url: ${LOCAL_WHISPER_API_BASE_URL:}
+    local-whisper-api-key: ${LOCAL_WHISPER_API_KEY:}
+    local-whisper-model: ${LOCAL_WHISPER_MODEL:whisper-1}
+    google-stt-base-url: ${GOOGLE_STT_BASE_URL:}
+    google-stt-project-id: ${GOOGLE_STT_PROJECT_ID:}
+    google-stt-location: ${GOOGLE_STT_LOCATION:asia-northeast1}
+    google-stt-model: ${GOOGLE_STT_MODEL:chirp_3}
+    google-stt-language-code: ${GOOGLE_STT_LANGUAGE_CODE:ko-KR}
     ast-api-url: ${AST_API_URL:}
     ast-api-key: ${AST_API_KEY:}
     ast-model: ${AST_MODEL:v1}
@@ -70,7 +79,7 @@ app:
     kc-electra-model: ${KCELECTRA_MODEL:v1}
     gemini-api-key: ${GEMINI_API_KEY:}
     gemini-base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
-    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+    gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
   security:
     jwt:
       secret: ${JWT_SECRET:local-only-change-this-jwt-secret-key-please}

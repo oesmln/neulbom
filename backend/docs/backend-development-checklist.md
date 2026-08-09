@@ -721,7 +721,7 @@
 - [x] `AcousticAnalysisClient` 또는 AST 실행 adapter를 만든다.
 - [x] `CognitiveAnalysisClient` 또는 KcELECTRA 실행 adapter를 만든다.
 - [x] `SessionSummaryClient` 또는 Gemini 실행 adapter를 만든다.
-- [ ] 실제 외부 서비스와 mock 구현을 분리한다.
+- [x] 실제 외부 서비스와 mock 구현을 분리한다.
 - [x] API key, model name, timeout, retry를 설정값으로 관리한다.
 - [x] 외부 서비스 응답 스키마를 내부 DTO로 변환한다.
 
@@ -740,10 +740,13 @@
 
 ### 8.3 Whisper STT
 
-- [ ] `POST /voice/transcribe`를 구현한다.
-- [ ] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
-- [ ] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
-- [ ] 한국어 `ko` 결과를 기본값으로 처리한다.
+- [x] `POST /voice/transcribe`를 구현한다.
+- [x] `STT_PROVIDER`로 OpenAI Whisper·로컬 Whisper·Google Cloud STT V2를 선택한다.
+- [x] 로컬 Whisper는 OpenAI 호환 `/v1/audio/transcriptions` adapter로 연결한다.
+- [x] Google Cloud STT V2는 ADC 인증과 regional recognizer endpoint를 사용한다.
+- [x] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
+- [x] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
+- [x] 한국어 `ko` 결과를 기본값으로 처리한다.
 - [ ] STT 실패·빈 전사·낮은 confidence 처리 정책을 정한다.
 - [ ] 원본 전사문을 수정하지 않고 전처리본을 별도 저장한다.
 

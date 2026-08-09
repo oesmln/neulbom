@@ -44,7 +44,7 @@ API의 경로, 필드, 상태값, HTTP 상태 코드는 `api-spec.md`를 기준�
 - API documentation: springdoc OpenAPI
 - Test: JUnit 5, Spring Boot Test, MockMvc
 - File storage: 로컬 파일 시스템 또는 MinIO(개발), Object Storage(운영)
-- External AI/STT: Whisper API, AST, KcELECTRA, Gemini API
+- External AI/STT: OpenAI/local Whisper, Google Cloud STT, AST, KcELECTRA, Gemini API
 
 버전은 `build.gradle`과 `gradle-wrapper.properties`에 고정한다. 팀 합의 없이 Spring Boot, Java, 주요 라이브러리 버전을 변경하지 않는다.
 
