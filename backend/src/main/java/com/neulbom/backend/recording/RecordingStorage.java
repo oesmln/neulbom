@@ -48,4 +48,31 @@ public class RecordingStorage {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "녹음 파일 저장에 실패했습니다.", "잠시 후 다시 시도하세요.");
         }
     }
+
+    public StoredAudio load(String storageKey) {
+        if (!"local".equalsIgnoreCase(properties.type())) {
+            throw new ExternalServiceUnavailableException("현재 파일 저장소 adapter가 local만 지원합니다.");
+        }
+        if (!StringUtils.hasText(storageKey)) {
+            throw new ExternalServiceUnavailableException("녹음 파일 저장 키가 없습니다.");
+        }
+        Path root = Path.of(properties.localRoot()).toAbsolutePath().normalize();
+        Path target = root.resolve(storageKey).normalize();
+        if (!target.startsWith(root)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "파일 저장 경로가 올바르지 않습니다.", "storage 키를 확인하세요.");
+        }
+        try {
+            byte[] content = Files.readAllBytes(target);
+            String contentType = Files.probeContentType(target);
+            if (!StringUtils.hasText(contentType)) {
+                contentType = "application/octet-stream";
+            }
+            return new StoredAudio(content, target.getFileName().toString(), contentType);
+        } catch (IOException exception) {
+            throw new ExternalServiceUnavailableException("녹음 파일을 외부 분석 provider에 전달할 수 없습니다.");
+        }
+    }
+
+    public record StoredAudio(byte[] content, String filename, String contentType) {
+    }
 }

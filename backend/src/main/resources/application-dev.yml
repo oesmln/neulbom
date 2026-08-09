@@ -13,6 +13,10 @@ spring:
       ddl-auto: validate
     show-sql: false
 
+app:
+  external-api:
+    allow-fallback: false
+
 logging:
   level:
     org.hibernate.SQL: WARN
