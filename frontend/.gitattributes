@@ -1,0 +1,14 @@
+# Normalise line endings for text, so Windows/macOS checkouts agree.
+* text=auto
+
+# Binary assets — never touch these. Git's auto-detection usually gets GLB
+# right, but core.autocrlf is on for most of the team and a single mangled
+# byte turns a model into an unloadable file, so say it explicitly.
+*.glb binary
+*.gltf binary
+*.bin binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ttf binary
+*.otf binary

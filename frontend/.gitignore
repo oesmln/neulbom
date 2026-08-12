@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+
+# Meshy GLB originals (~88MB, and binary so git cannot delta them — every
+# re-export would add another ~90MB to history for good). The optimized set
+# under assets/models/optimized/ is what the app ships, and it is tracked.
+assets/models/*.glb
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Metro
+.metro-health-check*
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# editor / IDE (the Python extension keeps writing settings.json into this
+# RN project — nothing in there belongs to anyone else)
+.vscode/
+.idea/
+
+# native builds (bare workflow / prebuild output)
+/android
+/ios
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# local env
+.env
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 로컬 개발 가이드 (저장소에 올리지 않음)
+/CLAUDE.md
