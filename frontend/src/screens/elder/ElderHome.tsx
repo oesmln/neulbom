@@ -55,7 +55,8 @@ function taskBadge(task: DashboardTask): { label: string; color: string; backgro
 }
 
 /**
- * Yesterday's diary card, shown above the task cards as in the Figma home.
+ * Yesterday's diary, rendered as one more feature card alongside 정서 문답 and
+ * 두뇌 게임 — same `Card`, same row layout, same badge treatment.
  *
  * The status wording is the server's — `display_label` and `message` come from
  * `latest_diary`, and only the badge colour is decided here. The prototype
@@ -130,8 +131,6 @@ export default function ElderHomeScreen() {
             <ErrorState message={apiErrorMessage(error)} onRetry={reload} />
           ) : null}
 
-          {data?.latest_diary ? <DiaryBanner diary={data.latest_diary} /> : null}
-
           {data
             ? data.today_tasks.map((task) => {
                 const badge = taskBadge(task);
@@ -168,6 +167,8 @@ export default function ElderHomeScreen() {
               })
             : null}
 
+          {data?.latest_diary ? <DiaryCard diary={data.latest_diary} /> : null}
+
           {data?.cognitive_activity ? (
             <CognitiveStatusCard activity={data.cognitive_activity} />
           ) : null}
@@ -177,7 +178,7 @@ export default function ElderHomeScreen() {
   );
 }
 
-function DiaryBanner({ diary }: { diary: DashboardDiarySummary }) {
+function DiaryCard({ diary }: { diary: DashboardDiarySummary }) {
   const navigation = useNavigation<ElderNav>();
   const badge = diaryBadge(diary.generation_status);
 
