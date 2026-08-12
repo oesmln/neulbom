@@ -141,22 +141,33 @@
 
 ## 8단계 · 보호자 화면
 
-- [ ] 대시보드 `GET /guardian/{guardian_id}/elders` — 다중 고령자 카드
-- [ ] 종합 리포트 `GET /guardian/{guardian_id}/report`
-- [ ] 위험 추이 차트 `GET /analysis/cognitive/{user_id}/history`
-      **차트 라이브러리 없이 View/SVG 기반으로 구현**
+보호자 영역은 고령자용 sage green이 아니라 **`@/theme`의 `guardian` 팔레트**를 쓴다
+(`blue` `#4A7BC4` / `blueLight` `#EBF2FB` / `blueDark` `#3465A8`). 헤더·탭 활성·차트 선이
+모두 이 파랑이고, 보호자 화면에 `colors.primary`를 쓰지 않는다.
+
+- [x] 종합 리포트 `GET /guardian/{guardian_id}/report`
+- [x] 위험 추이 차트 `GET /analysis/cognitive/{user_id}/history`
+      **완성형 차트 라이브러리 없이 구현** — 꺾은선·점선 임계선처럼 사각형으로 안 되는 것만
+      `react-native-svg` 프리미티브를 쓴다 (`components/ScoreTrendChart.tsx`)
+- [x] 일기 열람·반응 `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions`
+      (이모지 4종 + 응원 메시지)
+- [x] 보호자 알림 — 유형별 배지, 미읽음 강조, 모두 읽음
+- [x] 연결·동의 미완료 대상자는 데이터 대신 안내 화면 표시 (`403` 처리)
+- [x] 앱 설정 화면 배치 (다크 모드·글씨 크기 선택 UI, 앱 버전)
+- [ ] 대시보드 `GET /guardian/{guardian_id}/elders` — **다중** 고령자 카드
+      (엔드포인트는 연결했고 현재는 첫 어르신을 자동 선택한다)
 - [ ] 지역 기준선 비교 `GET /analysis/cognitive/{user_id}/benchmark`
-- [ ] 일기 열람·반응 `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions`
-      (하트·감정·`cry`·메시지)
 - [ ] 리포트 내보내기 `GET /guardian/{guardian_id}/report/export` (PDF·CSV, 서명 URL 만료 처리)
-- [ ] 보호자 알림
-- [ ] 연결·동의 미완료 대상자는 데이터 대신 안내 화면 표시 (`403` 처리)
+- [ ] 다크 모드·글씨 크기의 **실제 적용** — `PATCH /users/{id}/preferences`에 해당 필드가
+      없어 저장할 곳이 아직 없다
 
 ## 9단계 · 상담 센터
 
-- [ ] `GET /counseling/centers?province_code=&district_code=`
-- [ ] 시·도 / 시·군·구 선택 UI, 기관 유형(병원·치매안심센터·보건소) 필터
-- [ ] 네이버 지도·기관 사이트 외부 링크 열기
+- [x] `GET /counseling/centers?province_code=&district_code=`
+- [x] 시·도 / 시·군·구 선택 UI, 기관 유형(병원·치매안심센터·보건소) 필터
+      시·도는 `@/theme`의 `provinces` 코드표, 시·군·구는 응답의 `district_code`에서 파생시킨다
+      (지역 목록 endpoint가 명세에 없다)
+- [x] 네이버 지도·기관 사이트 외부 링크 열기
 
 ## 10단계 · 캐릭터(메모이) 3D
 

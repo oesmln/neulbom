@@ -574,7 +574,9 @@ export const guardian = {
 
 export const counseling = {
   centers(provinceCode: string, districtCode?: string, facilityType?: string): Promise<CounselingCentersResponse> {
-    if (USE_MOCK_API) return Promise.resolve({ centers: [], total: 0 });
+    if (USE_MOCK_API) {
+      return Promise.resolve(mock.mockCounselingCenters(provinceCode, districtCode, facilityType));
+    }
     return request("/counseling/centers", {
       query: {
         province_code: provinceCode,
