@@ -1,0 +1,181 @@
+import React from "react";
+import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { RootNav, RootStackParamList } from "@/navigation/types";
+import { useApp } from "@/store/AppContext";
+import { auth, guardian } from "@/api";
+import { apiErrorMessage } from "@/api/errors";
+import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
+import { Badge, Button, ScreenHeader, SpeechBubble } from "@/components/ui";
+import Memoi3D from "@/components/Memoi3D";
+import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
+
+type Choice = "elder" | "guardian";
+
+const OPTIONS: {
+  key: Choice;
+  title: string;
+  sub: string;
+  tags: string[];
+}[] = [
+  {
+    key: "elder",
+    title: "본인 (고령자)",
+    sub: "AI와 대화하며 인지 건강을 스스로 관리해요",
+    tags: ["AI 정서 문답", "인지 캠페인", "나만의 일기"],
+  },
+  {
+    key: "guardian",
+    title: "보호자 / 의료진",
+    sub: "가족 또는 환자의 인지 상태를 모니터링해요",
+    tags: ["인지 저하 그래프", "일기 열람", "위험 알림"],
+  },
+];
+
+export default function UserTypeScreen() {
+  const navigation = useNavigation<RootNav>();
+  const route = useRoute<RouteProp<RootStackParamList, "UserType">>();
+  const signup = route.params?.signup ?? null;
+  const { setRole, signIn } = useApp();
+  const [selected, setSelected] = React.useState<Choice | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState<string | null>(null);
+
+  /**
+   * The role is the last piece registration was waiting for: api-spec 3.1 wants
+   * one `POST /auth/register` carrying it, not an account created earlier and
+   * patched afterwards. The invite code, if one was entered, is redeemed once
+   * the account exists and is signed in.
+   */
+  const start = async () => {
+    if (!selected || busy) return;
+    setRole(selected);
+
+    if (!signup) {
+      // Reached without a pending sign-up (demo entry point) — just enter.
+      navigation.navigate(selected === "elder" ? "Elder" : "Guardian");
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      await auth.register({
+        email: signup.email,
+        password: signup.password,
+        name: signup.name,
+        role: selected,
+      });
+      const tokens = await auth.login({ email: signup.email, password: signup.password });
+      await signIn(tokens);
+
+      if (signup.inviteCode) {
+        await guardian.acceptInvitation(signup.inviteCode, true).catch(() => undefined);
+      }
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: selected === "elder" ? "Elder" : "Guardian" }],
+      });
+    } catch (cause) {
+      setMessage(apiErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <ScreenHeader
+        title="어떻게 사용하실 건가요?"
+        subtitle="사용자 유형을 선택하면 맞춤 화면이 제공됩니다."
+      />
+
+      <View style={styles.characterRow}>
+        <Memoi3D
+          character={DEFAULT_MEMOI}
+          height={100}
+          spinnerColor={colors.primary}
+          style={{ width: 100 }}
+        />
+        <SpeechBubble text="누구를 위해 사용하실 건가요?" side="right" style={{ flexShrink: 1 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        {OPTIONS.map((opt) => {
+          const on = selected === opt.key;
+          return (
+            <Pressable
+              key={opt.key}
+              onPress={() => setSelected(opt.key)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${opt.title}. ${opt.sub}`}
+              style={[
+                styles.option,
+                { borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.secondary : colors.white },
+              ]}
+            >
+              <View style={styles.optionTitleRow}>
+                <Text style={styles.optionTitle}>{opt.title}</Text>
+                {on ? <Badge label="선택됨" color={colors.white} background={colors.primary} /> : null}
+              </View>
+              <Text style={styles.optionSub}>{opt.sub}</Text>
+              <View style={styles.tagRow}>
+                {opt.tags.map((tag) => (
+                  <View
+                    key={tag}
+                    style={[styles.tag, { backgroundColor: on ? "#D6EAD9" : colors.muted }]}
+                  >
+                    <Text
+                      style={[
+                        styles.tagLabel,
+                        { color: on ? colors.primaryDark : colors.mutedForeground },
+                      ]}
+                    >
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Pressable>
+          );
+        })}
+
+        {message ? <Text style={styles.errorText}>{message}</Text> : null}
+
+        <Button
+          label="시작하기"
+          icon={selected ? "chevron-forward" : undefined}
+          disabled={!selected || busy}
+          onPress={() => void start()}
+          style={{ marginTop: spacing.xs }}
+        />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
+  characterRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxl - 4,
+  },
+  body: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
+
+  option: { borderWidth: 2, borderRadius: radius.xl, padding: spacing.xl },
+  optionTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: 6 },
+  optionTitle: { fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, color: colors.foreground },
+  optionSub: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22, marginBottom: 10 },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
+  tagLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold },
+  errorText: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 20 },
+});
