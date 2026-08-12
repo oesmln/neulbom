@@ -5,6 +5,11 @@ import Constants from "expo-constants";
 
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Screen, ScreenHeader, Caption } from "@/components/ui";
+import {
+  currentDisplaySettings,
+  saveDisplaySettings,
+  type FontScaleKey,
+} from "@/store/settings";
 
 /**
  * 앱 설정 — shared by the elder and guardian areas.
@@ -13,19 +18,17 @@ import { Screen, ScreenHeader, Caption } from "@/components/ui";
  * (sage for the elder, blue for the guardian), so it lives here once and each
  * area passes its palette in.
  *
- * Both preferences are local for now: `PATCH /users/{id}/preferences` carries
- * hearing, voice and notification settings but has no field for theme or text
- * scale, so there is nowhere to persist them yet. The note under each control
- * says so rather than leaving a switch that silently does nothing — applying
- * them is follow-up work recorded on the Issue.
+ * Choices persist to the device (`@/store/settings`) and are applied at boot,
+ * because every screen bakes the theme tokens into its `StyleSheet` at import
+ * time — hence the "다시 시작하면 적용" note on both controls. The server has
+ * no field for either (`PATCH /users/{id}/preferences` carries hearing, voice
+ * and notification settings only), so these stay device-local.
  */
-const FONT_SIZES = [
+const FONT_SIZES: { key: FontScaleKey; label: string; preview: number }[] = [
   { key: "normal", label: "보통", preview: 15 },
   { key: "large", label: "크게", preview: 18 },
   { key: "xlarge", label: "매우 크게", preview: 22 },
-] as const;
-
-type FontSizeKey = (typeof FONT_SIZES)[number]["key"];
+];
 
 export interface AppSettingsPalette {
   /** Header band, active switch and selected row border. */
@@ -54,8 +57,22 @@ export default function AppSettingsView({
   onBack: () => void;
   backLabel: string;
 }) {
-  const [darkMode, setDarkMode] = React.useState(false);
-  const [fontSizeKey, setFontSizeKey] = React.useState<FontSizeKey>("normal");
+  // Boot already loaded the stored settings, so the sync read is populated.
+  const stored = currentDisplaySettings();
+  const [darkMode, setDarkMode] = React.useState(stored.darkMode);
+  const [fontSizeKey, setFontSizeKey] = React.useState<FontScaleKey>(stored.fontScale);
+
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      void saveDisplaySettings({ darkMode: !prev, fontScale: fontSizeKey });
+      return !prev;
+    });
+  };
+
+  const pickFontScale = (key: FontScaleKey) => {
+    setFontSizeKey(key);
+    void saveDisplaySettings({ darkMode, fontScale: key });
+  };
 
   const version = Constants.expoConfig?.version ?? "—";
 
@@ -77,7 +94,7 @@ export default function AppSettingsView({
             <Caption style={{ marginTop: 2 }}>어두운 화면으로 눈의 피로를 줄여요</Caption>
           </View>
           <Pressable
-            onPress={() => setDarkMode((d) => !d)}
+            onPress={toggleDarkMode}
             accessibilityRole="switch"
             accessibilityLabel="다크 모드"
             accessibilityState={{ checked: darkMode }}
@@ -89,9 +106,7 @@ export default function AppSettingsView({
             <View style={[styles.knob, { left: darkMode ? 22 : 4 }]} />
           </Pressable>
         </View>
-        <Caption style={styles.note}>
-          테마 전환은 아직 적용되지 않아요. 선택만 저장돼요.
-        </Caption>
+        <Caption style={styles.note}>앱을 다시 시작하면 적용돼요.</Caption>
       </SettingsGroup>
 
       <SettingsGroup title="글씨 크기">
@@ -101,7 +116,7 @@ export default function AppSettingsView({
             return (
               <Pressable
                 key={size.key}
-                onPress={() => setFontSizeKey(size.key)}
+                onPress={() => pickFontScale(size.key)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={`글씨 크기 ${size.label}`}
@@ -128,7 +143,7 @@ export default function AppSettingsView({
             );
           })}
         </View>
-        <Caption style={styles.note}>글씨 크기 변경은 다음 실행 시 적용됩니다.</Caption>
+        <Caption style={styles.note}>앱을 다시 시작하면 적용돼요.</Caption>
       </SettingsGroup>
 
       <SettingsGroup title="앱 정보">

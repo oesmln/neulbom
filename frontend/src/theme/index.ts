@@ -234,8 +234,6 @@ export const sizes = {
   buttonHeightLg: 56,
   inputHeight: 52,
   tabBarHeight: 68,
-  /** Center home button on the elder tab bar, raised above the bar. */
-  tabBarHomeButton: 50,
   canvasWidth: 375,
 } as const;
 
@@ -272,3 +270,76 @@ export const theme = {
 
 export type Theme = typeof theme;
 export default theme;
+
+/* ------------------------------------------------- display settings hook-in */
+
+/**
+ * Dark surfaces, applied over `colors` in place.
+ *
+ * Only surfaces and text invert; the sage/blue/tan accents stay, because the
+ * headers and buttons built on them already carry white text. Every override
+ * keeps the role of the token it replaces (e.g. `primaryDark` is "text on a
+ * light-sage surface", so in dark mode it becomes a light sage).
+ */
+const darkColors = {
+  background: "#191C1A",
+  foreground: "#E8ECE9",
+  card: "#232725",
+  cardForeground: "#E8ECE9",
+  secondary: "#253B2C",
+  secondaryForeground: "#A9CFB4",
+  primaryDark: "#A9CFB4",
+  muted: "#2A2E2C",
+  mutedForeground: "#9BA69E",
+  accentLight: "#3B3223",
+  destructiveLight: "#3B2523",
+  successLight: "#22382A",
+  warningLight: "#3A3222",
+  border: "rgba(255,255,255,0.14)",
+  inputBackground: "#262A28",
+  switchBackground: "#4A504C",
+  screenBackground: "#141715",
+} as const;
+
+const darkGuardian = {
+  blueLight: "#20304A",
+  blueDark: "#9FC2EC",
+  dangerText: "#EDAFA6",
+  bandNormal: "#1C2B21",
+  bandCaution: "#332E1D",
+} as const;
+
+/** Multipliers behind the 보통/크게/매우 크게 choice on the settings screen. */
+const FONT_SCALES = { normal: 1, large: 1.15, xlarge: 1.3 } as const;
+
+let darkApplied = false;
+
+/**
+ * Mutates the exported tokens to match the stored display settings.
+ *
+ * MUST run before any screen module is imported: screens call
+ * `StyleSheet.create` at import time and capture token values then, which is
+ * why `src/Boot.tsx` requires `App` only after this has run — and why a change
+ * from the settings screen applies on the next launch.
+ */
+export function applyDisplaySettings(settings: {
+  darkMode: boolean;
+  fontScale: keyof typeof FONT_SCALES;
+}): void {
+  if (settings.darkMode) {
+    Object.assign(colors, darkColors);
+    Object.assign(guardian, darkGuardian);
+    darkApplied = true;
+  }
+  const scale = FONT_SCALES[settings.fontScale] ?? 1;
+  if (scale !== 1) {
+    for (const key of Object.keys(fontSize) as (keyof typeof fontSize)[]) {
+      (fontSize as Record<string, number>)[key] = Math.round(fontSize[key] * scale);
+    }
+  }
+}
+
+/** Whether the dark palette is active this launch — drives the status bar. */
+export function isDarkApplied(): boolean {
+  return darkApplied;
+}
