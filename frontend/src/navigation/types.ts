@@ -38,6 +38,10 @@ export type ElderStackParamList = {
   ElderResult: { sessionId: string } | undefined;
   ElderNotifications: undefined;
   ElderCampaign: undefined;
+  /** 비밀번호 변경 — reached from 마이페이지. */
+  ElderPasswordChange: undefined;
+  /** 앱 설정 — reached from 마이페이지. */
+  ElderAppSettings: undefined;
 };
 
 /** Bottom tabs: 홈 sits in the middle as a raised button. */

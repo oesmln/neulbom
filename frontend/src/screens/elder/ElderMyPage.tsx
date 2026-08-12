@@ -1,14 +1,14 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, TextInput } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, TextInput, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { RootNav } from "@/navigation/types";
+import { ElderNav, RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { game, reports, users } from "@/api";
+import { auth, game, reports, users } from "@/api";
 import { useApi } from "@/hooks/useApi";
-import { apiErrorMessage } from "@/api/errors";
+import { ApiError, apiErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Card, ErrorState, LoadingState, ProgressBar, ScreenHeader } from "@/components/ui";
@@ -40,6 +40,9 @@ function levelMeta(level: number) {
 
 export default function ElderMyPageScreen() {
   const navigation = useNavigation<RootNav>();
+  // Same navigator object, typed for the elder stack — 비밀번호 변경 and 앱 설정
+  // are pushed there while 로그아웃 resets the root stack.
+  const elderNavigation = useNavigation<ElderNav>();
   const { userId, userName, signOut } = useApp();
   const [xpOpen, setXpOpen] = React.useState(false);
   const [characterName, setCharacterName] = React.useState("");
@@ -65,6 +68,36 @@ export default function ElderMyPageScreen() {
     void users
       .updatePreferences(userId as string, { push_notification_enabled: next })
       .catch(() => setNotificationsOn(!next));
+  };
+
+  /**
+   * 계정 탈퇴 is irreversible, so it goes through a confirm dialog and ends in
+   * the same signed-out state as 로그아웃. A failure leaves the session alone
+   * and says so rather than pretending the account is gone.
+   */
+  const confirmWithdraw = () => {
+    Alert.alert(
+      "계정을 탈퇴하시겠어요?",
+      "그동안의 대화, 일기, 검사 기록이 모두 삭제되고 되돌릴 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "탈퇴하기",
+          style: "destructive",
+          onPress: () => {
+            void auth
+              .withdraw()
+              .then(async () => {
+                await signOut();
+                navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+              })
+              .catch((cause: ApiError) =>
+                Alert.alert("탈퇴하지 못했어요", apiErrorMessage(cause)),
+              );
+          },
+        },
+      ],
+    );
   };
 
   const logout = async () => {
@@ -285,14 +318,27 @@ export default function ElderMyPageScreen() {
             </Pressable>
           </View>
 
-          <SettingsRow icon="lock-closed-outline" label="비밀번호 변경" />
-          <SettingsRow icon="settings-outline" label="앱 설정" />
+          <SettingsRow
+            icon="lock-closed-outline"
+            label="비밀번호 변경"
+            onPress={() => elderNavigation.navigate("ElderPasswordChange")}
+          />
+          <SettingsRow
+            icon="settings-outline"
+            label="앱 설정"
+            onPress={() => elderNavigation.navigate("ElderAppSettings")}
+          />
           <SettingsRow
             icon="log-out-outline"
             label="로그아웃"
             onPress={() => void logout()}
           />
-          <SettingsRow icon="trash-outline" label="계정 탈퇴" tone={colors.destructive} />
+          <SettingsRow
+            icon="trash-outline"
+            label="계정 탈퇴"
+            tone={colors.destructive}
+            onPress={confirmWithdraw}
+          />
         </Card>
       </ScrollView>
     </SafeAreaView>

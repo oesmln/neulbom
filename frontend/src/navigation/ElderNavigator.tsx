@@ -20,6 +20,8 @@ import ElderCalendarScreen from "@/screens/elder/ElderCalendar";
 import ElderCampaignScreen from "@/screens/elder/ElderCampaign";
 import ElderGameHubScreen from "@/screens/elder/ElderGameHub";
 import ElderMyPageScreen from "@/screens/elder/ElderMyPage";
+import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
+import ElderAppSettingsScreen from "@/screens/elder/ElderAppSettings";
 
 const Tab = createBottomTabNavigator<ElderTabParamList>();
 const Stack = createNativeStackNavigator<ElderStackParamList>();
@@ -134,6 +136,8 @@ export default function ElderNavigator() {
       <Stack.Screen name="ElderResult" component={ElderResultScreen} />
       <Stack.Screen name="ElderNotifications" component={ElderNotificationsScreen} />
       <Stack.Screen name="ElderCampaign" component={ElderCampaignScreen} />
+      <Stack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
+      <Stack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
     </Stack.Navigator>
   );
 }

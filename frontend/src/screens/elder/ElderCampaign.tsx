@@ -52,7 +52,15 @@ export default function ElderCampaignScreen() {
               </View>
               <Pill label={`+${g.points}P`} color={colors.secondary} textColor={colors.secondaryForeground} />
             </View>
-            <Button label="게임 시작" variant="secondary" size="sm" style={{ marginTop: spacing.md }} onPress={() => {}} />
+            {/* Campaigns are Phase 2 (api-spec 11); until `GET /campaigns` exists
+                this sends the user to the game hub rather than doing nothing. */}
+            <Button
+              label="게임 시작"
+              variant="secondary"
+              size="sm"
+              style={{ marginTop: spacing.md }}
+              onPress={() => navigation.navigate("ElderTabs", { screen: "ElderGameHub" })}
+            />
           </Card>
         ))}
       </View>
