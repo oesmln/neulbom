@@ -181,7 +181,7 @@ export interface ConsentsResponse {
 
 /* ── sessions & questions ───────────────────────────────────────────────── */
 
-export type SessionType = "cist" | "emotional_qa";
+export type SessionType = "cist" | "emotional_qa" | "game" | "mixed";
 
 export interface SessionStartRequest {
   user_id: Uuid;

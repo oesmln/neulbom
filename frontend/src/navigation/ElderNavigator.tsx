@@ -22,6 +22,9 @@ import ElderGameHubScreen from "@/screens/elder/ElderGameHub";
 import ElderMyPageScreen from "@/screens/elder/ElderMyPage";
 import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
 import ElderAppSettingsScreen from "@/screens/elder/ElderAppSettings";
+import ElderGameCardMatchScreen from "@/screens/elder/games/ElderGameCardMatch";
+import ElderGameColorScreen from "@/screens/elder/games/ElderGameColor";
+import ElderGameConsonantScreen from "@/screens/elder/games/ElderGameConsonant";
 
 const Tab = createBottomTabNavigator<ElderTabParamList>();
 const Stack = createNativeStackNavigator<ElderStackParamList>();
@@ -120,6 +123,9 @@ export default function ElderNavigator() {
       <Stack.Screen name="ElderCampaign" component={ElderCampaignScreen} />
       <Stack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
       <Stack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
+      <Stack.Screen name="ElderGameCardMatch" component={ElderGameCardMatchScreen} />
+      <Stack.Screen name="ElderGameColor" component={ElderGameColorScreen} />
+      <Stack.Screen name="ElderGameConsonant" component={ElderGameConsonantScreen} />
     </Stack.Navigator>
   );
 }

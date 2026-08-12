@@ -42,6 +42,10 @@ export type ElderStackParamList = {
   ElderPasswordChange: undefined;
   /** 앱 설정 — reached from 마이페이지. */
   ElderAppSettings: undefined;
+  /** 두뇌 게임 3종 — pushed over the tabs from the game hub. */
+  ElderGameCardMatch: undefined;
+  ElderGameColor: undefined;
+  ElderGameConsonant: undefined;
 };
 
 /** Bottom tabs: 홈 sits in the middle as a raised button. */
