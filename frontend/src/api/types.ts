@@ -604,7 +604,7 @@ export interface DiaryCreateRequest {
 export interface GenerationStatusResponse {
   generation_job_id: Uuid | null;
   target_date: IsoDate;
-  status: string;
+  status: "scheduled" | "processing" | "completed" | "failed" | "conversation_incomplete";
   scheduled_at: IsoInstant | null;
   available_at: IsoInstant | null;
   diary_id: Uuid | null;
