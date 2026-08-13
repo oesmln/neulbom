@@ -56,8 +56,18 @@ class GameIntegrationTest {
         mockMvc.perform(get("/api/v1/game/{userId}/history", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.records.length()").value(1))
                 .andExpect(jsonPath("$.records[0].xp_earned").value(30));
+        String colorMatchRequest = """
+                {
+                  "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
+                  "game_type":"color_match", "score":4, "response_times":[1.1,1.3,0.9,1.0,1.2],
+                  "error_count":1, "total_questions":5, "duration_sec":30,
+                  "restarted_count":0, "completed":true
+                }
+                """.formatted(elder.getId(), session.getId(), UUID.randomUUID());
+        mockMvc.perform(post("/api/v1/game/result").with(jwtFor(elder)).contentType(MediaType.APPLICATION_JSON).content(colorMatchRequest))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.cognitive_index").value(80.0));
         mockMvc.perform(get("/api/v1/character/{userId}", elder.getId()).with(jwtFor(elder)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(30))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(60))
                 .andExpect(jsonPath("$.stage").value("egg"));
         mockMvc.perform(get("/api/v1/character/{userId}/xp-history", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.records[0].reason").value("game"));
@@ -66,7 +76,7 @@ class GameIntegrationTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":10,\"reason\":\"attendance\",\"event_id\":\"attendance-1\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(40));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(70));
         mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":10,\"reason\":\"attendance\",\"event_id\":\"attendance-1\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.deduplicated").value(true));
