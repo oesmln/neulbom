@@ -325,6 +325,11 @@ export interface RecordingStatusResponse {
 
 /** `stable | observe | attention_required` — the server decides, never the app. */
 export type CognitiveStatus = "stable" | "observe" | "attention_required";
+export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
+export type ScreeningResultType =
+  | "positive_feedback"
+  | "follow_up_recommended"
+  | "insufficient_data";
 
 export interface DashboardCharacterSummary {
   level: number;
@@ -338,8 +343,8 @@ export interface DashboardCharacterSummary {
 
 export interface DashboardScreeningSummary {
   session_id: Uuid;
-  result_status: string;
-  result_type: string | null;
+  result_status: AnalysisStatus;
+  result_type: ScreeningResultType | null;
   display_label: string | null;
   message: string | null;
   recommendation: string | null;
@@ -422,8 +427,8 @@ export interface ScreeningResultResponse {
   session_id: Uuid;
   user_id: Uuid;
   session_type: string;
-  result_status: string;
-  result_type?: string;
+  result_status: AnalysisStatus;
+  result_type?: ScreeningResultType;
   display_label?: string;
   message?: string;
   recommendation?: string;
