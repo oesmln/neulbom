@@ -39,6 +39,7 @@ function badgeFor(item: NotificationResponse) {
 export default function GuardianNotificationsScreen() {
   const { userId, role } = useApp();
   const [items, setItems] = React.useState<NotificationResponse[]>([]);
+  const [actionError, setActionError] = React.useState<string | null>(null);
 
   const { data, error, loading, reload } = useApi(
     () => notificationsApi.list(userId as string, role ?? "guardian"),
@@ -50,18 +51,29 @@ export default function GuardianNotificationsScreen() {
     if (data) setItems(data.notifications);
   }, [data]);
 
-  const markRead = (id: Uuid) => {
+  const markRead = async (id: Uuid) => {
+    const previous = items;
+    setActionError(null);
     setItems((prev) => prev.map((n) => (n.notification_id === id ? { ...n, is_read: true } : n)));
-    void notificationsApi.markRead(id).catch(reload);
+    try {
+      await notificationsApi.markRead(id);
+    } catch (cause) {
+      setItems(previous);
+      setActionError(apiErrorMessage(cause));
+    }
   };
 
-  const markAllRead = () => {
-    const unread = items.filter((n) => !n.is_read);
-    if (unread.length === 0) return;
+  const markAllRead = async () => {
+    if (!items.some((item) => !item.is_read)) return;
+    const previous = items;
+    setActionError(null);
     setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    // No bulk endpoint in the spec, so this is one call per unread item; a
-    // failure re-reads the list rather than guessing which ones stuck.
-    void Promise.all(unread.map((n) => notificationsApi.markRead(n.notification_id))).catch(reload);
+    try {
+      await notificationsApi.markAllRead(role ?? "guardian");
+    } catch (cause) {
+      setItems(previous);
+      setActionError(apiErrorMessage(cause));
+    }
   };
 
   const hasUnread = items.some((n) => !n.is_read);
@@ -73,7 +85,7 @@ export default function GuardianNotificationsScreen() {
       right={
         hasUnread ? (
           <Pressable
-            onPress={markAllRead}
+            onPress={() => void markAllRead()}
             accessibilityRole="button"
             accessibilityLabel="모든 알림 읽음 처리"
             hitSlop={10}
@@ -93,6 +105,8 @@ export default function GuardianNotificationsScreen() {
         <ErrorState message={apiErrorMessage(error)} onRetry={reload} />
       ) : null}
 
+      {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
+
       {!loading && !error && items.length === 0 ? (
         <EmptyState message="새로운 알림이 없어요" icon="notifications-outline" />
       ) : null}
@@ -104,7 +118,7 @@ export default function GuardianNotificationsScreen() {
           return (
             <Pressable
               key={n.notification_id}
-              onPress={() => markRead(n.notification_id)}
+              onPress={() => void markRead(n.notification_id)}
               accessibilityRole="button"
               accessibilityLabel={`${n.title}. ${n.body}`}
             >
@@ -135,6 +149,15 @@ export default function GuardianNotificationsScreen() {
 
 const styles = StyleSheet.create({
   headerAction: { fontSize: fontSize.caption, color: onHeader.action },
+  actionError: {
+    marginBottom: spacing.md,
+    borderRadius: 10,
+    backgroundColor: colors.destructiveLight,
+    padding: spacing.md,
+    fontSize: fontSize.caption,
+    color: colors.destructive,
+    textAlign: "center",
+  },
   unreadCard: { borderColor: guardian.blue },
   titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm },
   titleGroup: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, flex: 1 },
