@@ -133,7 +133,8 @@ class RecordingIntegrationTest {
                         .param("user_id", elder.getId().toString())
                         .param("purpose", "diary")
                         .param("recorded_at", recordedAt))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.purpose").value("diary"));
     }
 
     private UUID saveSession(UUID userId) {

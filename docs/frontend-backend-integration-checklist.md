@@ -1,6 +1,6 @@
 # 프론트엔드·백엔드 통합 점검 체크리스트
 
-> 관련 Issue: [#54 프론트엔드·백엔드 통합 점검 체크리스트](https://github.com/oesmln/neulbom/issues/54)
+> 관련 Issue: [#54 통합 점검 체크리스트](https://github.com/oesmln/neulbom/issues/54), [#56 프론트엔드·백엔드 실 API 통합](https://github.com/oesmln/neulbom/issues/56)
 >
 > 기준 브랜치: `develop`
 >
@@ -19,13 +19,14 @@
 
 ### 1.1 실행 환경과 공통 통신
 
-- [ ] PostgreSQL migration 적용 후 백엔드가 `local` profile로 실행된다.
-- [ ] `GET /health`와 `GET /actuator/health`가 정상 응답한다.
+- [x] PostgreSQL migration v11 적용 후 백엔드가 `local` profile로 실행된다. (`2026-08-13` 로컬 PostgreSQL 17.10)
+- [x] `GET /health`와 `GET /actuator/health`가 정상 응답한다. (`2026-08-13`, 모두 `UP`)
 - [ ] iOS simulator에서 `http://localhost:8080`으로 연결된다.
 - [ ] Android emulator에서 `http://10.0.2.2:8080`으로 연결된다.
 - [ ] 실제 기기에서 개발 PC의 LAN IP로 연결된다.
-- [ ] Expo Web과 허용된 개발 origin에서 CORS 오류가 발생하지 않는다.
-- [ ] 프론트엔드가 모든 업무 API에 `/api/v1` prefix를 중복 없이 적용한다.
+- [x] Expo Web이 `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080` 설정으로 렌더링되고 콘솔 오류 없이 로그인 화면에 진입한다. (`2026-08-13`)
+- [x] Expo Web origin `http://localhost:8081`의 CORS preflight가 정상 응답한다. (`2026-08-13`, HTTP 200)
+- [x] 프론트엔드 공통 client가 업무 API에 `/api/v1` prefix를 한 번만 적용한다.
 - [ ] JSON 요청과 multipart 요청이 각각 올바른 `Content-Type`으로 전송된다.
 - [ ] 백엔드 오류 JSON의 `error`, `code`, `detail`, `request_id`를 프론트가 사용자 메시지로 안전하게 처리한다.
 - [ ] 연결 실패와 timeout이 무한 로딩이 아닌 재시도 가능한 오류 화면으로 표시된다.
@@ -75,6 +76,15 @@
 - [ ] 고령자와 보호자 역할별 접근 권한이 프론트 내비게이션과 백엔드 권한 검사에서 모두 일치한다.
 - [ ] 일기 목록과 상세가 같은 `GET /diaries/{id}` 경로에서 의도한 기준으로 구분된다.
 
+### 1.5 이번 통합에서 해소한 계약 불일치
+
+- [x] 인증 전 초대 코드 확인을 위해 `POST /guardian/invitations/verify`를 공개 경로로 허용했다.
+- [x] 녹음 목적 enum을 백엔드 계약인 `answer`, `diary`로 정렬했다.
+- [x] Expo Web이 생성하는 `audio/webm`·`.webm` 업로드를 백엔드에서 허용하고 테스트했다.
+- [x] CIST·정서 문답의 실제 녹음 업로드 결과를 답변의 `recording_id`로 연결했다.
+- [x] 색상 맞추기 결과의 `color_match`를 프론트 타입, API 명세, 서비스 검증, DB 제약조건에 추가했다.
+- [x] multipart 업로드도 access token 만료 시 refresh 후 한 번 재시도한다.
+
 ## 2. 프론트엔드에는 있지만 백엔드에는 없는 기능
 
 ### 2.1 조사 체크리스트
@@ -90,18 +100,21 @@
 
 | 프론트 기능 | 현재 확인할 내용 | 판정 | 후속 작업 |
 | --- | --- | --- | --- |
-| 캠페인 화면 | 캠페인 Controller/API 구현 여부와 화면 데이터 출처 | [ ] | |
-| 앱 다크 모드·글씨 크기 | 기기 로컬 설정으로 유지할지 사용자 설정 API에 저장할지 | [ ] | |
+| 캠페인 화면 | Entity와 정적 화면만 있고 Controller/API가 없음 | 구현 누락 | 캠페인 조회·참여 API 및 화면 연결 Issue 필요 |
+| 앱 다크 모드·글씨 크기 | `SecureStore` 기반 기기 로컬 설정으로 명시되어 있음 | 의도적인 로컬 기능 | 서버 동기화 요구가 생길 때 별도 검토 |
 | 캐릭터 표시·상호작용 | 서버 캐릭터 상태와 화면의 로컬 상태가 일치하는지 | [ ] | |
-| 녹음 UI·재전송 | 실제 오디오 캡처, 오프라인 queue, 재전송 구현 여부 | [ ] | |
-| 소셜 로그인 화면 | Kakao·Naver SDK/브라우저 인증과 서버 OAuth API 사이 연결 여부 | [ ] | |
+| 녹음 UI·재전송 | 실제 캡처·업로드·메모리 내 동일 ID 재시도는 구현, 앱 재실행을 버티는 오프라인 queue는 없음 | 부분 구현 | 영속 queue는 후속 Issue 필요 |
+| 소셜 로그인 화면 | 서버 OAuth API는 있으나 버튼이 authorization code를 얻지 않고 회원가입 흐름으로 이동 | 프론트 구현 누락 | Kakao·Naver 브라우저 인증 연결 Issue 필요 |
 | 차트·리포트 UI | mock 통계가 아닌 실제 history/report 응답을 사용하는지 | [ ] | |
 
 ### 2.3 발견 항목 기록
 
 | 화면/기능 | 프론트 근거 파일 | 필요한 백엔드 계약 | 분류 | 관련 Issue |
 | --- | --- | --- | --- | --- |
-|  |  |  |  |  |
+| 캠페인 목록·참여 | `frontend/src/screens/elder/ElderCampaign.tsx` | `GET /campaigns`, `POST /campaigns/{id}/participations` 등 | 구현 누락 | #56 |
+| 표시 설정 | `frontend/src/store/settings.ts` | 없음 | 의도적인 로컬 기능 | #56 |
+| 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}` | 프론트 부분 구현 | #56 |
+| 녹음 영속 재전송 queue | `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 프론트 부분 구현 | #56 |
 
 ## 3. 백엔드에는 있지만 프론트엔드에는 구현되지 않은 기능
 
@@ -109,38 +122,43 @@
 
 | 백엔드 기능 | API | 판정 | 프론트 후속 작업 |
 | --- | --- | --- | --- |
-| 세션 설정 변경 | `PATCH /sessions/{sessionId}/settings` | [ ] | |
-| 세션 답변 목록 | `GET /sessions/{sessionId}/answers` | [ ] | |
-| 개별 질문 조회 | `GET /questions/{questionId}` | [ ] | |
-| 지역 인지 지표 비교 | `GET /analysis/cognitive/{userId}/benchmark` | [ ] | |
-| 보호자 리포트 내보내기 | `GET /guardian/{guardianId}/report/export` | [ ] | |
-| 보호자 초대 생성 | `POST /guardian/invitations` | [ ] | |
-| 보호자 직접 연결 | `POST /guardian/link` | [ ] | |
-| 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | [ ] | |
-| 음성 직접 변환 | `POST /voice/transcribe` | [ ] | |
-| 음향·인지 분석 요청 | `POST /analysis/acoustic`, `POST /analysis/cognitive` | [ ] | |
-| 세션 요약 생성·조회 | `POST/GET /summary/session/**` | [ ] | |
-| 일일 요약 생성·조회 | `POST/GET /summary/daily/**` | [ ] | |
+| 세션 설정 변경 | `PATCH /sessions/{sessionId}/settings` | 프론트 구현 누락 | 검사 중 설정 UI 필요 여부 결정 |
+| 세션 답변 목록 | `GET /sessions/{sessionId}/answers` | 프론트 구현 누락 | 답변 검토 화면 요구 시 연결 |
+| 개별 질문 조회 | `GET /questions/{questionId}` | 현재 화면에 불필요 | 일일 질문 응답으로 충족 |
+| 지역 인지 지표 비교 | `GET /analysis/cognitive/{userId}/benchmark` | 프론트 구현 누락 | 보호자 차트 비교 UI 연결 |
+| 보호자 리포트 내보내기 | `GET /guardian/{guardianId}/report/export` | 프론트 구현 누락 | 내보내기 버튼·다운로드 처리 |
+| 보호자 초대 생성 | `POST /guardian/invitations` | 프론트 구현 누락 | 보호자 초대 생성·공유 UI 우선 구현 |
+| 보호자 직접 연결 | `POST /guardian/link` | 프론트 구현 누락 | 운영 방식 확정 후 연결 UI 구현 |
+| 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | 프론트 구현 누락 | 연결 관리 화면 구현 |
+| 음성 직접 변환 | `POST /voice/transcribe` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
+| 음향·인지 분석 요청 | `POST /analysis/acoustic`, `POST /analysis/cognitive` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
+| 세션 요약 생성·조회 | `POST/GET /summary/session/**` | 생성은 worker 전용, 조회는 프론트 미사용 | 필요 화면에서 조회만 연결 |
+| 일일 요약 생성·조회 | `POST/GET /summary/daily/**` | 생성은 worker 전용, 조회는 프론트 미사용 | 일기·리포트 요구에 따라 조회 연결 |
 
 ### 3.2 서버 전용 API 확인
 
-- [ ] `POST /notifications/push`는 앱이 직접 호출하지 않는 서버 worker 전용인지 확인한다.
-- [ ] `POST /character/{userId}/xp`는 앱이 직접 호출하지 않고 게임 결과 처리에서만 사용하는지 확인한다.
-- [ ] 분석·요약 생성 API는 앱 호출용인지 백엔드 pipeline/worker용인지 API 명세에서 확정한다.
-- [ ] 서버 전용으로 판정한 API는 프론트 구현 누락 목록에서 제외하고 근거를 남긴다.
+- [x] `POST /notifications/push`는 `@ServerWorkerOnly` 서버 worker 전용이다.
+- [x] `POST /character/{userId}/xp`는 `@ServerWorkerOnly`이며 앱이 직접 호출하지 않는다.
+- [x] 전사·분석·요약 생성 API는 `@ServerWorkerOnly`; 요약 조회 API만 사용자 JWT용이다.
+- [x] 서버 전용 API를 프론트 구현 누락 목록에서 제외하고 근거를 남겼다.
 
 ### 3.3 발견 항목 기록
 
 | API/기능 | 백엔드 근거 파일 | 필요한 프론트 화면·동작 | 분류 | 관련 Issue |
 | --- | --- | --- | --- | --- |
-|  |  |  |  |  |
+| 보호자 초대 생성 | `GuardianController#createInvitation` | 초대 코드 생성·공유 | 프론트 구현 누락 | #56 |
+| 인지 benchmark | `ReportController#benchmark` | 보호자 비교 차트 | 프론트 구현 누락 | #56 |
+| 리포트 export | `ReportController#exportGuardianReport` | 내보내기·다운로드 | 프론트 구현 누락 | #56 |
+| 분석·알림·XP 쓰기 | 각 Controller의 `@ServerWorkerOnly` | 없음 | 의도적인 서버 전용 기능 | #56 |
 
 ## 4. 통합 실행 순서
 
-- [x] 최신 `develop`에서 통합 작업 브랜치를 생성한다 (`docs/common/#54-frontend-backend-integration-checklist`).
-- [ ] 프론트·백엔드 endpoint/DTO 정적 대조 결과를 1~3절에 기록한다.
-- [ ] 로컬 PostgreSQL, 백엔드, Expo 앱을 차례로 실행한다.
-- [ ] 회원가입 → 로그인 → 프로필·동의 → 홈 진입 흐름을 실 API로 검증한다.
+- [x] 최신 `develop`에서 통합 작업 브랜치를 생성한다 (`feature/common/#56-frontend-backend-integration`).
+- [x] 프론트·백엔드 endpoint/DTO 정적 대조 결과를 1~3절에 기록한다.
+- [x] 로컬 PostgreSQL과 백엔드를 실행하고 migration·health·CORS를 확인한다.
+- [x] Expo Web을 실 API 환경변수로 실행한다.
+- [x] 회원가입 → 역할 선택 → 자동 로그인 → CIST 세션 시작 흐름을 실 API로 검증한다. (`2026-08-13`)
+- [ ] 프로필·동의 → 홈 진입 흐름을 실 API로 검증한다.
 - [ ] 고령자 핵심 흐름인 CIST → 답변·녹음 → 종료 → 결과 조회를 검증한다.
 - [ ] 일기 → 캘린더 → 게임 → 캐릭터 → 알림 흐름을 검증한다.
 - [ ] 보호자 연결 → 고령자 선택 → 리포트·일기·알림 흐름을 검증한다.
@@ -150,9 +168,9 @@
 ## 5. 완료 조건
 
 - [x] `frontend`에서 `npm run typecheck`가 통과한다.
-- [ ] `frontend`에서 iOS, Android 또는 실제 대상 플랫폼 앱이 실행된다.
+- [x] `frontend`에서 Expo Web 앱이 실 API 모드로 실행된다. (`2026-08-13`)
 - [x] `backend`에서 `./gradlew test`가 통과한다.
-- [ ] `backend`에서 `./gradlew build`가 통과한다.
+- [x] `backend`에서 `./gradlew build`가 통과한다. (`2026-08-13`, clean build)
 - [ ] mock API 없이 고령자 핵심 흐름이 완료된다.
 - [ ] mock API 없이 보호자 핵심 흐름이 완료된다.
 - [ ] 한쪽에만 구현된 모든 항목에 분류와 후속 Issue가 기록된다.

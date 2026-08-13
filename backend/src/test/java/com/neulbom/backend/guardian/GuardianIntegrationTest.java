@@ -64,7 +64,6 @@ class GuardianIntegrationTest {
         InvitationCreateResponse invitation = objectMapper.readValue(invitationBody, InvitationCreateResponse.class);
 
         mockMvc.perform(post("/api/v1/guardian/invitations/verify")
-                        .with(jwtFor(elder))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"invite_code\":\"" + invitation.inviteCode() + "\"}"))
                 .andExpect(status().isOk())
@@ -194,10 +193,8 @@ class GuardianIntegrationTest {
 
     @Test
     void invitationVerificationIsRateLimitedByClientIp() throws Exception {
-        UserEntity elder = saveUser("elder-rate", "elder");
         for (int attempt = 0; attempt < 5; attempt++) {
             mockMvc.perform(post("/api/v1/guardian/invitations/verify")
-                            .with(jwtFor(elder))
                             .with(request -> {
                                 request.setRemoteAddr("198.51.100.10");
                                 return request;
@@ -208,7 +205,6 @@ class GuardianIntegrationTest {
         }
 
         mockMvc.perform(post("/api/v1/guardian/invitations/verify")
-                        .with(jwtFor(elder))
                         .with(request -> {
                             request.setRemoteAddr("198.51.100.10");
                             return request;

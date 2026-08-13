@@ -38,7 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class GameService {
 
-    private static final Set<String> GAME_TYPES = Set.of("image_match", "consonant", "word_match");
+    private static final Set<String> GAME_TYPES = Set.of("image_match", "consonant", "word_match", "color_match");
     private static final Set<String> XP_REASONS = Set.of("attendance", "visit", "emotional_qa", "game", "campaign");
     private static final int COMPLETED_GAME_XP = 30;
 

@@ -1764,7 +1764,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `user_id` | string | Y | 고령자 ID |
 | `session_id` | string | Y | 게임 세션 ID |
 | `client_game_result_id` | string | Y | 기기에서 생성한 재전송 중복 방지 ID |
-| `game_type` | enum | Y | `image_match`, `consonant`, `word_match` |
+| `game_type` | enum | Y | `image_match`, `consonant`, `word_match`, `color_match` |
 | `score` | integer | Y | 획득 점수 |
 | `response_times[]` | float[] | Y | 문항별 응답 시간(초) |
 | `error_count` | integer | Y | 오답 횟수 |

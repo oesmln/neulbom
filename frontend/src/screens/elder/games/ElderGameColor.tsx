@@ -15,8 +15,8 @@ import { useGameSubmit, Stars, ProgressStrip, SubmitStatus, DoneButtons } from "
  * four close shades. The reveal marks the right answer green and a wrong pick
  * red, names the colour, and moves on after 1.4s.
  *
- * `game_type` is sent as `color_match`, which api-spec 9.1's enum does not have
- * yet — Issue #53 tracks the backend addition. Mock mode accepts anything.
+ * Results use the `color_match` game type shared by the API contract and
+ * backend validation.
  */
 const MEMO_SEC = 5;
 const REVEAL_MS = 1400;

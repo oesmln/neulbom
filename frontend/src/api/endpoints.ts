@@ -11,6 +11,7 @@
  */
 
 import * as Crypto from "expo-crypto";
+import { Platform } from "react-native";
 
 import { USE_MOCK_API, APP_TIMEZONE } from "./config";
 import { request, uploadMultipart } from "./client";
@@ -291,9 +292,9 @@ export const recordings = {
    * `RecordingController` takes the audio as a `audio_file` part and everything
    * else as query parameters, so the payload is split accordingly.
    */
-  upload(input: RecordingUpload): Promise<RecordingUploadResponse> {
+  async upload(input: RecordingUpload): Promise<RecordingUploadResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
+      return {
         recording_id: newClientId(),
         client_recording_id: input.clientRecordingId,
         purpose: input.purpose,
@@ -301,16 +302,23 @@ export const recordings = {
         transcript_status: "pending",
         analysis_status: "pending",
         deduplicated: false,
-      });
+      };
     }
     const form = new FormData();
-    form.append("audio_file", {
-      uri: input.uri,
-      name: input.fileName ?? "answer.m4a",
-      type: input.mimeType ?? "audio/m4a",
-      // React Native's FormData accepts this file descriptor object; the DOM
-      // typings do not describe it, hence the cast.
-    } as unknown as Blob);
+    const fileName = input.fileName ?? "answer.m4a";
+    const mimeType = input.mimeType ?? "audio/mp4";
+    if (Platform.OS === "web") {
+      const source = await fetch(input.uri);
+      const bytes = await source.arrayBuffer();
+      form.append("audio_file", new Blob([bytes], { type: mimeType }), fileName);
+    } else {
+      form.append("audio_file", {
+        uri: input.uri,
+        name: fileName,
+        type: mimeType,
+        // React Native's FormData accepts this descriptor on native platforms.
+      } as unknown as Blob);
+    }
     return uploadMultipart(
       "/recordings",
       form,

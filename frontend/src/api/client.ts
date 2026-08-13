@@ -191,32 +191,37 @@ export async function uploadMultipart<T>(
   idempotencyKey?: string,
 ): Promise<T> {
   const session = currentSession() ?? (await loadSession());
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  const sendMultipart = async (accessToken: string | null) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+    // Content-Type is deliberately unset: the runtime has to add the multipart
+    // boundary itself, and setting it by hand produces a body the server cannot
+    // parse.
+    try {
+      return await fetch(buildUrl(path, query), {
+        method: "POST",
+        headers,
+        body: form,
+        signal: controller.signal,
+      });
+    } catch (cause) {
+      const aborted = cause instanceof Error && cause.name === "AbortError";
+      throw new ApiError(
+        0,
+        aborted ? "업로드 시간이 초과되었습니다." : "업로드에 실패했습니다.",
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
 
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (session?.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
-  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
-  // Content-Type is deliberately unset: the runtime has to add the multipart
-  // boundary itself, and setting it by hand produces a body the server cannot
-  // parse.
-
-  let response: Response;
-  try {
-    response = await fetch(buildUrl(path, query), {
-      method: "POST",
-      headers,
-      body: form,
-      signal: controller.signal,
-    });
-  } catch (cause) {
-    const aborted = cause instanceof Error && cause.name === "AbortError";
-    throw new ApiError(
-      0,
-      aborted ? "업로드 시간이 초과되었습니다." : "업로드에 실패했습니다.",
-    );
-  } finally {
-    clearTimeout(timeout);
+  let response = await sendMultipart(session?.accessToken ?? null);
+  if (response.status === 401) {
+    const renewed = await refreshAccessToken();
+    if (renewed) response = await sendMultipart(renewed);
   }
 
   if (!response.ok) {

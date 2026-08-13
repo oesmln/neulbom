@@ -50,7 +50,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<Uuid | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [selectedElderId, setSelectedElderId] = useState<Uuid | null>(null);
-  const [refreshToken, setRefreshToken] = useState<string | null>(null);
 
   // Restore a previous session so a returning user does not sign in again.
   useEffect(() => {
@@ -61,7 +60,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         setRoleState(stored.role);
         setUserId(stored.userId);
-        setRefreshToken(stored.refreshToken);
       }
       setReady(true);
     })();
@@ -71,17 +69,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    if (refreshToken) {
+    const stored = await loadSession();
+    if (stored?.refreshToken) {
       // Best effort: a failed logout must not trap the user in the app.
-      await auth.logout(refreshToken).catch(() => undefined);
+      await auth.logout(stored.refreshToken).catch(() => undefined);
     }
     await clearSession();
     setRoleState(null);
     setUserId(null);
     setUserName("");
     setSelectedElderId(null);
-    setRefreshToken(null);
-  }, [refreshToken]);
+  }, []);
 
   // A refresh that cannot be recovered ends the session here rather than
   // leaving screens to each discover the 401 on their own. The user is sent
@@ -93,7 +91,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setUserId(null);
       setUserName("");
       setSelectedElderId(null);
-      setRefreshToken(null);
       resetToLogin();
     });
     return () => setUnauthorizedListener(null);
@@ -125,7 +122,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setRoleState(tokens.role);
     setUserId(tokens.user_id);
-    setRefreshToken(tokens.refresh_token);
   }, []);
 
   const setRole = useCallback((next: UserRole) => {
