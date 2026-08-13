@@ -13,6 +13,7 @@ import { AppProvider } from "@/store/AppContext";
 import SplashScreen from "@/screens/auth/SplashScreen";
 import LoginScreen from "@/screens/auth/LoginScreen";
 import UserTypeScreen from "@/screens/auth/UserTypeScreen";
+import OnboardingScreen from "@/screens/auth/OnboardingScreen";
 import ElderNavigator from "@/navigation/ElderNavigator";
 import GuardianNavigator from "@/navigation/GuardianNavigator";
 
@@ -45,6 +46,7 @@ export default function App() {
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="UserType" component={UserTypeScreen} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Elder" component={ElderNavigator} />
             <Stack.Screen name="Guardian" component={GuardianNavigator} />
           </Stack.Navigator>
