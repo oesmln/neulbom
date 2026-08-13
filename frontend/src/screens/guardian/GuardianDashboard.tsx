@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi, guardian as guardianApi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
-import { apiErrorMessage } from "@/api/errors";
+import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
 import type { GuardianReportResponse } from "@/api/types";
@@ -90,6 +90,7 @@ export default function GuardianDashboardScreen() {
   }, [elders.data, selectedElderId, setSelectedElderId]);
 
   const elderId = selectedElderId ?? elders.data?.elders[0]?.elder_id ?? null;
+  const selectedElder = elders.data?.elders.find((elder) => elder.elder_id === elderId) ?? null;
 
   const report = useApi(
     () => reports.guardianReport(userId as string, elderId as string),
@@ -109,7 +110,11 @@ export default function GuardianDashboardScreen() {
       eyebrow="보호자 모드"
       title={userName ? `${userName} 님` : "보호자"}
       subtitle={
-        report.data ? `${report.data.elder_name}님의 인지 상태를 모니터링 중` : undefined
+        report.data?.elder_id === elderId
+          ? `${report.data.elder_name}님의 인지 상태를 모니터링 중`
+          : selectedElder
+            ? `${selectedElder.elder_name}님의 인지 상태를 확인 중`
+            : undefined
       }
       right={
         <View style={styles.headerActions}>
@@ -166,9 +171,7 @@ export default function GuardianDashboardScreen() {
       <Screen header={header}>
         <ErrorState
           message={
-            report.error.isForbidden
-              ? "어르신이 아직 정보 열람에 동의하지 않았어요."
-              : apiErrorMessage(report.error)
+            guardianAccessErrorMessage(report.error, "검사·요약")
           }
           onRetry={report.error.isForbidden ? undefined : report.reload}
         />
@@ -189,7 +192,12 @@ export default function GuardianDashboardScreen() {
   const badge = riskBadge(data.latest_risk_level);
   const scoreMax = data.latest_score_max ?? DEFAULT_SCORE_MAX;
   const score = data.latest_display_score;
-  const scoreColor = data.latest_risk_level === "low" ? guardian.blue : colors.destructive;
+  const hasScreening = score !== null;
+  const scoreColor = !hasScreening
+    ? colors.mutedForeground
+    : data.latest_risk_level === "low"
+      ? guardian.blue
+      : colors.destructive;
   const points = chartPoints(data);
   const alert = data.recent_alerts[0] ?? null;
 
@@ -241,7 +249,11 @@ export default function GuardianDashboardScreen() {
             <Text style={[styles.score, { color: scoreColor }]}>
               {score !== null ? `${score}점` : "—"}
             </Text>
-            <Badge label={badge.label} color={badge.color} background={badge.background} />
+            {hasScreening ? (
+              <Badge label={badge.label} color={badge.color} background={badge.background} />
+            ) : (
+              <Badge label="분석 없음" color={colors.mutedForeground} background={colors.muted} />
+            )}
           </View>
         </View>
         {score !== null ? (
@@ -291,7 +303,11 @@ export default function GuardianDashboardScreen() {
             color={guardian.blue}
           />
           <Indicator label="평균 점수" value={averageScore(points)} unit="점" color={colors.accent} />
-          <Indicator label="위험 지표" value={badge.label} color={badge.color} />
+          <Indicator
+            label="위험 지표"
+            value={hasScreening ? badge.label : "—"}
+            color={hasScreening ? badge.color : colors.mutedForeground}
+          />
         </View>
       </Card>
 

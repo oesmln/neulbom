@@ -4,7 +4,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
-import { apiErrorMessage } from "@/api/errors";
+import { guardianAccessErrorMessage } from "@/api/errors";
 import { isoDateOf, monthDayLabel } from "@/utils/format";
 import type { HistoryRecordResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
@@ -106,9 +106,7 @@ export default function GuardianChartScreen() {
       <Screen header={header}>
         <ErrorState
           message={
-            history.error.isForbidden
-              ? "어르신이 아직 정보 열람에 동의하지 않았어요."
-              : apiErrorMessage(history.error)
+            guardianAccessErrorMessage(history.error, "인지 추이")
           }
           onRetry={history.error.isForbidden ? undefined : history.reload}
         />

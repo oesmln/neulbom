@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
-import { apiErrorMessage } from "@/api/errors";
+import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { isoDateOf, moodEmoji, parseIso } from "@/utils/format";
 import type { DiaryListItem, Uuid } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
@@ -156,9 +156,7 @@ export default function GuardianDiaryScreen() {
       <Screen header={header}>
         <ErrorState
           message={
-            list.error.isForbidden
-              ? "어르신이 아직 일기 열람에 동의하지 않았어요."
-              : apiErrorMessage(list.error)
+            guardianAccessErrorMessage(list.error, "일기")
           }
           onRetry={list.error.isForbidden ? undefined : list.reload}
         />
@@ -284,7 +282,7 @@ export default function GuardianDiaryScreen() {
 
       {report.error?.isForbidden ? (
         <Text style={styles.permissionNotice}>
-          검사·요약 열람 권한이 없어 날짜별 분석 표시는 생략했어요.
+          {guardianAccessErrorMessage(report.error, "검사·요약")}
         </Text>
       ) : null}
 
@@ -352,9 +350,7 @@ export default function GuardianDiaryScreen() {
             {detail.error ? (
               <ErrorState
                 message={
-                  detail.error.isForbidden
-                    ? "이 일기를 볼 수 있는 권한이 없어요."
-                    : apiErrorMessage(detail.error)
+                  guardianAccessErrorMessage(detail.error, "일기")
                 }
                 onRetry={detail.error.isForbidden ? undefined : detail.reload}
               />
