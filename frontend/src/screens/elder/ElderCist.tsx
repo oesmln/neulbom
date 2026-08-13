@@ -56,6 +56,7 @@ export default function ElderCistScreen() {
   const [answered, setAnswered] = React.useState(false);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
@@ -81,6 +82,7 @@ export default function ElderCistScreen() {
   React.useEffect(() => {
     setAskedAt(Date.now());
     setRecordingId(null);
+    setSubmissionError(null);
   }, [index]);
 
   const goBack = () => {
@@ -96,6 +98,7 @@ export default function ElderCistScreen() {
   const advance = async () => {
     if (!question || !session.data || submitting) return;
     setSubmitting(true);
+    setSubmissionError(null);
     const sessionId = session.data.session_id;
 
     try {
@@ -118,9 +121,10 @@ export default function ElderCistScreen() {
       setListened(false);
       setAnswered(false);
       setIndex(index + 1);
-    } catch {
+    } catch (cause) {
       // Saving failed; leave the question answered so the user can retry the
       // same tap rather than losing their place.
+      setSubmissionError(apiErrorMessage(cause));
     } finally {
       setSubmitting(false);
     }
@@ -201,6 +205,9 @@ export default function ElderCistScreen() {
             )}
 
             <View style={{ marginTop: "auto", paddingTop: spacing.sm }}>
+              {submissionError ? (
+                <Text style={styles.submissionError}>{submissionError}</Text>
+              ) : null}
               <Button
                 label={isLast ? "검사 완료" : "다음 문항"}
                 disabled={!canAdvance || submitting || !session.data}
@@ -358,4 +365,10 @@ const styles = StyleSheet.create({
   timer: { fontSize: fontSize.badge, color: colors.white },
   status: { fontSize: fontSize.caption, color: colors.mutedForeground },
   recordingError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
+  submissionError: {
+    marginBottom: spacing.md,
+    fontSize: fontSize.caption,
+    color: colors.destructive,
+    textAlign: "center",
+  },
 });

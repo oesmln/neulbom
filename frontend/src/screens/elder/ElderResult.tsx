@@ -49,16 +49,18 @@ export default function ElderResultScreen() {
   );
 
   const resultSettled =
-    result?.result_status === "completed" || result?.result_status === "insufficient_data";
+    result?.result_status === "completed" || result?.result_status === "failed";
 
   React.useEffect(() => {
     if (result) setPending(!resultSettled);
   }, [result, resultSettled]);
 
   const message =
-    result?.result_status === "insufficient_data"
-      ? "오늘은 답변이 충분히 담기지 않았어요. 내일 다시 이야기해요."
-      : result?.message ?? "";
+    result?.result_status === "failed"
+      ? "결과를 준비하지 못했어요. 잠시 후 다시 대화해 주세요."
+      : result?.result_type === "insufficient_data"
+        ? "오늘은 답변이 충분히 담기지 않았어요. 내일 다시 이야기해요."
+        : result?.message ?? "";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -95,7 +97,7 @@ export default function ElderResultScreen() {
           )}
         </View>
 
-        {resultSettled && result?.recommendation ? (
+        {result?.result_status === "completed" && result.recommendation ? (
           <View style={styles.note}>
             <Text style={styles.noteText}>{result.recommendation}</Text>
           </View>

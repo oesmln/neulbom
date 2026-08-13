@@ -17,6 +17,7 @@ import GuardianChartScreen from "@/screens/guardian/GuardianChart";
 import GuardianNotificationsScreen from "@/screens/guardian/GuardianNotifications";
 import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounselingCenters";
 import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
+import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
 const Stack = createNativeStackNavigator<GuardianStackParamList>();
@@ -117,6 +118,7 @@ export default function GuardianNavigator() {
         component={GuardianCounselingCentersScreen}
       />
       <Stack.Screen name="GuardianAppSettings" component={GuardianAppSettingsScreen} />
+      <Stack.Screen name="GuardianConnections" component={GuardianConnectionsScreen} />
     </Stack.Navigator>
   );
 }

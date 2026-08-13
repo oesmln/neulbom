@@ -81,7 +81,15 @@ export default function UserTypeScreen() {
 
       navigation.reset({
         index: 0,
-        routes: [{ name: selected === "elder" ? "Elder" : "Guardian" }],
+        routes: [
+          {
+            name: tokens.profile_completed
+              ? selected === "elder"
+                ? "Elder"
+                : "Guardian"
+              : "Onboarding",
+          },
+        ],
       });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));

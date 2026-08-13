@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi, guardian as guardianApi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
-import { apiErrorMessage } from "@/api/errors";
+import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
 import type { GuardianReportResponse } from "@/api/types";
@@ -17,6 +17,7 @@ import {
   ScreenHeader,
   Card,
   Badge,
+  Button,
   Body,
   Caption,
   ProgressBar,
@@ -77,17 +78,19 @@ export default function GuardianDashboardScreen() {
   const navigation = useNavigation<GuardianNav>();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
 
-  const elders = useApi(() => guardianApi.elders(userId as string), [userId], {
+  const elders = useApi(() => guardianApi.elders(userId as string, "active"), [userId], {
     enabled: !!userId,
   });
 
   // The dashboard is what chooses the elder the other guardian tabs read.
   React.useEffect(() => {
-    const first = elders.data?.elders[0];
-    if (first && !selectedElderId) setSelectedElderId(first.elder_id);
+    if (!elders.data) return;
+    const stillLinked = elders.data.elders.some((elder) => elder.elder_id === selectedElderId);
+    if (!stillLinked) setSelectedElderId(elders.data.elders[0]?.elder_id ?? null);
   }, [elders.data, selectedElderId, setSelectedElderId]);
 
   const elderId = selectedElderId ?? elders.data?.elders[0]?.elder_id ?? null;
+  const selectedElder = elders.data?.elders.find((elder) => elder.elder_id === elderId) ?? null;
 
   const report = useApi(
     () => reports.guardianReport(userId as string, elderId as string),
@@ -107,18 +110,33 @@ export default function GuardianDashboardScreen() {
       eyebrow="보호자 모드"
       title={userName ? `${userName} 님` : "보호자"}
       subtitle={
-        report.data ? `${report.data.elder_name}님의 인지 상태를 모니터링 중` : undefined
+        report.data?.elder_id === elderId
+          ? `${report.data.elder_name}님의 인지 상태를 모니터링 중`
+          : selectedElder
+            ? `${selectedElder.elder_name}님의 인지 상태를 확인 중`
+            : undefined
       }
       right={
-        <Pressable
-          onPress={() => navigation.navigate("GuardianAppSettings")}
-          accessibilityRole="button"
-          accessibilityLabel="앱 설정"
-          hitSlop={8}
-          style={styles.gear}
-        >
-          <Ionicons name="settings-outline" size={18} color={colors.white} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => navigation.navigate("GuardianConnections")}
+            accessibilityRole="button"
+            accessibilityLabel="보호자 연결 관리"
+            hitSlop={8}
+            style={styles.gear}
+          >
+            <Ionicons name="people-outline" size={18} color={colors.white} />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("GuardianAppSettings")}
+            accessibilityRole="button"
+            accessibilityLabel="앱 설정"
+            hitSlop={8}
+            style={styles.gear}
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.white} />
+          </Pressable>
+        </View>
       }
     />
   );
@@ -138,6 +156,12 @@ export default function GuardianDashboardScreen() {
           message={"연결된 어르신이 없어요.\n초대 코드로 먼저 연결해 주세요."}
           icon="people-outline"
         />
+        <Button
+          label="초대 코드 만들기"
+          icon="person-add-outline"
+          onPress={() => navigation.navigate("GuardianConnections")}
+          style={{ backgroundColor: guardian.blue }}
+        />
       </Screen>
     );
   }
@@ -147,9 +171,7 @@ export default function GuardianDashboardScreen() {
       <Screen header={header}>
         <ErrorState
           message={
-            report.error.isForbidden
-              ? "어르신이 아직 정보 열람에 동의하지 않았어요."
-              : apiErrorMessage(report.error)
+            guardianAccessErrorMessage(report.error, "검사·요약")
           }
           onRetry={report.error.isForbidden ? undefined : report.reload}
         />
@@ -166,10 +188,16 @@ export default function GuardianDashboardScreen() {
   }
 
   const data = report.data;
+  const elderItems = elders.data?.elders ?? [];
   const badge = riskBadge(data.latest_risk_level);
   const scoreMax = data.latest_score_max ?? DEFAULT_SCORE_MAX;
   const score = data.latest_display_score;
-  const scoreColor = data.latest_risk_level === "low" ? guardian.blue : colors.destructive;
+  const hasScreening = score !== null;
+  const scoreColor = !hasScreening
+    ? colors.mutedForeground
+    : data.latest_risk_level === "low"
+      ? guardian.blue
+      : colors.destructive;
   const points = chartPoints(data);
   const alert = data.recent_alerts[0] ?? null;
 
@@ -180,6 +208,31 @@ export default function GuardianDashboardScreen() {
 
   return (
     <Screen header={header}>
+      {elderItems.length > 1 ? (
+        <Card style={styles.elderSelector}>
+          <Caption>확인할 어르신</Caption>
+          <View style={styles.elderOptions}>
+            {elderItems.map((elder) => {
+              const selected = elder.elder_id === elderId;
+              return (
+                <Pressable
+                  key={elder.elder_id}
+                  onPress={() => setSelectedElderId(elder.elder_id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${elder.elder_name} 어르신 선택`}
+                  accessibilityState={{ selected }}
+                  style={[styles.elderOption, selected && styles.elderOptionSelected]}
+                >
+                  <Text style={[styles.elderOptionLabel, selected && { color: guardian.blueDark }]}>
+                    {elder.elder_name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+      ) : null}
+
       {/* ② 피보호자 현황 */}
       <Card>
         <Caption style={styles.eyebrow}>피보호자 현황</Caption>
@@ -196,7 +249,11 @@ export default function GuardianDashboardScreen() {
             <Text style={[styles.score, { color: scoreColor }]}>
               {score !== null ? `${score}점` : "—"}
             </Text>
-            <Badge label={badge.label} color={badge.color} background={badge.background} />
+            {hasScreening ? (
+              <Badge label={badge.label} color={badge.color} background={badge.background} />
+            ) : (
+              <Badge label="분석 없음" color={colors.mutedForeground} background={colors.muted} />
+            )}
           </View>
         </View>
         {score !== null ? (
@@ -246,7 +303,11 @@ export default function GuardianDashboardScreen() {
             color={guardian.blue}
           />
           <Indicator label="평균 점수" value={averageScore(points)} unit="점" color={colors.accent} />
-          <Indicator label="위험 지표" value={badge.label} color={badge.color} />
+          <Indicator
+            label="위험 지표"
+            value={hasScreening ? badge.label : "—"}
+            color={hasScreening ? badge.color : colors.mutedForeground}
+          />
         </View>
       </Card>
 
@@ -357,6 +418,7 @@ export default function GuardianDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: spacing.sm },
   gear: {
     width: 36,
     height: 36,
@@ -364,6 +426,23 @@ const styles = StyleSheet.create({
     backgroundColor: onHeader.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  elderSelector: { marginBottom: spacing.lg, gap: spacing.sm },
+  elderOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  elderOption: {
+    minHeight: 44,
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+  },
+  elderOptionSelected: { borderColor: guardian.blue, backgroundColor: guardian.blueLight },
+  elderOptionLabel: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.mutedForeground,
   },
   eyebrow: { letterSpacing: 0.7, marginBottom: spacing.md },
   rowBetween: {

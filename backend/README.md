@@ -40,6 +40,17 @@ gcloud auth application-default login
 
 실제 secret과 서비스 계정 JSON은 저장소에 커밋하지 않는다. 자세한 provider 계약은 [`docs/api-spec.md`](docs/api-spec.md)의 7.12절과 [`AGENTS.md`](AGENTS.md)를 따른다.
 
+## 카카오·네이버 OAuth
+
+provider client secret은 백엔드 `.env`에만 둡니다. 프론트가 authorization code를 받을 때 사용한 redirect URI를 provider 콘솔과 백엔드 allowlist에 동일하게 등록합니다. 여러 환경은 쉼표로 구분합니다.
+
+```dotenv
+KAKAO_ALLOWED_REDIRECT_URIS=http://localhost:8081/auth/callback/kakao,https://app.example.com/auth/callback/kakao
+NAVER_ALLOWED_REDIRECT_URIS=http://localhost:8081/auth/callback/naver,https://app.example.com/auth/callback/naver
+```
+
+등록되지 않은 URI는 provider code 교환 전에 거부됩니다. authorization code, provider token과 client secret은 로그에 출력하지 않습니다.
+
 실행 확인:
 
 ```bash
