@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useApp } from "@/store/AppContext";
 import { game, sessions, newClientId } from "@/api";
 import { ApiError, apiErrorMessage } from "@/api/errors";
-import type { GameResultRequest, GameResultResponse, Uuid } from "@/api/types";
+import type { GameResultRequest, GameResultResponse, GameType, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
 
 /**
@@ -22,7 +22,7 @@ export type GameStats = Omit<
   "user_id" | "session_id" | "client_game_result_id" | "game_type"
 >;
 
-export function useGameSubmit(gameType: string) {
+export function useGameSubmit(gameType: GameType) {
   const { userId } = useApp();
   const sessionRef = React.useRef<Uuid | null>(null);
   const clientIdRef = React.useRef<Uuid | null>(null);

@@ -294,7 +294,7 @@ export interface SessionAnswersResponse {
 
 /* ── recordings ─────────────────────────────────────────────────────────── */
 
-export type RecordingPurpose = "screening" | "emotional_qa" | "diary";
+export type RecordingPurpose = "answer" | "diary";
 
 export interface RecordingUploadResponse {
   recording_id: Uuid;
@@ -625,7 +625,7 @@ export interface CalendarActivitiesResponse {
 
 /* ── game & character ───────────────────────────────────────────────────── */
 
-export type GameType = "card_match" | "color_match" | "initial_consonant";
+export type GameType = "image_match" | "consonant" | "word_match" | "color_match";
 
 export interface CharacterResponse {
   user_id: Uuid;
@@ -645,7 +645,7 @@ export interface GameResultRequest {
   user_id: Uuid;
   session_id: Uuid;
   client_game_result_id: Uuid;
-  game_type: string;
+  game_type: GameType;
   score: number;
   response_times: number[];
   error_count: number;
