@@ -8,8 +8,10 @@ import { ElderNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
+import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { apiErrorMessage } from "@/api/errors";
 import { USE_MOCK_API } from "@/api/config";
+import type { Uuid } from "@/api/types";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -24,11 +26,9 @@ import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
  * handing the session id to the result screen.
  *
  * The character is pinned above the conversation and never unmounts: it is the
- * one asking the questions, so it mouths each one as it arrives. Two pieces are
- * still stand-ins — the speaking window is timed off the question length rather
- * than off audio, and the mic advances the UI without capturing anything, so no
- * `recording_id` is attached and no transcript comes back. TTS and STT
- * (api-spec 7.x and 12.6) replace both.
+ * one asking the questions, so it mouths each one as it arrives. The speaking
+ * window is still timed from text length, while answers are recorded, uploaded,
+ * and attached to the saved answer through `recording_id`.
  */
 const INTRO_LINE = "어르신, 오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
 
@@ -76,8 +76,10 @@ export default function ElderAiChatScreen() {
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<string[]>([]);
+  const [recordingIds, setRecordingIds] = React.useState<Array<Uuid | null>>([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
+  const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
   // The session only starts once the elder taps into the conversation, so an
   // opened-and-abandoned tab does not leave an empty session behind.
@@ -95,7 +97,7 @@ export default function ElderAiChatScreen() {
 
   const list = questions.data?.questions ?? [];
   const question = list[index];
-  const answered = answers.length > index;
+  const answered = USE_MOCK_API ? answers.length > index : Boolean(recordingIds[index]);
   const isLast = list.length > 0 && index === list.length - 1;
 
   // The character only mouths the question itself; once it has been answered it
@@ -111,6 +113,7 @@ export default function ElderAiChatScreen() {
     setPhase("intro");
     setIndex(0);
     setAnswers([]);
+    setRecordingIds([]);
   };
 
   const recordAnswer = () => {
@@ -124,9 +127,12 @@ export default function ElderAiChatScreen() {
 
     try {
       await sessions.saveAnswer(sessionId, {
-        client_answer_id: newClientId(),
+        client_answer_id:
+          answerClientIds.current[question.question_id] ??=
+            newClientId(),
         question_id: question.question_id,
-        answer_text: answers[index] || undefined,
+        answer_text: USE_MOCK_API ? answers[index] || undefined : undefined,
+        recording_id: recordingIds[index] ?? undefined,
         response_time_ms: Date.now() - askedAt,
         answered_at: new Date().toISOString(),
       });
@@ -212,7 +218,7 @@ export default function ElderAiChatScreen() {
 
             {answered ? (
               <View style={styles.myBubble}>
-                <Text style={styles.myText}>{answers[index] || "답변을 들었어요"}</Text>
+                <Text style={styles.myText}>{answers[index] || "답변 녹음을 저장했어요"}</Text>
               </View>
             ) : null}
           </>
@@ -227,23 +233,85 @@ export default function ElderAiChatScreen() {
             onPress={() => void advance()}
           />
         ) : (
-          <View style={styles.recorderRow}>
-            <Text style={styles.recorderHint}>
-              {speaking ? "질문을 듣고 계세요" : "버튼을 눌러 말씀해 주세요"}
-            </Text>
-            <Pressable
-              onPress={recordAnswer}
-              disabled={!question}
-              accessibilityRole="button"
-              accessibilityLabel="답변 녹음하기"
-              style={({ pressed }) => [styles.micButton, { opacity: pressed ? 0.9 : 1 }]}
-            >
-              <Ionicons name="mic" size={32} color={colors.white} />
-            </Pressable>
-          </View>
+          USE_MOCK_API ? (
+            <View style={styles.recorderRow}>
+              <Text style={styles.recorderHint}>버튼을 눌러 샘플 답변을 입력해 주세요</Text>
+              <Pressable
+                onPress={recordAnswer}
+                disabled={!question}
+                accessibilityRole="button"
+                accessibilityLabel="샘플 답변 입력하기"
+                style={({ pressed }) => [styles.micButton, { opacity: pressed ? 0.9 : 1 }]}
+              >
+                <Ionicons name="mic" size={32} color={colors.white} />
+              </Pressable>
+            </View>
+          ) : question ? (
+            <ChatRecorder
+              key={question.question_id}
+              userId={userId}
+              sessionId={session.data?.session_id ?? null}
+              questionId={question.question_id}
+              onAnswer={(id) =>
+                setRecordingIds((current) => {
+                  const next = [...current];
+                  next[index] = id;
+                  return next;
+                })
+              }
+            />
+          ) : null
         )}
       </View>
     </SafeAreaView>
+  );
+}
+
+function ChatRecorder({
+  userId,
+  sessionId,
+  questionId,
+  onAnswer,
+}: {
+  userId: Uuid | null;
+  sessionId: Uuid | null;
+  questionId: Uuid;
+  onAnswer: (recordingId: Uuid) => void;
+}) {
+  const recording = useAnswerRecording({ userId, sessionId, questionId });
+  const seconds = Math.floor(recording.durationMillis / 1000);
+
+  const tap = async () => {
+    const uploadedId = await recording.toggle();
+    if (uploadedId) onAnswer(uploadedId);
+  };
+
+  return (
+    <View style={styles.recorderRow}>
+      <Text style={styles.recorderHint}>
+        {recording.uploading
+          ? "녹음을 저장하고 있어요"
+          : recording.isRecording
+            ? `${seconds}초 녹음 중 · 완료하려면 다시 눌러 주세요`
+            : "버튼을 눌러 말씀해 주세요"}
+      </Text>
+      <Pressable
+        onPress={() => void tap()}
+        disabled={recording.uploading || !userId || !sessionId}
+        accessibilityRole="button"
+        accessibilityLabel={recording.isRecording ? "답변 녹음 완료" : "답변 녹음 시작"}
+        style={({ pressed }) => [
+          styles.micButton,
+          {
+            opacity: pressed || recording.uploading || !userId || !sessionId ? 0.7 : 1,
+            backgroundColor: recording.isRecording ? colors.destructive : colors.primary,
+          },
+        ]}
+      >
+        <Ionicons name={recording.isRecording ? "stop" : "mic"} size={32} color={colors.white} />
+      </Pressable>
+      {recording.error ? <Text style={styles.recordingError}>{recording.error}</Text> : null}
+    </View>
   );
 }
 
@@ -298,6 +366,7 @@ const styles = StyleSheet.create({
   },
   recorderRow: { alignItems: "center", gap: spacing.md },
   recorderHint: { fontSize: fontSize.caption, color: colors.mutedForeground },
+  recordingError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
   micButton: {
     width: 72,
     height: 72,

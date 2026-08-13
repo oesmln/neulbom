@@ -8,8 +8,9 @@ import { ElderNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
+import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { apiErrorMessage } from "@/api/errors";
-import type { QuestionResponse } from "@/api/types";
+import type { QuestionResponse, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Badge, Button, ErrorState, LoadingState, ProgressBar } from "@/components/ui";
 
@@ -21,11 +22,8 @@ import { Badge, Button, ErrorState, LoadingState, ProgressBar } from "@/componen
  *   → `POST /sessions/{id}/answers` per question → `PATCH /sessions/{id}/end`
  * and then the result screen reads `GET /screenings/{session_id}/result`.
  *
- * Answers are meant to be spoken: each one should carry the `recording_id` that
- * `POST /recordings` returns so STT and the AST/KcELECTRA pipeline can score it.
- * The recorder below still does not capture audio — it only advances the UI —
- * so `recording_id` is omitted and the answer is saved without one. Wiring
- * `expo-audio` plus the offline `client_recording_id` queue is the next step.
+ * Spoken answers are recorded with expo-audio, uploaded through
+ * `POST /recordings`, and saved with the returned `recording_id`.
  */
 const WAVE_BARS = 28;
 
@@ -56,8 +54,10 @@ export default function ElderCistScreen() {
   const [index, setIndex] = React.useState(0);
   const [listened, setListened] = React.useState(false);
   const [answered, setAnswered] = React.useState(false);
+  const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
+  const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
   const session = useApi(
     () => sessions.start({ user_id: userId as string, session_type: "cist" }),
@@ -79,6 +79,7 @@ export default function ElderCistScreen() {
 
   React.useEffect(() => {
     setAskedAt(Date.now());
+    setRecordingId(null);
   }, [index]);
 
   const goBack = () => {
@@ -98,8 +99,12 @@ export default function ElderCistScreen() {
 
     try {
       await sessions.saveAnswer(sessionId, {
-        client_answer_id: newClientId(),
+        client_answer_id:
+          answerClientIds.current[question.question_id] ??=
+            newClientId(),
         question_id: question.question_id,
+        answer_text: isListenQuestion ? "listened" : undefined,
+        recording_id: recordingId ?? undefined,
         response_time_ms: Date.now() - askedAt,
         answered_at: new Date().toISOString(),
       });
@@ -180,7 +185,16 @@ export default function ElderCistScreen() {
                 style={listened ? { backgroundColor: colors.success } : undefined}
               />
             ) : (
-              <MicRecorder answered={answered} onAnswer={() => setAnswered(true)} />
+              <MicRecorder
+                userId={userId}
+                sessionId={session.data?.session_id ?? null}
+                questionId={question.question_id}
+                answered={answered}
+                onAnswer={(id) => {
+                  setRecordingId(id);
+                  setAnswered(true);
+                }}
+              />
             )}
 
             <View style={{ marginTop: "auto", paddingTop: spacing.sm }}>
@@ -197,33 +211,38 @@ export default function ElderCistScreen() {
   );
 }
 
-function MicRecorder({ answered, onAnswer }: { answered: boolean; onAnswer: () => void }) {
-  const [recording, setRecording] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState(0);
+function MicRecorder({
+  userId,
+  sessionId,
+  questionId,
+  answered,
+  onAnswer,
+}: {
+  userId: Uuid | null;
+  sessionId: Uuid | null;
+  questionId: Uuid;
+  answered: boolean;
+  onAnswer: (recordingId: Uuid) => void;
+}) {
+  const recording = useAnswerRecording({ userId, sessionId, questionId });
+  const elapsed = Math.floor(recording.durationMillis / 1000);
 
-  React.useEffect(() => {
-    if (!recording) {
-      setElapsed(0);
-      return;
-    }
-    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(timer);
-  }, [recording]);
-
-  const tap = () => {
-    if (answered) return;
-    if (!recording) {
-      setRecording(true);
-    } else {
-      setRecording(false);
-      onAnswer();
-    }
+  const tap = async () => {
+    if (answered || recording.uploading) return;
+    const uploadedId = await recording.toggle();
+    if (uploadedId) onAnswer(uploadedId);
   };
 
-  const buttonColor = answered ? colors.success : recording ? colors.destructive : colors.primary;
+  const buttonColor = answered
+    ? colors.success
+    : recording.isRecording
+      ? colors.destructive
+      : colors.primary;
   const status = answered
     ? "답변 완료"
-    : recording
+    : recording.uploading
+      ? "녹음을 저장하고 있어요"
+      : recording.isRecording
       ? "탭하면 녹음 완료"
       : "버튼을 눌러 말씀해 주세요";
 
@@ -236,29 +255,37 @@ function MicRecorder({ answered, onAnswer }: { answered: boolean; onAnswer: () =
             style={{
               width: 4,
               borderRadius: 2,
-              height: recording
+              height: recording.isRecording
                 ? Math.max(3, Math.sin(i * 0.7) * 14 + 14)
                 : answered
                   ? 6 + (i % 4) * 4
                   : 3,
-              backgroundColor: recording ? colors.primary : answered ? colors.success : colors.muted,
+              backgroundColor: recording.isRecording
+                ? colors.primary
+                : answered
+                  ? colors.success
+                  : colors.muted,
             }}
           />
         ))}
       </View>
 
       <Pressable
-        onPress={tap}
+        onPress={() => void tap()}
+        disabled={recording.uploading || !userId || !sessionId}
         accessibilityRole="button"
         accessibilityLabel={status}
         style={({ pressed }) => [
           styles.micButton,
-          { backgroundColor: buttonColor, opacity: pressed ? 0.9 : 1 },
+          {
+            backgroundColor: buttonColor,
+            opacity: pressed || recording.uploading || !userId || !sessionId ? 0.7 : 1,
+          },
         ]}
       >
         {answered ? (
           <Ionicons name="checkmark-circle" size={36} color={colors.white} />
-        ) : recording ? (
+        ) : recording.isRecording ? (
           <>
             <Ionicons name="mic-off" size={28} color={colors.white} />
             <Text style={styles.timer}>
@@ -272,6 +299,7 @@ function MicRecorder({ answered, onAnswer }: { answered: boolean; onAnswer: () =
       </Pressable>
 
       <Text style={styles.status}>{status}</Text>
+      {recording.error ? <Text style={styles.recordingError}>{recording.error}</Text> : null}
     </View>
   );
 }
@@ -323,4 +351,5 @@ const styles = StyleSheet.create({
   },
   timer: { fontSize: fontSize.badge, color: colors.white },
   status: { fontSize: fontSize.caption, color: colors.mutedForeground },
+  recordingError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
 });
