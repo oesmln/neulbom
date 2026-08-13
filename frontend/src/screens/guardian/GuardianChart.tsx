@@ -5,7 +5,7 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
-import { monthDayLabel } from "@/utils/format";
+import { isoDateOf, monthDayLabel } from "@/utils/format";
 import type { HistoryRecordResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
@@ -23,19 +23,18 @@ import {
 /**
  * Score trend from `GET /analysis/cognitive/{user_id}/history`.
  *
- * The period toggle maps onto the endpoint's own `limit` + `aggregation` rather
- * than filtering client-side, so a longer period actually fetches more history
- * instead of stretching the same six records.
+ * The backend supports `day` aggregation rather than a synthetic monthly
+ * value, so the period toggle sends a date range and asks for daily points.
  */
 const PERIODS = [
-  { key: "3m", label: "3개월", limit: 3 },
-  { key: "6m", label: "6개월", limit: 6 },
-  { key: "1y", label: "1년", limit: 12 },
+  { key: "3m", label: "3개월", months: 3 },
+  { key: "6m", label: "6개월", months: 6 },
+  { key: "1y", label: "1년", months: 12 },
 ] as const;
 
 type PeriodKey = (typeof PERIODS)[number]["key"];
 
-const AGGREGATION = "monthly";
+const HISTORY_LIMIT = 100;
 
 function scoreOf(record: HistoryRecordResponse): number | null {
   return record.display_score ?? record.screening_reference_score ?? null;
@@ -60,7 +59,12 @@ export default function GuardianChartScreen() {
   const { userId, selectedElderId } = useApp();
   const [period, setPeriod] = React.useState<PeriodKey>("6m");
 
-  const limit = PERIODS.find((p) => p.key === period)?.limit ?? 6;
+  const dateRange = React.useMemo(() => {
+    const months = PERIODS.find((item) => item.key === period)?.months ?? 6;
+    const to = new Date();
+    const from = new Date(to.getFullYear(), to.getMonth() - months, to.getDate());
+    return { fromDate: isoDateOf(from), toDate: isoDateOf(to) };
+  }, [period]);
 
   const report = useApi(
     () => reports.guardianReport(userId as string, selectedElderId as string),
@@ -69,8 +73,13 @@ export default function GuardianChartScreen() {
   );
 
   const history = useApi(
-    () => reports.cognitiveHistory(selectedElderId as string, { limit, aggregation: AGGREGATION }),
-    [selectedElderId, limit],
+    () =>
+      reports.cognitiveHistory(selectedElderId as string, {
+        limit: HISTORY_LIMIT,
+        aggregation: "day",
+        ...dateRange,
+      }),
+    [selectedElderId, dateRange.fromDate, dateRange.toDate],
     { enabled: !!selectedElderId },
   );
 
