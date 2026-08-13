@@ -234,7 +234,10 @@
 | `GET` | `/counseling/centers/{center_id}/availability` | 상담 가능 시간 조회 | 필요 | `guardian` | Phase 2 |
 | `POST` | `/counseling/appointments` | 상담 예약 생성 | 필요 | `guardian` | Phase 2 |
 | `GET` | `/counseling/appointments` | 본인 상담 예약 목록 조회 | 필요 | `guardian` | Phase 2 |
+| `PATCH` | `/counseling/appointments/{appointment_id}` | 본인 상담 예약 변경 | 필요 | `guardian` | Phase 2 |
 | `DELETE` | `/counseling/appointments/{appointment_id}` | 상담 예약 취소 | 필요 | 예약자 | Phase 2 |
+
+예약 생성에는 `elder_id`, `center_id`, `appointment_at`, `consultation_type`(`cognitive_screening`, `neurology`, `counseling`, `other`), `privacy_agreed=true`가 필요하다. 예약은 `requested`로 생성되고, 이후 운영자·기관 연동에서 `confirmed`로 변경할 수 있다. 보호자는 본인이 소유한 예약만 변경·취소할 수 있으며 `requested`·`confirmed` 상태에서만 취소가 가능하다. 예약 신청·변경·취소는 보호자 알림으로 전달된다.
 
 ## 3. 인증·사용자·동의 API
 

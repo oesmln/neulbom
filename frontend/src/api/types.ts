@@ -830,3 +830,41 @@ export interface CounselingCentersResponse {
   centers: CounselingCenterResponse[];
   total: number;
 }
+
+export type CounselingAppointmentStatus = "requested" | "confirmed" | "cancelled" | "completed";
+export type CounselingType = "cognitive_screening" | "neurology" | "counseling" | "other";
+
+export interface CounselingAppointmentCreateRequest {
+  elder_id: Uuid;
+  center_id: Uuid;
+  appointment_at: IsoInstant;
+  consultation_type: CounselingType;
+  note?: string;
+  privacy_agreed: boolean;
+}
+
+export interface CounselingAppointmentUpdateRequest {
+  appointment_at?: IsoInstant;
+  consultation_type?: CounselingType;
+  note?: string;
+}
+
+export interface CounselingAppointmentResponse {
+  appointment_id: Uuid;
+  guardian_id: Uuid;
+  elder_id: Uuid;
+  center_id: Uuid;
+  center_name: string | null;
+  center_address: string | null;
+  appointment_at: IsoInstant;
+  consultation_type: CounselingType;
+  status: CounselingAppointmentStatus;
+  note: string | null;
+  created_at: IsoInstant;
+  updated_at: IsoInstant;
+}
+
+export interface CounselingAppointmentsResponse {
+  appointments: CounselingAppointmentResponse[];
+  total: number;
+}

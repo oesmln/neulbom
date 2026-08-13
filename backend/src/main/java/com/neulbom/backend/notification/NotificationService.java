@@ -53,6 +53,7 @@ public class NotificationService {
     public static final String TYPE_CAMPAIGN = "campaign";
     public static final String TYPE_WEEKLY_REPORT = "weekly_report";
     public static final String TYPE_GUARDIAN_REACTION = "guardian_reaction";
+    public static final String TYPE_APPOINTMENT_UPDATED = "appointment_updated";
 
     private static final Set<String> TYPES = Set.of(
             TYPE_SCREENING_ALERT,
@@ -64,9 +65,10 @@ public class NotificationService {
             TYPE_REMINDER,
             TYPE_CAMPAIGN,
             TYPE_WEEKLY_REPORT,
-            TYPE_GUARDIAN_REACTION);
+            TYPE_GUARDIAN_REACTION,
+            TYPE_APPOINTMENT_UPDATED);
     private static final Set<String> SEVERITIES = Set.of("info", "success", "caution", "danger");
-    private static final Set<String> REFERENCE_TYPES = Set.of("session", "screening", "diary", "report", "campaign");
+    private static final Set<String> REFERENCE_TYPES = Set.of("session", "screening", "diary", "report", "campaign", "appointment");
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
@@ -361,6 +363,30 @@ public class NotificationService {
                 "새 리포트",
                 data,
                 "weekly-report:" + reportId + ":" + guardianId);
+    }
+
+    @Transactional
+    public NotificationEntity notifyAppointmentUpdated(UUID guardianId, UUID appointmentId, String status) {
+        ObjectNode data = objectMapper.createObjectNode();
+        data.put("target_route", "/counseling/appointments");
+        data.put("reference_type", "appointment");
+        data.put("reference_id", appointmentId.toString());
+        data.put("appointment_status", status);
+        String title = "상담 예약이 업데이트되었어요";
+        String body = switch (status) {
+            case "cancelled" -> "상담 예약이 취소되었어요.";
+            case "updated" -> "상담 예약 내용이 변경되었어요.";
+            default -> "상담 예약 신청이 접수되었어요.";
+        };
+        return createForUser(
+                guardianId,
+                title,
+                body,
+                TYPE_APPOINTMENT_UPDATED,
+                "info",
+                status,
+                data,
+                "appointment:" + appointmentId + ":" + status);
     }
 
     private void notifyGuardians(

@@ -20,6 +20,7 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/ui";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 /**
  * The elder's month of diaries, with the guardian's reaction.
@@ -138,8 +139,9 @@ export default function GuardianDiaryScreen() {
   const header = (
     <ScreenHeader
       color={guardian.blue}
-      title="일기"
+      title="기록"
       subtitle={`${list.data?.diaries.length ?? 0}일 일기 기록됨 · ${month + 1}월`}
+      right={<GuardianNotificationButton />}
     />
   );
 
