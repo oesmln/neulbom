@@ -51,6 +51,10 @@ export default function UserTypeScreen() {
    */
   const start = async () => {
     if (!selected || busy) return;
+    if (signup?.inviteCode && selected !== "elder") {
+      setMessage("보호자 초대 코드는 본인(고령자) 계정에서만 사용할 수 있어요.");
+      return;
+    }
     setRole(selected);
 
     if (!signup) {
@@ -71,8 +75,8 @@ export default function UserTypeScreen() {
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
 
-      if (signup.inviteCode) {
-        await guardian.acceptInvitation(signup.inviteCode, true).catch(() => undefined);
+      if (signup.inviteCode && selected === "elder") {
+        await guardian.acceptInvitation(signup.inviteCode, true);
       }
 
       navigation.reset({

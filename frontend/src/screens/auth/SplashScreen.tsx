@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { RootNav } from "@/navigation/types";
+import { useApp } from "@/store/AppContext";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -16,6 +17,15 @@ import { DEFAULT_MEMOI, MEMOI_MOUTH_SHAPES } from "@/components/memoiCharacters"
  */
 export default function SplashScreen() {
   const navigation = useNavigation<RootNav>();
+  const { ready, role } = useApp();
+
+  React.useEffect(() => {
+    if (!ready || !role) return;
+    navigation.reset({
+      index: 0,
+      routes: [{ name: role === "guardian" ? "Guardian" : "Elder" }],
+    });
+  }, [navigation, ready, role]);
 
   // Dev-only viewer for the mouth-shape models. They exist for the Phase 2
   // TTS/viseme work and nothing drives them yet, so this is the one place they
@@ -58,7 +68,12 @@ export default function SplashScreen() {
       </View>
 
       <View style={styles.footer}>
-        <Button label="시작하기" size="lg" onPress={() => navigation.navigate("Login")} />
+        <Button
+          label={ready ? "시작하기" : "로그인 정보를 확인하는 중이에요"}
+          size="lg"
+          disabled={!ready}
+          onPress={() => navigation.navigate("Login")}
+        />
         <Button
           label="이미 계정이 있어요"
           variant="onDark"
