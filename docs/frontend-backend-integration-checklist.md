@@ -1,6 +1,6 @@
 # 프론트엔드·백엔드 통합 점검 체크리스트
 
-> 관련 Issue: [#54 통합 점검 체크리스트](https://github.com/oesmln/neulbom/issues/54), [#56 프론트엔드·백엔드 실 API 통합](https://github.com/oesmln/neulbom/issues/56), [#58 프로필·동의](https://github.com/oesmln/neulbom/issues/58), [#59 보호자 연결](https://github.com/oesmln/neulbom/issues/59), [#60 OAuth](https://github.com/oesmln/neulbom/issues/60), [#61 녹음 queue](https://github.com/oesmln/neulbom/issues/61), [#62 고령자 활동](https://github.com/oesmln/neulbom/issues/62)
+> 관련 Issue: [#54 통합 점검 체크리스트](https://github.com/oesmln/neulbom/issues/54), [#56 프론트엔드·백엔드 실 API 통합](https://github.com/oesmln/neulbom/issues/56), [#59 보호자 초대·연결](https://github.com/oesmln/neulbom/issues/59)
 >
 > 기준 브랜치: `develop`
 >
@@ -56,16 +56,16 @@
 | 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [x] |
 | 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [x] |
 | 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [ ] |
-| 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [x] |
-| 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [x] |
-| 일기 | 생성·목록·상세·생성 상태 | `/diaries/**` | [x] |
-| 일기 | 보호자 반응 조회·등록 | `GET/POST /diaries/{diaryId}/reactions` | [ ] |
-| 캘린더 | 기간별 활동 조회 | `GET /calendar/{userId}/activities` | [x] |
-| 게임 | 게임 결과 저장·기록 조회 | `POST /game/result`, `GET /game/{userId}/history` | [x] |
-| 캐릭터 | 캐릭터·경험치 기록 조회 | `GET /character/{userId}`, `GET /character/{userId}/xp-history` | [x] |
-| 알림 | 목록·개별 읽음·전체 읽음 | `/notifications/**` | [x] |
-| 보호자 | 초대 확인·수락·고령자 목록 | `/guardian/**` | [ ] |
-| 보호자 | 고령자 리포트 조회 | `GET /guardian/{guardianId}/report` | [ ] |
+| 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
+| 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
+| 일기 | 생성·목록·상세·생성 상태 | `/diaries/**` | [ ] |
+| 일기 | 보호자 반응 조회·등록 | `GET/POST /diaries/{diaryId}/reactions` | [x] |
+| 캘린더 | 기간별 활동 조회 | `GET /calendar/{userId}/activities` | [ ] |
+| 게임 | 게임 결과 저장·기록 조회 | `POST /game/result`, `GET /game/{userId}/history` | [ ] |
+| 캐릭터 | 캐릭터·경험치 기록 조회 | `GET /character/{userId}`, `GET /character/{userId}/xp-history` | [ ] |
+| 알림 | 목록·개별 읽음·전체 읽음 | `/notifications/**` | [ ] |
+| 보호자 | 초대 발급·확인·수락·고령자 목록·연결 관리 | `/guardian/**` | [x] |
+| 보호자 | 고령자 리포트 조회 | `GET /guardian/{guardianId}/report` | [x] |
 | 상담 | 지역·시설 유형별 센터 조회 | `GET /counseling/centers` | [ ] |
 
 ### 1.4 계약 세부 확인
@@ -74,8 +74,8 @@
 - [ ] query parameter의 snake_case와 camelCase 사용이 Controller 선언과 일치한다.
 - [ ] 날짜는 `YYYY-MM-DD`, timestamp는 timezone을 포함한 ISO 8601 형식으로 교환한다.
 - [ ] 목록 응답의 `page`, `limit`, `total`, `has_next` 구조가 화면 pagination과 일치한다.
-- [x] `client_answer_id`, `client_recording_id`, `client_game_result_id` 재전송 시 중복 생성되지 않는다. (`2026-08-13`, 답변·게임 실 API 및 녹음 통합 테스트)
-- [ ] 고령자와 보호자 역할별 접근 권한이 프론트 내비게이션과 백엔드 권한 검사에서 모두 일치한다.
+- [ ] `client_answer_id`, `client_recording_id`, `client_game_result_id` 재전송 시 중복 생성되지 않는다.
+- [x] 고령자와 보호자 역할별 접근 권한이 프론트 내비게이션과 백엔드 권한 검사에서 모두 일치한다. (`2026-08-13`, 타 보호자 목록 403 및 scope별 403 확인)
 - [ ] 일기 목록과 상세가 같은 `GET /diaries/{id}` 경로에서 의도한 기준으로 구분된다.
 
 ### 1.5 이번 통합에서 해소한 계약 불일치
@@ -86,10 +86,10 @@
 - [x] CIST·정서 문답의 실제 녹음 업로드 결과를 답변의 `recording_id`로 연결했다.
 - [x] 색상 맞추기 결과의 `color_match`를 프론트 타입, API 명세, 서비스 검증, DB 제약조건에 추가했다.
 - [x] multipart 업로드도 access token 만료 시 refresh 후 한 번 재시도한다.
-- [x] 검사 결과의 `result_status`와 `result_type`을 분리해 실패 시 폴링을 종료하고 `insufficient_data` 안내를 표시한다.
-- [x] 오늘 일기가 없을 때 `GET /diaries/{userId}/generation-status`의 예정·처리·실패 안내를 표시한다.
-- [x] 백엔드 일기 감정 enum인 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`를 화면 이모지와 정렬했다.
-- [x] 게임 허브가 최근 게임 기록을 조회하고, CIST·정서 문답·알림 저장 실패를 재시도 가능한 화면 상태로 표시한다.
+- [x] 보호자 초대 원문은 발급 응답과 메모리 상태에서만 다루고 공유 sheet에 코드만 전달한다.
+- [x] 보호자 연결 목록은 활성 연결만 대시보드에 노출하고 복수 어르신 선택, 범위 수정, 연결 해제를 지원한다.
+- [x] 인지 추이 조회의 잘못된 `monthly` aggregation을 백엔드 계약인 `day`와 기간 조건으로 정렬했다.
+- [x] 보호자 `403`을 동의 필요, 연결 비활성, 접근 범위 없음으로 구분해 안내한다.
 
 ## 2. 프론트엔드에는 있지만 백엔드에는 없는 기능
 
@@ -109,9 +109,9 @@
 | 캠페인 화면 | Entity와 정적 화면만 있고 Controller/API가 없음 | 범위 제외 | 이번 통합에서는 API를 연결하지 않음 |
 | 앱 다크 모드·글씨 크기 | `SecureStore` 기반 기기 로컬 설정으로 명시되어 있음 | 의도적인 로컬 기능 | 서버 동기화 요구가 생길 때 별도 검토 |
 | 캐릭터 표시·상호작용 | 서버 캐릭터 상태와 화면의 로컬 상태가 일치하는지 | [ ] | |
-| 녹음 UI·재전송 | 실제 캡처·업로드·메모리 내 동일 ID 재시도는 구현, 앱 재실행을 버티는 오프라인 queue는 없음 | 부분 구현 | #61 |
-| 소셜 로그인 화면 | 서버 OAuth API는 있으나 버튼이 authorization code를 얻지 않고 회원가입 흐름으로 이동 | 프론트 구현 누락 | #60 |
-| 차트·리포트 UI | mock 통계가 아닌 실제 history/report 응답을 사용하는지 | [ ] | |
+| 녹음 UI·재전송 | 실제 캡처·업로드·메모리 내 동일 ID 재시도는 구현, 앱 재실행을 버티는 오프라인 queue는 없음 | 부분 구현 | 영속 queue는 후속 Issue 필요 |
+| 소셜 로그인 화면 | 서버 OAuth API는 있으나 버튼이 authorization code를 얻지 않고 회원가입 흐름으로 이동 | 프론트 구현 누락 | Kakao·Naver 브라우저 인증 연결 Issue 필요 |
+| 차트·리포트 UI | 실제 history/report 응답과 서버 허용 aggregation 사용 | 실 API 연결 | #59 |
 
 ### 2.3 발견 항목 기록
 
@@ -133,9 +133,9 @@
 | 개별 질문 조회 | `GET /questions/{questionId}` | 현재 화면에 불필요 | 일일 질문 응답으로 충족 |
 | 지역 인지 지표 비교 | `GET /analysis/cognitive/{userId}/benchmark` | 프론트 구현 누락 | 보호자 차트 비교 UI 연결 |
 | 보호자 리포트 내보내기 | `GET /guardian/{guardianId}/report/export` | 프론트 구현 누락 | 내보내기 버튼·다운로드 처리 |
-| 보호자 초대 생성 | `POST /guardian/invitations` | 프론트 구현 누락 | #59에서 초대 생성·공유 UI 구현 |
+| 보호자 초대 생성 | `POST /guardian/invitations` | 구현 완료 | 코드 생성·만료 표시·공유 UI 연결 (#59) |
 | 보호자 직접 연결 | `POST /guardian/link` | 프론트 구현 누락 | 운영 방식 확정 후 연결 UI 구현 |
-| 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | 프론트 구현 누락 | 연결 관리 화면 구현 |
+| 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | 구현 완료 | 연결별 scope 수정·해제 확인 UI 연결 (#59) |
 | 음성 직접 변환 | `POST /voice/transcribe` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
 | 음향·인지 분석 요청 | `POST /analysis/acoustic`, `POST /analysis/cognitive` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
 | 세션 요약 생성·조회 | `POST/GET /summary/session/**` | 생성은 worker 전용, 조회는 프론트 미사용 | 필요 화면에서 조회만 연결 |
@@ -152,7 +152,7 @@
 
 | API/기능 | 백엔드 근거 파일 | 필요한 프론트 화면·동작 | 분류 | 관련 Issue |
 | --- | --- | --- | --- | --- |
-| 보호자 초대 생성 | `GuardianController#createInvitation` | 초대 코드 생성·공유 | 프론트 구현 누락 | #56 |
+| 보호자 초대 생성 | `GuardianController#createInvitation` | 초대 코드 생성·공유 | 구현 완료 | #59 |
 | 인지 benchmark | `ReportController#benchmark` | 보호자 비교 차트 | 프론트 구현 누락 | #56 |
 | 리포트 export | `ReportController#exportGuardianReport` | 내보내기·다운로드 | 프론트 구현 누락 | #56 |
 | 분석·알림·XP 쓰기 | 각 Controller의 `@ServerWorkerOnly` | 없음 | 의도적인 서버 전용 기능 | #56 |
@@ -165,11 +165,10 @@
 - [x] Expo Web을 실 API 환경변수로 실행한다.
 - [x] 회원가입 → 역할 선택 → 자동 로그인 → CIST 세션 시작 흐름을 실 API로 검증한다. (`2026-08-13`)
 - [ ] 프로필·동의 → 홈 진입 흐름을 실 API로 검증한다.
-- [x] CIST·AI 정서 문답의 세션 시작 → 텍스트 답변 저장 → 종료 → 결과 조회를 실 API로 검증한다. (`2026-08-13`)
-- [ ] CIST·AI 정서 문답의 실제 녹음 → 업로드 → 앱 재실행 후 재전송 흐름을 검증한다. (#61)
-- [x] 일기 생성·목록·상세·생성 상태 → 캘린더 → 게임 결과·기록 → 캐릭터·XP → 알림 읽음 흐름을 실 API로 검증한다. (`2026-08-13`)
-- [x] `403`, `404`, `409`, `422` 응답과 답변·게임 멱등 재전송을 실 API로 검증한다. (`2026-08-13`)
-- [ ] 보호자 연결 → 고령자 선택 → 리포트·일기·알림 흐름을 검증한다.
+- [ ] 고령자 핵심 흐름인 CIST → 답변·녹음 → 종료 → 결과 조회를 검증한다.
+- [ ] 일기 → 캘린더 → 게임 → 캐릭터 → 알림 흐름을 검증한다.
+- [x] 보호자 초대 발급 → 고령자 검증·수락 → 복수 고령자 선택 → 리포트·일기·추이·알림 흐름을 검증한다. (`2026-08-13`)
+- [x] 보호자 연결 scope 수정, scope 부족 403, 연결 해제와 활성 목록 제외를 실 API로 검증한다. (`2026-08-13`)
 - [ ] 발견한 계약 불일치와 구현 누락을 별도 Issue로 분리한다.
 - [ ] 수정 후 전체 회귀 검증을 수행한다.
 
@@ -180,7 +179,7 @@
 - [x] `backend`에서 `./gradlew test`가 통과한다.
 - [x] `backend`에서 `./gradlew build`가 통과한다. (`2026-08-13`, clean build)
 - [ ] mock API 없이 고령자 핵심 흐름이 완료된다.
-- [ ] mock API 없이 보호자 핵심 흐름이 완료된다.
+- [x] mock API 없이 보호자 핵심 흐름이 완료된다. (`2026-08-13`, Expo Web + 로컬 실 API)
 - [ ] 한쪽에만 구현된 모든 항목에 분류와 후속 Issue가 기록된다.
 - [ ] 실제 secret, token, 개인정보가 코드·문서·로그에 포함되지 않는다.
 - [ ] 루트 및 프론트·백엔드 실행 문서가 실제 통합 실행 방법과 일치한다.

@@ -84,3 +84,15 @@ export function apiErrorMessage(error: unknown): string {
       return error.detail ?? "잠시 후 다시 시도해 주세요.";
   }
 }
+
+/** Guardian screens need to distinguish consent, link state and scope failures. */
+export function guardianAccessErrorMessage(error: ApiError, resource: string): string {
+  if (!error.isForbidden) return apiErrorMessage(error);
+  if (error.detail?.includes("동의")) {
+    return "어르신이 아직 보호자 정보 열람에 동의하지 않았어요.";
+  }
+  if (error.detail?.includes("활성 보호자 연결")) {
+    return "보호자 연결이 해제되었거나 활성 상태가 아니에요.";
+  }
+  return `${resource} 열람 권한이 없어요. 연결 관리에서 허용 범위를 확인해 주세요.`;
+}

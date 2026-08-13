@@ -35,8 +35,12 @@ import type {
   GameResultRequest,
   GameResultResponse,
   GenerationStatusResponse,
+  GuardianLinkResponse,
+  GuardianLinkUpdateRequest,
   GuardianReportResponse,
   HistoryResponse,
+  InvitationCreateRequest,
+  InvitationCreateResponse,
   InvitationVerifyResponse,
   IsoDate,
   LoginRequest,
@@ -546,13 +550,27 @@ export const notifications = {
 /* ── guardian link ──────────────────────────────────────────────────────── */
 
 export const guardian = {
+  createInvitation(body: InvitationCreateRequest): Promise<InvitationCreateResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        invitation_id: newClientId(),
+        invite_code: "123456",
+        status: "issued",
+        relation: body.relation ?? null,
+        access_scope: body.access_scope ?? ["screening", "summary", "diary", "activity"],
+        expires_at: new Date(Date.now() + (body.expires_in ?? 600) * 1000).toISOString(),
+      });
+    }
+    return request("/guardian/invitations", { method: "POST", body });
+  },
+
   verifyInvitation(inviteCode: string): Promise<InvitationVerifyResponse> {
     if (USE_MOCK_API) {
       return Promise.resolve({
         invitation_id: newClientId(),
         status: "pending",
         relation: "자녀",
-        access_scope: ["screening", "diary", "report"],
+        access_scope: ["screening", "summary", "diary", "activity"],
         expires_at: new Date(Date.now() + 600_000).toISOString(),
         requires_consent: true,
       });
@@ -575,6 +593,28 @@ export const guardian = {
   elders(guardianId: Uuid, status?: string): Promise<EldersResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockElders());
     return request(`/guardian/${guardianId}/elders`, { query: { status } });
+  },
+
+  updateLink(linkId: Uuid, body: GuardianLinkUpdateRequest): Promise<GuardianLinkResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        invitation_id: null,
+        link_id: linkId,
+        elder_id: mock.MOCK_ELDER_ID,
+        guardian_id: mock.MOCK_GUARDIAN_ID,
+        status: body.status ?? "active",
+        access_scope: body.access_scope ?? ["screening", "summary", "diary", "activity"],
+        consent_required: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    return request(`/guardian/link/${linkId}`, { method: "PATCH", body });
+  },
+
+  revokeLink(linkId: Uuid): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request(`/guardian/link/${linkId}`, { method: "DELETE" });
   },
 };
 
