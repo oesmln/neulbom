@@ -60,6 +60,8 @@ export default function GuardianDiaryScreen() {
   const [reaction, setReaction] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState("");
   const [submitted, setSubmitted] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [reactionError, setReactionError] = React.useState<string | null>(null);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -88,6 +90,7 @@ export default function GuardianDiaryScreen() {
     setReaction(null);
     setMessage("");
     setSubmitted(false);
+    setReactionError(null);
   }, [selected]);
 
   const byDate = React.useMemo(() => {
@@ -118,12 +121,18 @@ export default function GuardianDiaryScreen() {
     { enabled: !!selectedEntry },
   );
 
-  const submit = () => {
-    if (!reaction || !selectedEntry) return;
-    setSubmitted(true);
-    void diariesApi
-      .react(selectedEntry.diary_id, reaction, message.trim() || undefined)
-      .catch(() => setSubmitted(false));
+  const submit = async () => {
+    if (!reaction || !selectedEntry || submitting) return;
+    setSubmitting(true);
+    setReactionError(null);
+    try {
+      await diariesApi.react(selectedEntry.diary_id, reaction, message.trim() || undefined);
+      setSubmitted(true);
+    } catch (cause) {
+      setReactionError(apiErrorMessage(cause));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const header = (
@@ -273,6 +282,12 @@ export default function GuardianDiaryScreen() {
         ))}
       </View>
 
+      {report.error?.isForbidden ? (
+        <Text style={styles.permissionNotice}>
+          검사·요약 열람 권한이 없어 날짜별 분석 표시는 생략했어요.
+        </Text>
+      ) : null}
+
       {selected && !selectedEntry ? (
         <Card style={{ marginTop: spacing.lg }}>
           <Body style={{ textAlign: "center" }}>
@@ -312,11 +327,19 @@ export default function GuardianDiaryScreen() {
                       {selectedRisk.score}점
                     </Text>
                   ) : null}
-                  <Badge
-                    label={selectedRisk?.risk ? "주의 필요" : "정상 범위"}
-                    color={selectedRisk?.risk ? colors.destructive : guardian.blueDark}
-                    background={selectedRisk?.risk ? colors.destructiveLight : guardian.blueLight}
-                  />
+                  {selectedRisk ? (
+                    <Badge
+                      label={selectedRisk.risk ? "주의 필요" : "정상 범위"}
+                      color={selectedRisk.risk ? colors.destructive : guardian.blueDark}
+                      background={selectedRisk.risk ? colors.destructiveLight : guardian.blueLight}
+                    />
+                  ) : (
+                    <Badge
+                      label="분석 없음"
+                      color={colors.mutedForeground}
+                      background={colors.muted}
+                    />
+                  )}
                 </View>
                 <Caption style={{ marginTop: 2 }}>
                   {month + 1}월 {dayOf(selected as string)}일 · AI 일기
@@ -326,7 +349,16 @@ export default function GuardianDiaryScreen() {
           </Card>
 
           <Card>
-            {detail.loading && !detail.data ? (
+            {detail.error ? (
+              <ErrorState
+                message={
+                  detail.error.isForbidden
+                    ? "이 일기를 볼 수 있는 권한이 없어요."
+                    : apiErrorMessage(detail.error)
+                }
+                onRetry={detail.error.isForbidden ? undefined : detail.reload}
+              />
+            ) : detail.loading && !detail.data ? (
               <LoadingState label="일기를 불러오는 중이에요" />
             ) : (
               <Body style={{ lineHeight: 26 }}>
@@ -380,25 +412,26 @@ export default function GuardianDiaryScreen() {
                   />
                 </View>
                 <Pressable
-                  onPress={submit}
-                  disabled={!reaction}
+                  onPress={() => void submit()}
+                  disabled={!reaction || submitting}
                   accessibilityRole="button"
                   accessibilityLabel="반응 전달하기"
-                  accessibilityState={{ disabled: !reaction }}
+                  accessibilityState={{ disabled: !reaction || submitting }}
                   style={[
                     styles.submitButton,
-                    { backgroundColor: reaction ? guardian.blue : colors.muted },
+                    { backgroundColor: reaction && !submitting ? guardian.blue : colors.muted },
                   ]}
                 >
                   <Text
                     style={[
                       styles.submitLabel,
-                      { color: reaction ? colors.white : colors.mutedForeground },
+                      { color: reaction && !submitting ? colors.white : colors.mutedForeground },
                     ]}
                   >
-                    반응 전달하기
+                    {submitting ? "반응 전달 중" : "반응 전달하기"}
                   </Text>
                 </Pressable>
+                {reactionError ? <Text style={styles.reactionError}>{reactionError}</Text> : null}
               </>
             )}
           </Card>
@@ -412,6 +445,15 @@ export default function GuardianDiaryScreen() {
 
 const styles = StyleSheet.create({
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  permissionNotice: {
+    marginTop: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.warningLight,
+    padding: spacing.md,
+    fontSize: fontSize.caption,
+    color: colors.warning,
+    textAlign: "center",
+  },
   monthButton: {
     width: 36,
     height: 36,
@@ -506,5 +548,11 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     fontWeight: fontWeight.semibold,
     color: guardian.blueDark,
+  },
+  reactionError: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.caption,
+    color: colors.destructive,
+    textAlign: "center",
   },
 });
