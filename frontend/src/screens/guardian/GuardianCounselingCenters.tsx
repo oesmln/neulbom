@@ -29,6 +29,7 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/ui";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 /**
  * 전문의 상담 예약 — `GET /counseling/centers`.
@@ -195,6 +196,7 @@ export default function GuardianCounselingCentersScreen() {
           backLabel="대시보드"
           title="전문의 상담 예약"
           subtitle="지역을 선택하면 치매안심센터·병원·보건소를 안내해 드려요."
+          right={<GuardianNotificationButton />}
         />
       }
     >

@@ -17,7 +17,9 @@ import GuardianChartScreen from "@/screens/guardian/GuardianChart";
 import GuardianNotificationsScreen from "@/screens/guardian/GuardianNotifications";
 import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounselingCenters";
 import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
+import GuardianSettingsScreen from "@/screens/guardian/GuardianSettings";
 import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
 const Stack = createNativeStackNavigator<GuardianStackParamList>();
@@ -26,9 +28,10 @@ type TabKey = keyof GuardianTabParamList;
 
 const TAB_META: Record<TabKey, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   GuardianDashboard: { label: "홈", icon: "home-outline" },
-  GuardianDiary: { label: "일기", icon: "eye-outline" },
+  GuardianRecord: { label: "기록", icon: "document-text-outline" },
   GuardianChart: { label: "추이", icon: "bar-chart-outline" },
-  GuardianNotifications: { label: "알림", icon: "notifications-outline" },
+  GuardianAppointments: { label: "예약", icon: "calendar-outline" },
+  GuardianSettings: { label: "설정", icon: "settings-outline" },
 };
 
 /**
@@ -102,9 +105,10 @@ function GuardianTabs() {
       tabBar={(props) => <GuardianTabBar {...props} />}
     >
       <Tab.Screen name="GuardianDashboard" component={GuardianDashboardScreen} />
-      <Tab.Screen name="GuardianDiary" component={GuardianDiaryScreen} />
+      <Tab.Screen name="GuardianRecord" component={GuardianDiaryScreen} />
       <Tab.Screen name="GuardianChart" component={GuardianChartScreen} />
-      <Tab.Screen name="GuardianNotifications" component={GuardianNotificationsScreen} />
+      <Tab.Screen name="GuardianAppointments" component={GuardianCounselingCentersScreen} />
+      <Tab.Screen name="GuardianSettings" component={GuardianSettingsScreen} />
     </Tab.Navigator>
   );
 }
@@ -113,6 +117,7 @@ export default function GuardianNavigator() {
   return (
     <Stack.Navigator initialRouteName="GuardianTabs" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="GuardianTabs" component={GuardianTabs} />
+      <Stack.Screen name="GuardianNotifications" component={GuardianNotificationsScreen} />
       <Stack.Screen
         name="GuardianCounselingCenters"
         component={GuardianCounselingCentersScreen}

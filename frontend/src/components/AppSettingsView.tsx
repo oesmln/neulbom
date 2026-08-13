@@ -52,10 +52,12 @@ export default function AppSettingsView({
   palette,
   onBack,
   backLabel,
+  headerRight,
 }: {
   palette: AppSettingsPalette;
-  onBack: () => void;
-  backLabel: string;
+  onBack?: () => void;
+  backLabel?: string;
+  headerRight?: React.ReactNode;
 }) {
   // Boot already loaded the stored settings, so the sync read is populated.
   const stored = currentDisplaySettings();
@@ -84,6 +86,7 @@ export default function AppSettingsView({
           onBack={onBack}
           backLabel={backLabel}
           title="앱 설정"
+          right={headerRight}
         />
       }
     >

@@ -1,14 +1,10 @@
 import React from "react";
-import { useNavigation } from "@react-navigation/native";
 
-import { guardian } from "@/theme";
 import AppSettingsView from "@/components/AppSettingsView";
 import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import { guardian } from "@/theme";
 
-/** 앱 설정 (보호자) — the shared view in the guardian blue palette. */
-export default function GuardianAppSettingsScreen() {
-  const navigation = useNavigation();
-
+export default function GuardianSettingsScreen() {
   return (
     <AppSettingsView
       palette={{
@@ -16,8 +12,6 @@ export default function GuardianAppSettingsScreen() {
         accentLight: guardian.blueLight,
         accentDark: guardian.blueDark,
       }}
-      onBack={() => navigation.goBack()}
-      backLabel="홈"
       headerRight={<GuardianNotificationButton />}
     />
   );

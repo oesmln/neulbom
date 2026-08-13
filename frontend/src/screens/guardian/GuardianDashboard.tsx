@@ -12,6 +12,7 @@ import type { GuardianNav } from "@/navigation/types";
 import type { GuardianReportResponse } from "@/api/types";
 import { colors, guardian, onHeader, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 import {
   Screen,
   ScreenHeader,
@@ -127,6 +128,7 @@ export default function GuardianDashboardScreen() {
           >
             <Ionicons name="people-outline" size={18} color={colors.white} />
           </Pressable>
+          <GuardianNotificationButton />
           <Pressable
             onPress={() => navigation.navigate("GuardianAppSettings")}
             accessibilityRole="button"
@@ -381,7 +383,7 @@ export default function GuardianDashboardScreen() {
         <View style={styles.rowBetween}>
           <Body style={{ fontWeight: fontWeight.semibold }}>최근 일기</Body>
           <Pressable
-            onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianDiary" })}
+            onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianRecord" })}
             accessibilityRole="button"
             accessibilityLabel="일기 전체 보기"
             hitSlop={8}
@@ -394,7 +396,7 @@ export default function GuardianDashboardScreen() {
           recentDiaries.data.diaries.map((d, i, arr) => (
             <Pressable
               key={d.diary_id}
-              onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianDiary" })}
+              onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianRecord" })}
               accessibilityRole="button"
               accessibilityLabel={`${monthDayLabel(d.written_at)} 일기 보기`}
               style={[styles.diaryRow, i < arr.length - 1 && styles.diaryBorder]}
