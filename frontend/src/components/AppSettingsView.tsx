@@ -55,8 +55,8 @@ export default function AppSettingsView({
   headerRight,
 }: {
   palette: AppSettingsPalette;
-  onBack: () => void;
-  backLabel: string;
+  onBack?: () => void;
+  backLabel?: string;
   headerRight?: React.ReactNode;
 }) {
   // Boot already loaded the stored settings, so the sync read is populated.

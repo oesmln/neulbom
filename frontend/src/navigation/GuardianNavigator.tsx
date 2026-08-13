@@ -18,6 +18,7 @@ import GuardianNotificationsScreen from "@/screens/guardian/GuardianNotification
 import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounselingCenters";
 import GuardianAppointmentsScreen from "@/screens/guardian/GuardianAppointments";
 import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
+import GuardianSettingsScreen from "@/screens/guardian/GuardianSettings";
 import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
@@ -107,7 +108,7 @@ function GuardianTabs() {
       <Tab.Screen name="GuardianRecord" component={GuardianDiaryScreen} />
       <Tab.Screen name="GuardianChart" component={GuardianChartScreen} />
       <Tab.Screen name="GuardianAppointments" component={GuardianAppointmentsScreen} />
-      <Tab.Screen name="GuardianSettings" component={GuardianAppSettingsScreen} />
+      <Tab.Screen name="GuardianSettings" component={GuardianSettingsScreen} />
     </Tab.Navigator>
   );
 }
