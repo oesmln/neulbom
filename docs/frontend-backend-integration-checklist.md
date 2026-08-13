@@ -24,6 +24,7 @@
 - [ ] iOS simulator에서 `http://localhost:8080`으로 연결된다.
 - [ ] Android emulator에서 `http://10.0.2.2:8080`으로 연결된다.
 - [ ] 실제 기기에서 개발 PC의 LAN IP로 연결된다.
+- [x] Expo Web이 `EXPO_PUBLIC_API_BASE_URL=http://localhost:8080` 설정으로 렌더링되고 콘솔 오류 없이 로그인 화면에 진입한다. (`2026-08-13`)
 - [x] Expo Web origin `http://localhost:8081`의 CORS preflight가 정상 응답한다. (`2026-08-13`, HTTP 200)
 - [x] 프론트엔드 공통 client가 업무 API에 `/api/v1` prefix를 한 번만 적용한다.
 - [ ] JSON 요청과 multipart 요청이 각각 올바른 `Content-Type`으로 전송된다.
@@ -155,8 +156,9 @@
 - [x] 최신 `develop`에서 통합 작업 브랜치를 생성한다 (`feature/common/#56-frontend-backend-integration`).
 - [x] 프론트·백엔드 endpoint/DTO 정적 대조 결과를 1~3절에 기록한다.
 - [x] 로컬 PostgreSQL과 백엔드를 실행하고 migration·health·CORS를 확인한다.
-- [ ] Expo 앱을 실 API 환경변수로 실행한다.
-- [ ] 회원가입 → 로그인 → 프로필·동의 → 홈 진입 흐름을 실 API로 검증한다.
+- [x] Expo Web을 실 API 환경변수로 실행한다.
+- [x] 회원가입 → 역할 선택 → 자동 로그인 → CIST 세션 시작 흐름을 실 API로 검증한다. (`2026-08-13`)
+- [ ] 프로필·동의 → 홈 진입 흐름을 실 API로 검증한다.
 - [ ] 고령자 핵심 흐름인 CIST → 답변·녹음 → 종료 → 결과 조회를 검증한다.
 - [ ] 일기 → 캘린더 → 게임 → 캐릭터 → 알림 흐름을 검증한다.
 - [ ] 보호자 연결 → 고령자 선택 → 리포트·일기·알림 흐름을 검증한다.
@@ -166,7 +168,7 @@
 ## 5. 완료 조건
 
 - [x] `frontend`에서 `npm run typecheck`가 통과한다.
-- [ ] `frontend`에서 iOS, Android 또는 실제 대상 플랫폼 앱이 실행된다.
+- [x] `frontend`에서 Expo Web 앱이 실 API 모드로 실행된다. (`2026-08-13`)
 - [x] `backend`에서 `./gradlew test`가 통과한다.
 - [x] `backend`에서 `./gradlew build`가 통과한다. (`2026-08-13`, clean build)
 - [ ] mock API 없이 고령자 핵심 흐름이 완료된다.
