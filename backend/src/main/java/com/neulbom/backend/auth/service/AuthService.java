@@ -5,7 +5,12 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import com.neulbom.backend.auth.api.AuthTokenResponse;
+import com.neulbom.backend.auth.api.EmailVerificationConfirmRequest;
+import com.neulbom.backend.auth.api.EmailVerificationRequest;
+import com.neulbom.backend.auth.api.EmailVerificationResponse;
 import com.neulbom.backend.auth.api.LoginRequest;
 import com.neulbom.backend.auth.api.OAuthLoginRequest;
 import com.neulbom.backend.auth.api.PasswordResetConfirmRequest;
@@ -25,6 +30,8 @@ import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.user.OAuthAccountEntity;
 import com.neulbom.backend.user.OAuthAccountRepository;
+import com.neulbom.backend.user.EmailVerificationTokenEntity;
+import com.neulbom.backend.user.EmailVerificationTokenRepository;
 import com.neulbom.backend.user.PasswordResetTokenEntity;
 import com.neulbom.backend.user.PasswordResetTokenRepository;
 import com.neulbom.backend.user.RefreshTokenEntity;
@@ -40,10 +47,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private static final Duration PASSWORD_RESET_TTL = Duration.ofMinutes(15);
+    private static final Duration EMAIL_VERIFICATION_TTL = Duration.ofHours(24);
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final OAuthAccountRepository oauthAccountRepository;
     private final PasswordEncoder passwordEncoder;
     private final UuidGenerator uuidGenerator;
@@ -54,11 +63,14 @@ public class AuthService {
     private final OAuthProviderClientRegistry oauthProviderClientRegistry;
     private final AuditLogRepository auditLogRepository;
     private final PasswordResetRateLimiter passwordResetRateLimiter;
+    private final EmailVerificationNotifier emailVerificationNotifier;
+    private final boolean emailVerificationRequired;
 
     public AuthService(
             UserRepository userRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
+            EmailVerificationTokenRepository emailVerificationTokenRepository,
             OAuthAccountRepository oauthAccountRepository,
             PasswordEncoder passwordEncoder,
             UuidGenerator uuidGenerator,
@@ -68,11 +80,14 @@ public class AuthService {
             PasswordResetNotifier passwordResetNotifier,
             OAuthProviderClientRegistry oauthProviderClientRegistry,
             AuditLogRepository auditLogRepository,
-            PasswordResetRateLimiter passwordResetRateLimiter
+            PasswordResetRateLimiter passwordResetRateLimiter,
+            EmailVerificationNotifier emailVerificationNotifier,
+            @Value("${app.security.email-verification-required:false}") boolean emailVerificationRequired
     ) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.emailVerificationTokenRepository = emailVerificationTokenRepository;
         this.oauthAccountRepository = oauthAccountRepository;
         this.passwordEncoder = passwordEncoder;
         this.uuidGenerator = uuidGenerator;
@@ -83,6 +98,8 @@ public class AuthService {
         this.oauthProviderClientRegistry = oauthProviderClientRegistry;
         this.auditLogRepository = auditLogRepository;
         this.passwordResetRateLimiter = passwordResetRateLimiter;
+        this.emailVerificationNotifier = emailVerificationNotifier;
+        this.emailVerificationRequired = emailVerificationRequired;
     }
 
     @Transactional
@@ -106,8 +123,19 @@ public class AuthService {
                 false,
                 now,
                 now);
+        if (emailVerificationRequired) {
+            user.markEmailUnverified();
+        }
         userRepository.save(user);
-        return new RegisterResponse(user.getId(), user.getRole(), user.isProfileCompleted(), user.getCreatedAt());
+        if (emailVerificationRequired) {
+            issueEmailVerification(user);
+        }
+        return new RegisterResponse(
+                user.getId(),
+                user.getRole(),
+                user.isProfileCompleted(),
+                user.isEmailVerified(),
+                user.getCreatedAt());
     }
 
     @Transactional
@@ -118,7 +146,49 @@ public class AuthService {
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw invalidCredentials();
         }
+        requireVerifiedEmail(user);
         return issueTokens(user, false);
+    }
+
+    @Transactional
+    public EmailVerificationResponse requestEmailVerification(EmailVerificationRequest request) {
+        Instant now = jwtTokenService.now();
+        Instant expiresAt = now.plus(EMAIL_VERIFICATION_TTL);
+        UUID requestId = uuidGenerator.generate();
+        UserEntity user = userRepository.findByEmailIgnoreCase(normalizeEmail(request.email())).orElse(null);
+        if (user == null || !user.isActive() || user.isEmailVerified()) {
+            return new EmailVerificationResponse(requestId, expiresAt);
+        }
+
+        emailVerificationTokenRepository.findAllByUserIdAndUsedAtIsNull(user.getId())
+                .forEach(token -> token.markUsed(now));
+        String rawToken = tokenGenerator.generate();
+        emailVerificationTokenRepository.save(new EmailVerificationTokenEntity(
+                requestId,
+                user.getId(),
+                tokenHasher.hash(rawToken),
+                expiresAt,
+                now));
+        emailVerificationNotifier.send(user.getEmail(), rawToken, expiresAt);
+        return new EmailVerificationResponse(requestId, expiresAt);
+    }
+
+    @Transactional
+    public void confirmEmailVerification(EmailVerificationConfirmRequest request) {
+        Instant now = jwtTokenService.now();
+        EmailVerificationTokenEntity verificationToken = emailVerificationTokenRepository
+                .findByTokenHash(tokenHasher.hash(request.verificationToken()))
+                .filter(token -> token.isUsable(now))
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.GONE,
+                        "이메일 인증 token이 만료되었거나 이미 사용되었습니다.",
+                        "새로운 인증 메일을 요청하세요."));
+        UserEntity user = userRepository.findById(verificationToken.getUserId()).orElseThrow(this::invalidCredentials);
+        if (!user.isActive()) {
+            throw invalidCredentials();
+        }
+        user.verifyEmail(now);
+        verificationToken.markUsed(now);
     }
 
     @Transactional
@@ -263,6 +333,7 @@ public class AuthService {
         if (!user.isActive()) {
             throw invalidCredentials();
         }
+        requireVerifiedEmail(user);
         oldToken.markUsed(now);
         oldToken.revoke(now);
         return issueTokens(user, false);
@@ -321,6 +392,7 @@ public class AuthService {
                 user.getId(),
                 user.getRole(),
                 user.isProfileCompleted(),
+                user.isEmailVerified(),
                 newUser,
                 user.getOnboardingStep(),
                 user.isOnboardingCompleted(),
@@ -339,5 +411,18 @@ public class AuthService {
 
     private ApiException invalidCredentials() {
         return new ApiException(HttpStatus.UNAUTHORIZED, "인증 정보가 올바르지 않습니다.", "이메일 또는 비밀번호를 확인하세요.");
+    }
+
+    private void requireVerifiedEmail(UserEntity user) {
+        if (emailVerificationRequired && !user.isEmailVerified()) {
+            throw new ApiException(
+                    HttpStatus.FORBIDDEN,
+                    "이메일 인증이 필요합니다.",
+                    "가입한 이메일의 인증 메일을 확인한 뒤 다시 로그인하세요.");
+        }
+    }
+
+    private void issueEmailVerification(UserEntity user) {
+        requestEmailVerification(new EmailVerificationRequest(user.getEmail()));
     }
 }

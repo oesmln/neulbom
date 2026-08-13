@@ -18,6 +18,7 @@
 - 상담 기관 검색을 시·도/시·군·구 행정구역 코드와 병원·치매안심센터·보건소 유형으로 조회하고 네이버 지도·기관 사이트 링크를 제공하도록 구체화한다.
 - Figma의 지역 기준선 비교와 보호자 리포트 내보내기를 구현 대상 API로 확정한다. 외부 기관 실시간 예약, 지역 캠페인, TTS·립싱크도 후속 구현 범위로 유지한다.
 - 회원가입 화면 입력값은 사용자 유형 선택까지 클라이언트에 임시 보관하고, `role` 확정 후 `POST /auth/register`를 호출하는 단계 순서를 명시한다.
+- 운영 환경의 이메일 인증 필수 여부를 `EMAIL_VERIFICATION_REQUIRED`로 제어하고, 인증 token은 해시로 저장하며 24시간·1회 사용으로 제한한다.
 
 ### v1.2까지의 반영 사항
 
@@ -47,7 +48,7 @@
 
 | 구분 | 설명 |
 | --- | --- |
-| 공개 API | `/auth/register`, `/auth/login`, `/auth/oauth/{provider}`, `/auth/password/reset/**`, `/auth/refresh` |
+| 공개 API | `/auth/register`, `/auth/login`, `/auth/oauth/{provider}`, `/auth/email/verify/**`, `/auth/password/reset/**`, `/auth/refresh` |
 | 사용자 본인 | 자신의 프로필, 세션, 일기, 게임, 캐릭터, 알림 조회·수정 |
 | `guardian` | 동의가 완료된 연결 대상자의 검사·결과·요약·활동·일기 조회 및 반응 작성 |
 | 서버 작업 전용 | AST, KcELECTRA, Gemini 분석 API. 앱에서 직접 호출하지 않고 서버 작업 큐에서 호출하는 것을 권장 |
@@ -127,6 +128,8 @@
 | `POST` | `/auth/register` | 회원가입 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/login` | 로그인 및 JWT 발급 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/oauth/{provider}` | 카카오·네이버 소셜 로그인 및 JWT 발급 | 불필요 | 전체 | MVP |
+| `POST` | `/auth/email/verify/request` | 가입 이메일 인증 메일 재발송 요청 | 불필요 | 전체 | MVP |
+| `POST` | `/auth/email/verify/confirm` | 인증 token 검증 및 이메일 활성화 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/password/reset/request` | 비밀번호 재설정 요청 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/password/reset/confirm` | 비밀번호 재설정 확정 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/refresh` | 액세스 토큰 갱신 | 불필요 | 전체 | MVP |
@@ -262,6 +265,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `user_id` | string | 생성된 사용자 ID |
 | `role` | enum | 가입 역할 |
 | `profile_completed` | boolean | 초기 사용자 정보 입력 완료 여부 |
+| `email_verified` | boolean | 가입 이메일 인증 완료 여부 |
 | `created_at` | string | 가입 일시 |
 
 ```json
@@ -269,9 +273,41 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
   "user_id": "usr_01J...",
   "role": "elder",
   "profile_completed": false,
+  "email_verified": false,
   "created_at": "2026-08-05T10:30:00+09:00"
 }
 ```
+
+`EMAIL_VERIFICATION_REQUIRED=true`인 환경에서는 가입 직후 `email_verified=false`가 되며, 인증 메일이 전송된다. 인증이 끝나기 전 비밀번호 로그인은 `403`으로 거절된다. 로컬·테스트 기본값은 `false`라 기존 개발 흐름을 막지 않는다.
+
+### 3.1.1 `POST /auth/email/verify/request` - 이메일 인증 메일 요청
+
+#### Request Body
+
+```json
+{ "email": "user@example.com" }
+```
+
+응답은 계정 존재 여부를 노출하지 않도록 항상 `202`와 다음 형태를 반환한다.
+
+```json
+{
+  "request_id": "8c7d...",
+  "expires_at": "2026-08-06T10:30:00Z"
+}
+```
+
+인증 token 원문은 응답이나 로그에 포함하지 않는다. 운영 환경에서는 `EmailVerificationNotifier` 구현체가 메일 provider를 통해 전달해야 한다.
+
+### 3.1.2 `POST /auth/email/verify/confirm` - 이메일 인증 확정
+
+#### Request Body
+
+```json
+{ "verification_token": "mail-provider-token" }
+```
+
+성공 시 `204`를 반환한다. token은 24시간 후 만료되며 한 번만 사용할 수 있다. 만료·사용 완료 token은 `410`으로 응답한다.
 
 ### 3.2 `POST /auth/login` - 로그인
 
@@ -292,6 +328,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `user_id` | string | 사용자 ID |
 | `role` | enum | `elder`, `guardian` |
 | `profile_completed` | boolean | 기본 프로필 입력 완료 여부 |
+| `email_verified` | boolean | 가입 이메일 인증 완료 여부 |
 | `onboarding_step` | enum | `not_started`, `intro`, `character_name`, `consent`, `baseline`, `completed` |
 | `onboarding_completed` | boolean | 초기 온보딩 완료 여부 |
 | `baseline_completed` | boolean | 최초 기준검사 완료 여부 |

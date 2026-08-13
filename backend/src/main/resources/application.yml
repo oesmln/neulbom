@@ -84,6 +84,7 @@ app:
     gemini-base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
     gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
   security:
+    email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:false}
     jwt:
       secret: ${JWT_SECRET:local-only-change-this-jwt-secret-key-please}
       issuer: ${JWT_ISSUER:neulbom}

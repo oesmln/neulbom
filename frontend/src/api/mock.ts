@@ -85,6 +85,7 @@ export function mockAuthToken(role: Role = lastRole): AuthTokenResponse {
     user_id: role === "guardian" ? MOCK_GUARDIAN_ID : MOCK_ELDER_ID,
     role,
     profile_completed: true,
+    email_verified: true,
     is_new_user: false,
     onboarding_step: "completed",
     onboarding_completed: true,

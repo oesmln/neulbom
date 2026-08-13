@@ -66,12 +66,16 @@ export default function UserTypeScreen() {
     setBusy(true);
     setMessage(null);
     try {
-      await auth.register({
+      const registration = await auth.register({
         email: signup.email,
         password: signup.password,
         name: signup.name,
         role: selected,
       });
+      if (!registration.email_verified) {
+        navigation.replace("EmailVerification", { signup: { ...signup } });
+        return;
+      }
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
 

@@ -47,6 +47,7 @@ export interface RegisterResponse {
   user_id: Uuid;
   role: Role;
   profile_completed: boolean;
+  email_verified: boolean;
   created_at: IsoInstant;
 }
 
@@ -69,6 +70,7 @@ export interface AuthTokenResponse {
   user_id: Uuid;
   role: Role;
   profile_completed: boolean;
+  email_verified: boolean;
   is_new_user: boolean;
   onboarding_step: OnboardingStep;
   onboarding_completed: boolean;
@@ -77,6 +79,11 @@ export interface AuthTokenResponse {
 }
 
 export interface PasswordResetRequestResponse {
+  request_id: Uuid;
+  expires_at: IsoInstant;
+}
+
+export interface EmailVerificationRequestResponse {
   request_id: Uuid;
   expires_at: IsoInstant;
 }

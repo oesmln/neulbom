@@ -25,6 +25,7 @@ app:
   storage:
     local-root: build/test-uploads
   security:
+    email-verification-required: false
     jwt:
       secret: test-only-jwt-secret-key-that-is-long-enough
       issuer: neulbom-test
