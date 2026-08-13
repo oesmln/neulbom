@@ -3,6 +3,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from "react-
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as AuthSession from "expo-auth-session";
+import * as WebBrowser from "expo-web-browser";
 
 import { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
@@ -24,8 +26,43 @@ import { Button, ScreenHeader } from "@/components/ui";
  * and the role picker belong to registration and must not reappear at every
  * sign-in.
  */
-type Step = "form" | "invite" | "forgot" | "forgotSent";
+type Step = "form" | "invite" | "socialRole" | "forgot" | "forgotSent";
 type Tab = "login" | "signup";
+type SocialProvider = "kakao" | "naver";
+
+WebBrowser.maybeCompleteAuthSession();
+
+const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_CLIENT_ID?.trim() ?? "";
+const NAVER_CLIENT_ID = process.env.EXPO_PUBLIC_NAVER_CLIENT_ID?.trim() ?? "";
+const KAKAO_REDIRECT_URI = process.env.EXPO_PUBLIC_KAKAO_REDIRECT_URI?.trim() ?? "";
+const NAVER_REDIRECT_URI = process.env.EXPO_PUBLIC_NAVER_REDIRECT_URI?.trim() ?? "";
+const KAKAO_REQUEST_REDIRECT_URI =
+  KAKAO_REDIRECT_URI || AuthSession.makeRedirectUri({ scheme: "memocare", path: "auth/callback/kakao" });
+const NAVER_REQUEST_REDIRECT_URI =
+  NAVER_REDIRECT_URI || AuthSession.makeRedirectUri({ scheme: "memocare", path: "auth/callback/naver" });
+
+const SOCIAL_CONFIG = {
+  kakao: {
+    label: "카카오",
+    clientId: KAKAO_CLIENT_ID,
+    redirectUri: KAKAO_REDIRECT_URI,
+    discovery: {
+      authorizationEndpoint:
+        process.env.EXPO_PUBLIC_KAKAO_AUTHORIZATION_ENDPOINT?.trim() ||
+        "https://kauth.kakao.com/oauth/authorize",
+    },
+  },
+  naver: {
+    label: "네이버",
+    clientId: NAVER_CLIENT_ID,
+    redirectUri: NAVER_REDIRECT_URI,
+    discovery: {
+      authorizationEndpoint:
+        process.env.EXPO_PUBLIC_NAVER_AUTHORIZATION_ENDPOINT?.trim() ||
+        "https://nid.naver.com/oauth2.0/authorize",
+    },
+  },
+} as const;
 
 const CODE_LENGTH = 6;
 const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"] as const;
@@ -42,12 +79,32 @@ export default function LoginScreen() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [socialProvider, setSocialProvider] = React.useState<SocialProvider | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [codeError, setCodeError] = React.useState<string | null>(null);
 
   const emailLooksValid = email.includes("@") && email.includes(".");
   const canSubmitForm =
     emailLooksValid && password.length >= 8 && (tab === "login" || name.trim().length > 0);
+
+  const [kakaoRequest, , promptKakao] = AuthSession.useAuthRequest(
+    {
+      clientId: KAKAO_CLIENT_ID || "not-configured",
+      redirectUri: KAKAO_REQUEST_REDIRECT_URI,
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: false,
+    },
+    SOCIAL_CONFIG.kakao.discovery,
+  );
+  const [naverRequest, , promptNaver] = AuthSession.useAuthRequest(
+    {
+      clientId: NAVER_CLIENT_ID || "not-configured",
+      redirectUri: NAVER_REQUEST_REDIRECT_URI,
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: false,
+    },
+    SOCIAL_CONFIG.naver.discovery,
+  );
 
   /** Existing account: the token says where to go. */
   const submitLogin = async () => {
@@ -100,6 +157,71 @@ export default function LoginScreen() {
     try {
       await auth.requestPasswordReset(email);
       setStep("forgotSent");
+    } catch (cause) {
+      setMessage(apiErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseSocialRole = (provider: SocialProvider) => {
+    const config = SOCIAL_CONFIG[provider];
+    setMessage(null);
+    if (!config.clientId || !config.redirectUri) {
+      setMessage(`${config.label} 로그인 설정이 아직 준비되지 않았어요.`);
+      return;
+    }
+    if (!/^https?:\/\//i.test(config.redirectUri)) {
+      setMessage(`${config.label} redirect URI는 등록된 HTTP 또는 HTTPS 주소여야 해요.`);
+      return;
+    }
+    setSocialProvider(provider);
+    setStep("socialRole");
+  };
+
+  const submitSocialLogin = async (role: "elder" | "guardian") => {
+    if (!socialProvider || busy) return;
+    const config = SOCIAL_CONFIG[socialProvider];
+    const request = socialProvider === "kakao" ? kakaoRequest : naverRequest;
+    const prompt = socialProvider === "kakao" ? promptKakao : promptNaver;
+    if (!request) {
+      setMessage("소셜 로그인을 준비하고 있어요. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await prompt();
+      if (result.type === "cancel" || result.type === "dismiss") {
+        setMessage(`${config.label} 로그인을 취소했어요.`);
+        return;
+      }
+      if (result.type !== "success") {
+        setMessage(`${config.label} 인증을 완료하지 못했어요. 다시 시도해 주세요.`);
+        return;
+      }
+      if (!request.state || result.params.state !== request.state) {
+        setMessage("로그인 요청을 확인할 수 없어요. 처음부터 다시 시도해 주세요.");
+        return;
+      }
+      const authorizationCode = result.params.code;
+      if (!authorizationCode) {
+        setMessage(`${config.label}에서 로그인 코드를 받지 못했어요.`);
+        return;
+      }
+
+      const tokens = await auth.oauthLogin(socialProvider, {
+        authorization_code: authorizationCode,
+        redirect_uri: config.redirectUri,
+        role,
+        state: request.state,
+      });
+      await signIn(tokens);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: tokens.role === "guardian" ? "Guardian" : "Elder" }],
+      });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));
     } finally {
@@ -178,6 +300,46 @@ export default function LoginScreen() {
               <Text style={styles.textLinkLabel}>초대 코드 없이 계속하기</Text>
             </Pressable>
           </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (step === "socialRole" && socialProvider) {
+    const provider = SOCIAL_CONFIG[socialProvider];
+    const requestReady = socialProvider === "kakao" ? !!kakaoRequest : !!naverRequest;
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <ScreenHeader
+          title={`${provider.label} 로그인`}
+          subtitle="처음 이용할 때 사용할 역할을 선택해 주세요. 기존 계정은 저장된 역할로 로그인돼요."
+          onBack={() => {
+            setStep("form");
+            setSocialProvider(null);
+            setMessage(null);
+          }}
+          backLabel="로그인"
+        />
+
+        <View style={[styles.body, styles.socialRoleBody]}>
+          <View style={{ gap: spacing.md }}>
+            <SocialRoleCard
+              title="어르신으로 이용"
+              description="인지 검사, AI 문답, 일기와 두뇌 게임을 이용해요."
+              icon="heart-outline"
+              onPress={() => void submitSocialLogin("elder")}
+              disabled={busy || !requestReady}
+            />
+            <SocialRoleCard
+              title="보호자로 이용"
+              description="연결된 어르신의 활동과 인지 상태를 확인해요."
+              icon="people-outline"
+              onPress={() => void submitSocialLogin("guardian")}
+              disabled={busy || !requestReady}
+            />
+          </View>
+          {message ? <Text style={styles.errorText}>{message}</Text> : null}
+          {!requestReady ? <Text style={styles.hint}>인증 화면을 준비하고 있어요.</Text> : null}
         </View>
       </SafeAreaView>
     );
@@ -383,22 +545,20 @@ export default function LoginScreen() {
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Colours are each provider's brand mark, so they stay literal.
-            `POST /auth/oauth/{provider}` needs an authorization code from a
-            browser redirect, and that flow is not wired yet — until it is, the
-            buttons take the same route as sign-up so nothing pretends to have
-            authenticated. */}
+        {/* Provider colours are brand marks. AuthSession obtains only the
+            one-time authorization code; the backend exchanges it so no client
+            secret or provider access token is stored in the app. */}
         <SocialButton
           label="카카오로 계속하기"
           background="#FEE500"
           color={colors.foreground}
-          onPress={continueToInvite}
+          onPress={() => chooseSocialRole("kakao")}
         />
         <SocialButton
           label="네이버로 계속하기"
           background="#03C75A"
           color={colors.white}
-          onPress={continueToInvite}
+          onPress={() => chooseSocialRole("naver")}
         />
       </ScrollView>
     </SafeAreaView>
@@ -433,6 +593,43 @@ function SocialButton({
       style={({ pressed }) => [styles.social, { backgroundColor: background, opacity: pressed ? 0.85 : 1 }]}
     >
       <Text style={{ color, fontSize: fontSize.body, fontWeight: fontWeight.semibold }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function SocialRoleCard({
+  title,
+  description,
+  icon,
+  onPress,
+  disabled,
+}: {
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        styles.socialRoleCard,
+        { opacity: disabled ? 0.55 : pressed ? 0.85 : 1 },
+      ]}
+    >
+      <View style={styles.socialRoleIcon}>
+        <Ionicons name={icon} size={26} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.socialRoleTitle}>{title}</Text>
+        <Text style={styles.socialRoleDescription}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={colors.mutedForeground} />
     </Pressable>
   );
 }
@@ -483,6 +680,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  socialRoleBody: { justifyContent: "center" },
+  socialRoleCard: {
+    minHeight: 96,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    padding: spacing.lg,
+  },
+  socialRoleIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.secondary,
+  },
+  socialRoleTitle: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.bold, color: colors.foreground },
+  socialRoleDescription: { marginTop: 3, fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 20 },
 
   codeRow: { flexDirection: "row", gap: spacing.sm },
   codeCell: {
