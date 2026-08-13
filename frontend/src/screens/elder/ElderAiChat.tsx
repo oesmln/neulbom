@@ -285,18 +285,21 @@ function ChatRecorder({
   questionId: Uuid;
   onAnswer: (recordingId: Uuid) => void;
 }) {
-  const recording = useAnswerRecording({ userId, sessionId, questionId });
+  const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
   const seconds = Math.floor(recording.durationMillis / 1000);
 
   const tap = async () => {
-    const uploadedId = await recording.toggle();
-    if (uploadedId) onAnswer(uploadedId);
+    await recording.toggle();
   };
 
   return (
     <View style={styles.recorderRow}>
       <Text style={styles.recorderHint}>
-        {recording.uploading
+        {recording.syncStatus === "pending"
+          ? "기기에 저장됨 · 연결되면 자동 전송"
+          : recording.syncStatus === "failed"
+            ? "전송 대기 중 · 눌러서 다시 시도"
+            : recording.uploading
           ? "녹음을 저장하고 있어요"
           : recording.isRecording
             ? `${seconds}초 녹음 중 · 완료하려면 다시 눌러 주세요`

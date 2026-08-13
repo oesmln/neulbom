@@ -234,13 +234,12 @@ function MicRecorder({
   answered: boolean;
   onAnswer: (recordingId: Uuid) => void;
 }) {
-  const recording = useAnswerRecording({ userId, sessionId, questionId });
+  const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
   const elapsed = Math.floor(recording.durationMillis / 1000);
 
   const tap = async () => {
     if (answered || recording.uploading) return;
-    const uploadedId = await recording.toggle();
-    if (uploadedId) onAnswer(uploadedId);
+    await recording.toggle();
   };
 
   const buttonColor = answered
@@ -250,7 +249,11 @@ function MicRecorder({
       : colors.primary;
   const status = answered
     ? "답변 완료"
-    : recording.uploading
+    : recording.syncStatus === "pending"
+      ? "기기에 저장됨 · 연결되면 자동 전송"
+      : recording.syncStatus === "failed"
+        ? "전송 대기 중 · 눌러서 다시 시도"
+        : recording.uploading
       ? "녹음을 저장하고 있어요"
       : recording.isRecording
       ? "탭하면 녹음 완료"

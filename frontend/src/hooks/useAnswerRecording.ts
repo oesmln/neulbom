@@ -8,9 +8,17 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 
-import { newClientId, recordings } from "@/api";
+import { newClientId } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { Uuid } from "@/api/types";
+import {
+  enqueueRecording,
+  consumeUploadedRecording,
+  findQueuedRecording,
+  subscribeRecordingQueue,
+  syncRecordingQueue,
+  type RecordingQueueStatus,
+} from "@/recording/recordingQueue";
 
 type AnswerRecordingTarget = {
   userId: Uuid | null;
@@ -26,20 +34,100 @@ type CapturedAudio = {
   fileName: string;
 };
 
-export function useAnswerRecording(target: AnswerRecordingTarget) {
+export function useAnswerRecording(
+  target: AnswerRecordingTarget,
+  onUploaded?: (recordingId: Uuid) => void,
+) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
   const capturedRef = React.useRef<CapturedAudio | null>(null);
+  const queuedClientIdRef = React.useRef<Uuid | null>(null);
+  const reportedRecordingIdRef = React.useRef<Uuid | null>(null);
+  const onUploadedRef = React.useRef(onUploaded);
   const activeRef = React.useRef(false);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
-  const [uploading, setUploading] = React.useState(false);
+  const [syncStatus, setSyncStatus] = React.useState<RecordingQueueStatus | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  onUploadedRef.current = onUploaded;
+
+  const complete = React.useCallback((id: Uuid) => {
+    if (reportedRecordingIdRef.current === id) return;
+    reportedRecordingIdRef.current = id;
+    setRecordingId(id);
+    setSyncStatus(null);
+    setError(null);
+    onUploadedRef.current?.(id);
+  }, []);
 
   React.useEffect(() => {
     capturedRef.current = null;
+    queuedClientIdRef.current = null;
+    reportedRecordingIdRef.current = null;
     setRecordingId(null);
+    setSyncStatus(null);
     setError(null);
-  }, [target.sessionId, target.questionId]);
+    if (!target.userId || !target.sessionId || !target.questionId) return;
+
+    let cancelled = false;
+    void (async () => {
+      const uploaded = await consumeUploadedRecording(
+        target.userId as Uuid,
+        target.sessionId as Uuid,
+        target.questionId as Uuid,
+      );
+      if (cancelled) return;
+      if (uploaded) {
+        complete(uploaded);
+        return;
+      }
+      const item = await findQueuedRecording(
+        target.userId as Uuid,
+        target.sessionId as Uuid,
+        target.questionId as Uuid,
+      );
+      if (cancelled || !item) return;
+      queuedClientIdRef.current = item.clientRecordingId;
+      setSyncStatus(item.status);
+      setError(item.error ?? "저장된 녹음을 네트워크 연결 후 다시 전송할게요.");
+      void syncRecordingQueue(target.userId as Uuid).catch(() => undefined);
+    })().catch((cause) => {
+      if (!cancelled) setError(apiErrorMessage(cause));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [complete, target.questionId, target.sessionId, target.userId]);
+
+  React.useEffect(
+    () =>
+      subscribeRecordingQueue((event) => {
+        if (event.type === "changed" && event.item.clientRecordingId === queuedClientIdRef.current) {
+          setSyncStatus(event.item.status);
+          setError(
+            event.item.status === "failed"
+              ? event.item.error ?? "녹음을 전송하지 못했어요. 다시 시도해 주세요."
+              : event.item.status === "pending"
+                ? "녹음이 기기에 안전하게 저장됐어요. 연결되면 자동 전송할게요."
+                : null,
+          );
+        }
+        if (event.type === "uploaded" && event.clientRecordingId === queuedClientIdRef.current) {
+          queuedClientIdRef.current = null;
+          complete(event.recordingId);
+          void consumeUploadedRecording(
+            target.userId as Uuid,
+            target.sessionId as Uuid,
+            target.questionId as Uuid,
+          );
+        }
+        if (event.type === "removed" && event.clientRecordingId === queuedClientIdRef.current) {
+          queuedClientIdRef.current = null;
+          setSyncStatus(null);
+        }
+      }),
+    [complete, target.questionId, target.sessionId, target.userId],
+  );
 
   React.useEffect(
     () => () => {
@@ -59,24 +147,20 @@ export function useAnswerRecording(target: AnswerRecordingTarget) {
       throw new Error("녹음 업로드 정보가 준비되지 않았습니다.");
     }
 
-    setUploading(true);
     setError(null);
     try {
-      const response = await recordings.upload({
+      const queued = await enqueueRecording({
         ...captured,
         userId: target.userId,
         purpose: "answer",
         sessionId: target.sessionId,
         questionId: target.questionId,
-        deviceStatus: "device_saved",
       });
-      setRecordingId(response.recording_id);
-      return response.recording_id;
+      queuedClientIdRef.current = queued.clientRecordingId;
+      setSyncStatus("pending");
+      await syncRecordingQueue(target.userId);
     } catch (cause) {
       setError(apiErrorMessage(cause));
-      throw cause;
-    } finally {
-      setUploading(false);
     }
   }, [target.questionId, target.sessionId, target.userId]);
 
@@ -119,30 +203,31 @@ export function useAnswerRecording(target: AnswerRecordingTarget) {
       mimeType: web ? "audio/webm" : "audio/mp4",
       fileName: web ? "answer.webm" : "answer.m4a",
     };
-    return uploadCaptured();
+    await uploadCaptured();
   }, [recorder, uploadCaptured]);
 
   const toggle = React.useCallback(async () => {
-    if (uploading || recordingId) return null;
+    if (syncStatus === "uploading" || recordingId) return;
     try {
       if (recorderState.isRecording) {
-        return await stopAndUpload();
+        await stopAndUpload();
+        return;
       }
-      if (capturedRef.current) {
-        return await uploadCaptured();
+      if (queuedClientIdRef.current && target.userId) {
+        await syncRecordingQueue(target.userId);
+        return;
       }
       await start();
-      return null;
     } catch (cause) {
       setError(apiErrorMessage(cause));
-      return null;
     }
-  }, [recordingId, recorderState.isRecording, start, stopAndUpload, uploadCaptured, uploading]);
+  }, [recordingId, recorderState.isRecording, start, stopAndUpload, syncStatus, target.userId]);
 
   return {
     isRecording: recorderState.isRecording,
     durationMillis: recorderState.durationMillis,
-    uploading,
+    uploading: syncStatus === "uploading",
+    syncStatus,
     recordingId,
     error,
     toggle,
