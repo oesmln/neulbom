@@ -16,6 +16,7 @@ type AppState = {
 
   role: UserRole;
   setRole: (r: UserRole) => void;
+  profileCompleted: boolean;
 
   /** Signed-in user. Every backend call needs it in the path or query. */
   userId: Uuid | null;
@@ -31,6 +32,7 @@ type AppState = {
 
   /** Stores tokens and switches the app into its signed-in state. */
   signIn: (tokens: AuthTokenResponse) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -47,6 +49,7 @@ function mockIdFor(role: UserRole): Uuid | null {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [role, setRoleState] = useState<UserRole>(null);
+  const [profileCompleted, setProfileCompleted] = useState(false);
   const [userId, setUserId] = useState<Uuid | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [selectedElderId, setSelectedElderId] = useState<Uuid | null>(null);
@@ -60,6 +63,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (stored) {
         setRoleState(stored.role);
         setUserId(stored.userId);
+        setProfileCompleted(stored.profileCompleted);
       }
       setReady(true);
     })();
@@ -76,6 +80,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     await clearSession();
     setRoleState(null);
+    setProfileCompleted(false);
     setUserId(null);
     setUserName("");
     setSelectedElderId(null);
@@ -88,6 +93,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedListener(() => {
       setRoleState(null);
+      setProfileCompleted(false);
       setUserId(null);
       setUserName("");
       setSelectedElderId(null);
@@ -122,6 +128,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     setRoleState(tokens.role);
     setUserId(tokens.user_id);
+    setProfileCompleted(tokens.profile_completed);
+  }, []);
+
+  const completeOnboarding = useCallback(async () => {
+    const stored = await loadSession();
+    if (stored) await saveSession({ ...stored, profileCompleted: true });
+    setProfileCompleted(true);
   }, []);
 
   const setRole = useCallback((next: UserRole) => {
@@ -137,15 +150,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ready,
       role,
       setRole,
+      profileCompleted,
       userId,
       userName,
       setUserName,
       selectedElderId,
       setSelectedElderId,
       signIn,
+      completeOnboarding,
       signOut,
     }),
-    [ready, role, setRole, userId, userName, selectedElderId, signIn, signOut],
+    [
+      ready,
+      role,
+      setRole,
+      profileCompleted,
+      userId,
+      userName,
+      selectedElderId,
+      signIn,
+      completeOnboarding,
+      signOut,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -58,7 +58,15 @@ export default function LoginScreen() {
       await signIn(tokens);
       navigation.reset({
         index: 0,
-        routes: [{ name: tokens.role === "guardian" ? "Guardian" : "Elder" }],
+        routes: [
+          {
+            name: tokens.profile_completed
+              ? tokens.role === "guardian"
+                ? "Guardian"
+                : "Elder"
+              : "Onboarding",
+          },
+        ],
       });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));

@@ -34,6 +34,8 @@
 ### 1.2 인증과 세션
 
 - [ ] 회원가입 후 반환된 `user_id`, `role`, `profile_completed`가 프론트 타입과 일치한다.
+- [x] `profile_completed=false`인 신규·기존 사용자를 프로필·동의 온보딩으로 분기한다. (`2026-08-13`, Issue #58)
+- [x] 프로필과 필수 동의를 저장한 뒤 완료 상태를 세션에 반영하고 재로그인 시 온보딩을 건너뛴다. (`2026-08-13`, Expo Web 실 API)
 - [ ] 이메일 로그인 후 access token과 refresh token을 SecureStore에 저장한다.
 - [ ] 보호 API 요청에 `Authorization: Bearer {access_token}`을 첨부한다.
 - [ ] access token 만료 시 refresh 요청을 한 번만 수행하고 원래 요청을 재시도한다.
@@ -46,7 +48,7 @@
 
 | 영역 | 프론트 동작 | 백엔드 API | 확인 |
 | --- | --- | --- | --- |
-| 사용자 | 프로필 조회·수정 | `GET/PATCH /users/{userId}` | [ ] |
+| 사용자 | 프로필 조회·수정 | `GET/PATCH /users/{userId}` | [x] |
 | 사용자 | 환경설정 조회·수정 | `GET/PATCH /users/{userId}/preferences` | [ ] |
 | 사용자 | 음성 프로필 조회 | `GET /voice-profiles` | [ ] |
 | 동의 | 동의 저장·조회 | `POST/GET /consent/{userId}` | [ ] |

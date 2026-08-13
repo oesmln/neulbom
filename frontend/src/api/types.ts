@@ -159,8 +159,15 @@ export interface VoiceProfilesResponse {
   voice_profiles: VoiceProfileResponse[];
 }
 
+export type ConsentType =
+  | "data_sharing"
+  | "guardian_access"
+  | "analysis"
+  | "voice_collection"
+  | "research_use";
+
 export interface ConsentRequest {
-  consent_type: string;
+  consent_type: ConsentType;
   agreed: boolean;
   agreed_at: IsoInstant;
   version: string;
@@ -168,7 +175,7 @@ export interface ConsentRequest {
 
 export interface ConsentResponse {
   consent_id: Uuid;
-  consent_type: string;
+  consent_type: ConsentType;
   agreed: boolean;
   agreed_at: IsoInstant;
   version: string;
