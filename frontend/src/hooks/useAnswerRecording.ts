@@ -90,8 +90,10 @@ export function useAnswerRecording(
       queuedClientIdRef.current = item.clientRecordingId;
       setSyncStatus(item.status);
       setError(item.error ?? "저장된 녹음을 네트워크 연결 후 다시 전송할게요.");
-      void syncRecordingQueue(target.userId as Uuid);
-    })();
+      void syncRecordingQueue(target.userId as Uuid).catch(() => undefined);
+    })().catch((cause) => {
+      if (!cancelled) setError(apiErrorMessage(cause));
+    });
     return () => {
       cancelled = true;
     };

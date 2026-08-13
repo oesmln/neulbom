@@ -59,6 +59,7 @@ const MAX_QUEUE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const listeners = new Set<(event: RecordingQueueEvent) => void>();
 let syncInFlight: Promise<void> | null = null;
+let requestedSyncUserId: Uuid | null = null;
 let mutationChain: Promise<unknown> = Promise.resolve();
 
 function emit(event: RecordingQueueEvent) {
@@ -394,8 +395,15 @@ async function performSync(activeUserId: Uuid): Promise<void> {
 }
 
 export function syncRecordingQueue(activeUserId: Uuid): Promise<void> {
+  requestedSyncUserId = activeUserId;
   if (syncInFlight) return syncInFlight;
-  syncInFlight = performSync(activeUserId).finally(() => {
+  syncInFlight = (async () => {
+    while (requestedSyncUserId) {
+      const nextUserId = requestedSyncUserId;
+      requestedSyncUserId = null;
+      await performSync(nextUserId);
+    }
+  })().finally(() => {
     syncInFlight = null;
   });
   return syncInFlight;
@@ -403,14 +411,14 @@ export function syncRecordingQueue(activeUserId: Uuid): Promise<void> {
 
 /** Sync after session restore, app foregrounding, and an offline → online transition. */
 export function installRecordingQueueSync(activeUserId: Uuid): () => void {
-  void syncRecordingQueue(activeUserId);
+  void syncRecordingQueue(activeUserId).catch(() => undefined);
   const networkSubscription = NetInfo.addEventListener((state) => {
     if (state.isConnected && state.isInternetReachable !== false) {
-      void syncRecordingQueue(activeUserId);
+      void syncRecordingQueue(activeUserId).catch(() => undefined);
     }
   });
   const appSubscription = AppState.addEventListener("change", (state) => {
-    if (state === "active") void syncRecordingQueue(activeUserId);
+    if (state === "active") void syncRecordingQueue(activeUserId).catch(() => undefined);
   });
   return () => {
     networkSubscription();
