@@ -15,10 +15,6 @@ import type {
   CalendarActivitiesResponse,
   CharacterResponse,
   CounselingCentersResponse,
-  CounselingAppointmentCreateRequest,
-  CounselingAppointmentResponse,
-  CounselingAppointmentUpdateRequest,
-  CounselingAppointmentsResponse,
   DashboardResponse,
   DiariesResponse,
   DiaryDetailResponse,
@@ -681,53 +677,6 @@ export function mockCounselingCenters(
       source_updated_at: daysAgo(30).toISOString(),
     }));
   return { centers, total: centers.length };
-}
-
-const MOCK_APPOINTMENT_ID = "00000000-0000-0000-0000-000000009101";
-
-export function mockCounselingAppointments(): CounselingAppointmentsResponse {
-  return { appointments: [], total: 0 };
-}
-
-export function mockCreateCounselingAppointment(
-  body: CounselingAppointmentCreateRequest,
-): CounselingAppointmentResponse {
-  const now = new Date().toISOString();
-  return {
-    appointment_id: MOCK_APPOINTMENT_ID,
-    guardian_id: MOCK_GUARDIAN_ID,
-    elder_id: body.elder_id,
-    center_id: body.center_id,
-    center_name: "선택한 상담 기관",
-    center_address: null,
-    appointment_at: body.appointment_at,
-    consultation_type: body.consultation_type,
-    status: "requested",
-    note: body.note ?? null,
-    created_at: now,
-    updated_at: now,
-  };
-}
-
-export function mockUpdateCounselingAppointment(
-  id: Uuid,
-  body: CounselingAppointmentUpdateRequest,
-): CounselingAppointmentResponse {
-  const now = new Date().toISOString();
-  return {
-    appointment_id: id,
-    guardian_id: MOCK_GUARDIAN_ID,
-    elder_id: MOCK_ELDER_ID,
-    center_id: "00000000-0000-0000-0000-000000009001",
-    center_name: "선택한 상담 기관",
-    center_address: null,
-    appointment_at: body.appointment_at ?? now,
-    consultation_type: body.consultation_type ?? "counseling",
-    status: "requested",
-    note: body.note ?? null,
-    created_at: now,
-    updated_at: now,
-  };
 }
 
 export function mockHistory(): HistoryResponse {

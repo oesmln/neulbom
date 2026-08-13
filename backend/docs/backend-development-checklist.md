@@ -186,12 +186,11 @@
 
 - [x] `GET /counseling/centers` - 지역별 상담 센터 목록·지도·기관 사이트 링크 조회
 - [ ] `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 조회 (Phase 2)
-- [x] `POST /counseling/appointments` - 상담 예약 생성 (기관·연결·동의 검증 포함)
-- [x] `GET /counseling/appointments` - 본인 상담 예약 목록 조회
-- [x] `PATCH /counseling/appointments/{appointment_id}` - 본인 상담 예약 변경
-- [x] `DELETE /counseling/appointments/{appointment_id}` - 상담 예약 취소
+- [ ] `POST /counseling/appointments` - 상담 예약 생성 (Phase 2)
+- [ ] `GET /counseling/appointments` - 본인 상담 예약 목록 조회 (Phase 2)
+- [ ] `DELETE /counseling/appointments/{appointment_id}` - 상담 예약 취소 (Phase 2)
 
-완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작하고, 연결된 어르신의 예약 신청·조회·변경·취소가 동의 검증과 함께 동작한다. 기관별 실시간 availability 연동은 운영 연동 단계로 남겨둔다.
+완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작한다. availability·예약·취소는 동의·기관 연동 조건을 포함한 Phase 2로 남겨둔다.
 
 구현 근거: `counseling_centers` V9 migration/seed와 `CounselingCenterController`의 지역·기관 유형 필터, 지도·홈페이지 URL, 출처·갱신 시각 응답을 연결했다.
 
@@ -432,7 +431,7 @@
 - [x] 날짜별 일기 생성 작업 상태·실패·재시도를 저장할 `diary_generation_jobs` 구조를 추가한다.
 - [x] `daily_summaries`에 사용자·기준일 unique와 일일 분석 상태를 추가한다.
 - [x] `report_exports`에 요청 멱등키·작업 상태·파일 만료 구조를 추가한다.
-- [x] 상담 기관 기준정보와 예약·상태 이력을 저장할 테이블을 설계한다.
+- [ ] 상담 기관 기준정보와 Phase 2 예약·상태 이력을 저장할 테이블을 설계한다.
 
 ### 2.6 migration·무결성 검증
 
@@ -975,9 +974,9 @@
 - [x] MVP에서는 `reservation_mode=external_link`만 제공한다.
 - [x] 기관 기준정보의 출처·갱신 시각을 반환하고 운영 링크 점검 항목을 분리한다.
 - [ ] `GET /counseling/centers/{center_id}/availability`를 구현한다. (Phase 2)
-- [x] `POST /counseling/appointments`, `GET /counseling/appointments`를 구현한다.
-- [x] `PATCH /counseling/appointments/{appointment_id}` 변경과 `DELETE /counseling/appointments/{appointment_id}` 취소를 구현한다.
-- [x] 예약 전에 연결 관계·개인정보 제공 동의·예약 상태를 검증한다.
+- [ ] `POST /counseling/appointments`, `GET /counseling/appointments`를 구현한다. (Phase 2)
+- [ ] `DELETE /counseling/appointments/{appointment_id}`를 멱등 취소로 구현한다. (Phase 2)
+- [ ] 예약 전에 연결 관계·개인정보 제공 동의·취소 마감·중복 요청을 검증한다. (Phase 2)
 
 ### 11단계 완료 조건
 

@@ -19,7 +19,6 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/ui";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 /**
  * Score trend from `GET /analysis/cognitive/{user_id}/history`.
@@ -91,7 +90,6 @@ export default function GuardianChartScreen() {
       subtitle={
         report.data ? `${report.data.elder_name} · 보호자 모니터링` : "보호자 모니터링"
       }
-      right={<GuardianNotificationButton />}
     />
   );
 

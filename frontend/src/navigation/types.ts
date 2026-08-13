@@ -67,7 +67,6 @@ export type ElderTabParamList = {
  */
 export type GuardianStackParamList = {
   GuardianTabs: NavigatorScreenParams<GuardianTabParamList>;
-  GuardianNotifications: undefined;
   /** 전문의 상담 예약 — reached from the score-drop alert on the dashboard. */
   GuardianCounselingCenters: undefined;
   /** 앱 설정 — reached from the gear button in the dashboard header. */
@@ -78,10 +77,9 @@ export type GuardianStackParamList = {
 
 export type GuardianTabParamList = {
   GuardianDashboard: undefined;
-  GuardianRecord: undefined;
+  GuardianDiary: undefined;
   GuardianChart: undefined;
-  GuardianAppointments: undefined;
-  GuardianSettings: undefined;
+  GuardianNotifications: undefined;
 };
 
 export type RootNav = NativeStackNavigationProp<RootStackParamList>;

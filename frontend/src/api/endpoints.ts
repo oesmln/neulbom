@@ -26,10 +26,6 @@ import type {
   ConsentResponse,
   ConsentsResponse,
   CounselingCentersResponse,
-  CounselingAppointmentCreateRequest,
-  CounselingAppointmentResponse,
-  CounselingAppointmentUpdateRequest,
-  CounselingAppointmentsResponse,
   DashboardResponse,
   DiariesResponse,
   DiaryCreateRequest,
@@ -636,25 +632,5 @@ export const counseling = {
         facility_type: facilityType,
       },
     });
-  },
-
-  appointments(): Promise<CounselingAppointmentsResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockCounselingAppointments());
-    return request("/counseling/appointments");
-  },
-
-  createAppointment(body: CounselingAppointmentCreateRequest): Promise<CounselingAppointmentResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockCreateCounselingAppointment(body));
-    return request("/counseling/appointments", { method: "POST", body });
-  },
-
-  updateAppointment(id: Uuid, body: CounselingAppointmentUpdateRequest): Promise<CounselingAppointmentResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockUpdateCounselingAppointment(id, body));
-    return request(`/counseling/appointments/${id}`, { method: "PATCH", body });
-  },
-
-  cancelAppointment(id: Uuid): Promise<void> {
-    if (USE_MOCK_API) return Promise.resolve();
-    return request(`/counseling/appointments/${id}`, { method: "DELETE" });
   },
 };
