@@ -229,6 +229,11 @@ class SessionIntegrationTest {
     @Test
     void baselineSessionUsesCistQuestionsAndMarksTheUserAsCompleted() throws Exception {
         UserEntity elder = saveUser("baseline-owner", "elder");
+        Instant now = Instant.now();
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "analysis", true, now, "test-v1", now));
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "voice_collection", true, now, "test-v1", now));
 
         String sessionBody = mockMvc.perform(post("/api/v1/sessions")
                         .with(jwtFor(elder))
@@ -255,6 +260,18 @@ class SessionIntegrationTest {
 
         org.assertj.core.api.Assertions.assertThat(userRepository.findById(elder.getId()).orElseThrow().isBaselineCompleted())
                 .isTrue();
+    }
+
+    @Test
+    void baselineSessionRequiresAnalysisAndVoiceConsents() throws Exception {
+        UserEntity elder = saveUser("baseline-consent-required", "elder");
+
+        mockMvc.perform(post("/api/v1/sessions")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"baseline\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("인지 활동 분석 동의가 필요합니다."));
     }
 
     private UserEntity saveUser(String prefix, String role) {
