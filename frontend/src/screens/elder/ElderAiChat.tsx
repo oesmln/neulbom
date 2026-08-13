@@ -78,6 +78,7 @@ export default function ElderAiChatScreen() {
   const [answers, setAnswers] = React.useState<string[]>([]);
   const [recordingIds, setRecordingIds] = React.useState<Array<Uuid | null>>([]);
   const [submitting, setSubmitting] = React.useState(false);
+  const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
@@ -114,6 +115,7 @@ export default function ElderAiChatScreen() {
     setIndex(0);
     setAnswers([]);
     setRecordingIds([]);
+    setSubmissionError(null);
   };
 
   const recordAnswer = () => {
@@ -123,6 +125,7 @@ export default function ElderAiChatScreen() {
   const advance = async () => {
     if (!question || !session.data || submitting) return;
     setSubmitting(true);
+    setSubmissionError(null);
     const sessionId = session.data.session_id;
 
     try {
@@ -144,8 +147,9 @@ export default function ElderAiChatScreen() {
         return;
       }
       setIndex(index + 1);
-    } catch {
+    } catch (cause) {
       // Keep the answer on screen so the same tap can be retried.
+      setSubmissionError(apiErrorMessage(cause));
     } finally {
       setSubmitting(false);
     }
@@ -226,6 +230,9 @@ export default function ElderAiChatScreen() {
       </ScrollView>
 
       <View style={styles.composer}>
+        {submissionError ? (
+          <Text style={styles.submissionError}>{submissionError}</Text>
+        ) : null}
         {answered ? (
           <Button
             label={isLast ? "대화 마치기" : "다음 질문"}
@@ -356,6 +363,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   myText: { fontSize: fontSize.body, color: colors.white, lineHeight: 22 },
+  submissionError: {
+    fontSize: fontSize.caption,
+    color: colors.destructive,
+    textAlign: "center",
+  },
 
   composer: {
     paddingHorizontal: spacing.xl,
