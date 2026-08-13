@@ -18,8 +18,8 @@ class FileUploadValidatorTest {
             "./uploads",
             "neulbom-test",
             DataSize.ofMegabytes(25),
-            List.of("audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4"),
-            List.of("wav", "mp3", "m4a")
+            List.of("audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/webm"),
+            List.of("wav", "mp3", "m4a", "webm")
     ));
 
     @Test
@@ -35,7 +35,7 @@ class FileUploadValidatorTest {
     }
 
     @Test
-    void rejectsFormatNotPresentInApiContract() {
+    void acceptsWebmRecordedByExpoWeb() {
         MockMultipartFile file = new MockMultipartFile(
                 "audio_file",
                 "answer.webm",
@@ -43,10 +43,7 @@ class FileUploadValidatorTest {
                 new byte[]{1, 2, 3}
         );
 
-        assertThatThrownBy(() -> validator.validate(file))
-                .isInstanceOf(ApiException.class)
-                .satisfies(error -> org.assertj.core.api.Assertions.assertThat(((ApiException) error).error())
-                        .isEqualTo("지원하지 않는 파일 확장자입니다."));
+        validator.validate(file);
     }
 
     @Test

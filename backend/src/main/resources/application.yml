@@ -52,8 +52,8 @@ app:
     local-root: ${FILE_STORAGE_LOCAL_ROOT:./uploads}
     bucket: ${FILE_STORAGE_BUCKET:neulbom-local}
     max-file-size: ${APP_MAX_UPLOAD_SIZE:25MB}
-    allowed-mime-types: ${APP_ALLOWED_MIME_TYPES:audio/wav,audio/x-wav,audio/mpeg,audio/mp4}
-    allowed-extensions: ${APP_ALLOWED_FILE_EXTENSIONS:wav,mp3,m4a}
+    allowed-mime-types: ${APP_ALLOWED_MIME_TYPES:audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/webm}
+    allowed-extensions: ${APP_ALLOWED_FILE_EXTENSIONS:wav,mp3,m4a,webm}
   external-api:
     connect-timeout: ${EXTERNAL_API_CONNECT_TIMEOUT:3s}
     read-timeout: ${EXTERNAL_API_READ_TIMEOUT:30s}
