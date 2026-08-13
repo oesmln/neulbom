@@ -159,8 +159,15 @@ export interface VoiceProfilesResponse {
   voice_profiles: VoiceProfileResponse[];
 }
 
+export type ConsentType =
+  | "data_sharing"
+  | "guardian_access"
+  | "analysis"
+  | "voice_collection"
+  | "research_use";
+
 export interface ConsentRequest {
-  consent_type: string;
+  consent_type: ConsentType;
   agreed: boolean;
   agreed_at: IsoInstant;
   version: string;
@@ -168,7 +175,7 @@ export interface ConsentRequest {
 
 export interface ConsentResponse {
   consent_id: Uuid;
-  consent_type: string;
+  consent_type: ConsentType;
   agreed: boolean;
   agreed_at: IsoInstant;
   version: string;
@@ -325,6 +332,11 @@ export interface RecordingStatusResponse {
 
 /** `stable | observe | attention_required` — the server decides, never the app. */
 export type CognitiveStatus = "stable" | "observe" | "attention_required";
+export type AnalysisStatus = "pending" | "processing" | "completed" | "failed";
+export type ScreeningResultType =
+  | "positive_feedback"
+  | "follow_up_recommended"
+  | "insufficient_data";
 
 export interface DashboardCharacterSummary {
   level: number;
@@ -338,8 +350,8 @@ export interface DashboardCharacterSummary {
 
 export interface DashboardScreeningSummary {
   session_id: Uuid;
-  result_status: string;
-  result_type: string | null;
+  result_status: AnalysisStatus;
+  result_type: ScreeningResultType | null;
   display_label: string | null;
   message: string | null;
   recommendation: string | null;
@@ -422,8 +434,8 @@ export interface ScreeningResultResponse {
   session_id: Uuid;
   user_id: Uuid;
   session_type: string;
-  result_status: string;
-  result_type?: string;
+  result_status: AnalysisStatus;
+  result_type?: ScreeningResultType;
   display_label?: string;
   message?: string;
   recommendation?: string;
@@ -599,7 +611,7 @@ export interface DiaryCreateRequest {
 export interface GenerationStatusResponse {
   generation_job_id: Uuid | null;
   target_date: IsoDate;
-  status: string;
+  status: "scheduled" | "processing" | "completed" | "failed" | "conversation_incomplete";
   scheduled_at: IsoInstant | null;
   available_at: IsoInstant | null;
   diary_id: Uuid | null;

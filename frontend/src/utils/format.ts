@@ -71,8 +71,14 @@ export function diaryDateLabel(value: string): string {
  * presentation choice, so the mapping lives here rather than in each screen.
  */
 export function moodEmoji(mood: string | null, level: number | null): string {
-  if (mood === "good" || (level ?? 0) >= 5) return "😄";
-  if (mood === "bad" || (level !== null && level <= 2)) return "😔";
+  if (mood === "very_happy" || mood === "good" || (level ?? 0) >= 5) return "😄";
+  if (mood === "happy" || level === 4) return "😊";
+  if (
+    mood === "very_sad" ||
+    mood === "sad" ||
+    mood === "bad" ||
+    (level !== null && level <= 2)
+  ) return "😔";
   if (mood === "neutral" || level === 3) return "😐";
   return "😊";
 }

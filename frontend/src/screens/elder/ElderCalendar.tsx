@@ -87,6 +87,14 @@ export default function ElderCalendarScreen() {
     isoDateOf(new Date(today.getFullYear(), today.getMonth(), day));
 
   const selectedDiary = diaryByDate.get(selected);
+  const todayDate = isoDateOf(today);
+  const showGenerationStatus =
+    selected === todayDate && Boolean(diaryList.data) && !selectedDiary;
+  const generation = useApi(
+    () => diariesApi.generationStatus(userId as string, selected),
+    [userId, selected],
+    { enabled: !!userId && showGenerationStatus },
+  );
   const loading = calendar.loading || diaryList.loading;
   const error = calendar.error ?? diaryList.error;
 
@@ -156,6 +164,20 @@ export default function ElderCalendarScreen() {
                 </Text>
                 <Body>{selectedDiary.preview ?? selectedDiary.title ?? ""}</Body>
               </>
+            ) : showGenerationStatus && generation.error ? (
+              <ErrorState
+                message={apiErrorMessage(generation.error)}
+                onRetry={generation.reload}
+              />
+            ) : showGenerationStatus && !generation.data ? (
+              <LoadingState label="일기 준비 상태를 확인하고 있어요" />
+            ) : showGenerationStatus && generation.data ? (
+              <View style={styles.generationStatus}>
+                <Text style={styles.generationLabel}>
+                  {generation.data.display_label ?? "일기를 준비하고 있어요"}
+                </Text>
+                <Body>{generation.data.message ?? "잠시 후 다시 확인해 주세요."}</Body>
+              </View>
             ) : (
               <Body>아직 이 날의 일기가 없어요.</Body>
             )}
@@ -179,5 +201,11 @@ const styles = StyleSheet.create({
   today: { backgroundColor: colors.primary },
   dayNum: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.foreground },
   mood: { fontSize: 14, marginTop: 1 },
+  generationStatus: { marginTop: spacing.sm, gap: spacing.xs },
+  generationLabel: {
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
+    color: colors.foreground,
+  },
   legend: { marginTop: spacing.lg, alignItems: "center" },
 });

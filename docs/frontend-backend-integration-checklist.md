@@ -34,6 +34,8 @@
 ### 1.2 인증과 세션
 
 - [ ] 회원가입 후 반환된 `user_id`, `role`, `profile_completed`가 프론트 타입과 일치한다.
+- [x] `profile_completed=false`인 신규·기존 사용자를 프로필·동의 온보딩으로 분기한다. (`2026-08-13`, Issue #58)
+- [x] 프로필과 필수 동의를 저장한 뒤 완료 상태를 세션에 반영하고 재로그인 시 온보딩을 건너뛴다. (`2026-08-13`, Expo Web 실 API)
 - [ ] 이메일 로그인 후 access token과 refresh token을 SecureStore에 저장한다.
 - [ ] 보호 API 요청에 `Authorization: Bearer {access_token}`을 첨부한다.
 - [ ] access token 만료 시 refresh 요청을 한 번만 수행하고 원래 요청을 재시도한다.
@@ -46,13 +48,13 @@
 
 | 영역 | 프론트 동작 | 백엔드 API | 확인 |
 | --- | --- | --- | --- |
-| 사용자 | 프로필 조회·수정 | `GET/PATCH /users/{userId}` | [ ] |
+| 사용자 | 프로필 조회·수정 | `GET/PATCH /users/{userId}` | [x] |
 | 사용자 | 환경설정 조회·수정 | `GET/PATCH /users/{userId}/preferences` | [ ] |
 | 사용자 | 음성 프로필 조회 | `GET /voice-profiles` | [ ] |
 | 동의 | 동의 저장·조회 | `POST/GET /consent/{userId}` | [ ] |
-| 세션 | 검사·정서 문답 시작, 조회, 종료 | `POST /sessions`, `GET/PATCH /sessions/{sessionId}` | [ ] |
-| 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [ ] |
-| 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [ ] |
+| 세션 | 검사·정서 문답 시작, 조회, 종료 | `POST /sessions`, `GET/PATCH /sessions/{sessionId}` | [x] |
+| 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [x] |
+| 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [x] |
 | 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [ ] |
 | 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
 | 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
@@ -104,7 +106,7 @@
 
 | 프론트 기능 | 현재 확인할 내용 | 판정 | 후속 작업 |
 | --- | --- | --- | --- |
-| 캠페인 화면 | Entity와 정적 화면만 있고 Controller/API가 없음 | 구현 누락 | 캠페인 조회·참여 API 및 화면 연결 Issue 필요 |
+| 캠페인 화면 | Entity와 정적 화면만 있고 Controller/API가 없음 | 범위 제외 | 이번 통합에서는 API를 연결하지 않음 |
 | 앱 다크 모드·글씨 크기 | `SecureStore` 기반 기기 로컬 설정으로 명시되어 있음 | 의도적인 로컬 기능 | 서버 동기화 요구가 생길 때 별도 검토 |
 | 캐릭터 표시·상호작용 | 서버 캐릭터 상태와 화면의 로컬 상태가 일치하는지 | [ ] | |
 | 녹음 UI·재전송 | 실제 캡처·업로드·메모리 내 동일 ID 재시도는 구현, 앱 재실행을 버티는 오프라인 queue는 없음 | 부분 구현 | 영속 queue는 후속 Issue 필요 |
@@ -115,10 +117,10 @@
 
 | 화면/기능 | 프론트 근거 파일 | 필요한 백엔드 계약 | 분류 | 관련 Issue |
 | --- | --- | --- | --- | --- |
-| 캠페인 목록·참여 | `frontend/src/screens/elder/ElderCampaign.tsx` | `GET /campaigns`, `POST /campaigns/{id}/participations` 등 | 구현 누락 | #56 |
+| 캠페인 목록·참여 | `frontend/src/screens/elder/ElderCampaign.tsx` | `GET /campaigns`, `POST /campaigns/{id}/participations` 등 | 범위 제외 | - |
 | 표시 설정 | `frontend/src/store/settings.ts` | 없음 | 의도적인 로컬 기능 | #56 |
-| 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}` | 프론트 부분 구현 | #56 |
-| 녹음 영속 재전송 queue | `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 프론트 부분 구현 | #56 |
+| 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}` | 프론트 부분 구현 | #60 |
+| 녹음 영속 재전송 queue | `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 프론트 부분 구현 | #61 |
 
 ## 3. 백엔드에는 있지만 프론트엔드에는 구현되지 않은 기능
 
