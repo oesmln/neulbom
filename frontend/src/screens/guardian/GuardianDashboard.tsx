@@ -17,6 +17,7 @@ import {
   ScreenHeader,
   Card,
   Badge,
+  Button,
   Body,
   Caption,
   ProgressBar,
@@ -77,14 +78,15 @@ export default function GuardianDashboardScreen() {
   const navigation = useNavigation<GuardianNav>();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
 
-  const elders = useApi(() => guardianApi.elders(userId as string), [userId], {
+  const elders = useApi(() => guardianApi.elders(userId as string, "active"), [userId], {
     enabled: !!userId,
   });
 
   // The dashboard is what chooses the elder the other guardian tabs read.
   React.useEffect(() => {
-    const first = elders.data?.elders[0];
-    if (first && !selectedElderId) setSelectedElderId(first.elder_id);
+    if (!elders.data) return;
+    const stillLinked = elders.data.elders.some((elder) => elder.elder_id === selectedElderId);
+    if (!stillLinked) setSelectedElderId(elders.data.elders[0]?.elder_id ?? null);
   }, [elders.data, selectedElderId, setSelectedElderId]);
 
   const elderId = selectedElderId ?? elders.data?.elders[0]?.elder_id ?? null;
@@ -110,15 +112,26 @@ export default function GuardianDashboardScreen() {
         report.data ? `${report.data.elder_name}님의 인지 상태를 모니터링 중` : undefined
       }
       right={
-        <Pressable
-          onPress={() => navigation.navigate("GuardianAppSettings")}
-          accessibilityRole="button"
-          accessibilityLabel="앱 설정"
-          hitSlop={8}
-          style={styles.gear}
-        >
-          <Ionicons name="settings-outline" size={18} color={colors.white} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => navigation.navigate("GuardianConnections")}
+            accessibilityRole="button"
+            accessibilityLabel="보호자 연결 관리"
+            hitSlop={8}
+            style={styles.gear}
+          >
+            <Ionicons name="people-outline" size={18} color={colors.white} />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("GuardianAppSettings")}
+            accessibilityRole="button"
+            accessibilityLabel="앱 설정"
+            hitSlop={8}
+            style={styles.gear}
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.white} />
+          </Pressable>
+        </View>
       }
     />
   );
@@ -137,6 +150,12 @@ export default function GuardianDashboardScreen() {
         <EmptyState
           message={"연결된 어르신이 없어요.\n초대 코드로 먼저 연결해 주세요."}
           icon="people-outline"
+        />
+        <Button
+          label="초대 코드 만들기"
+          icon="person-add-outline"
+          onPress={() => navigation.navigate("GuardianConnections")}
+          style={{ backgroundColor: guardian.blue }}
         />
       </Screen>
     );
@@ -166,6 +185,7 @@ export default function GuardianDashboardScreen() {
   }
 
   const data = report.data;
+  const elderItems = elders.data?.elders ?? [];
   const badge = riskBadge(data.latest_risk_level);
   const scoreMax = data.latest_score_max ?? DEFAULT_SCORE_MAX;
   const score = data.latest_display_score;
@@ -180,6 +200,31 @@ export default function GuardianDashboardScreen() {
 
   return (
     <Screen header={header}>
+      {elderItems.length > 1 ? (
+        <Card style={styles.elderSelector}>
+          <Caption>확인할 어르신</Caption>
+          <View style={styles.elderOptions}>
+            {elderItems.map((elder) => {
+              const selected = elder.elder_id === elderId;
+              return (
+                <Pressable
+                  key={elder.elder_id}
+                  onPress={() => setSelectedElderId(elder.elder_id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${elder.elder_name} 어르신 선택`}
+                  accessibilityState={{ selected }}
+                  style={[styles.elderOption, selected && styles.elderOptionSelected]}
+                >
+                  <Text style={[styles.elderOptionLabel, selected && { color: guardian.blueDark }]}>
+                    {elder.elder_name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Card>
+      ) : null}
+
       {/* ② 피보호자 현황 */}
       <Card>
         <Caption style={styles.eyebrow}>피보호자 현황</Caption>
@@ -357,6 +402,7 @@ export default function GuardianDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: "row", gap: spacing.sm },
   gear: {
     width: 36,
     height: 36,
@@ -364,6 +410,23 @@ const styles = StyleSheet.create({
     backgroundColor: onHeader.surface,
     alignItems: "center",
     justifyContent: "center",
+  },
+  elderSelector: { marginBottom: spacing.lg, gap: spacing.sm },
+  elderOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  elderOption: {
+    minHeight: 44,
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+  },
+  elderOptionSelected: { borderColor: guardian.blue, backgroundColor: guardian.blueLight },
+  elderOptionLabel: {
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.mutedForeground,
   },
   eyebrow: { letterSpacing: 0.7, marginBottom: spacing.md },
   rowBetween: {
