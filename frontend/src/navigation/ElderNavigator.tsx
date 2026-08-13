@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderStackParamList, ElderTabParamList } from "@/navigation/types";
-import { colors, fontSize, fontWeight, sizes, shadow } from "@/theme";
+import { colors, fontWeight, sizes } from "@/theme";
 
 import ElderHomeScreen from "@/screens/elder/ElderHome";
 import ElderCistScreen from "@/screens/elder/ElderCist";
@@ -20,6 +20,11 @@ import ElderCalendarScreen from "@/screens/elder/ElderCalendar";
 import ElderCampaignScreen from "@/screens/elder/ElderCampaign";
 import ElderGameHubScreen from "@/screens/elder/ElderGameHub";
 import ElderMyPageScreen from "@/screens/elder/ElderMyPage";
+import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
+import ElderAppSettingsScreen from "@/screens/elder/ElderAppSettings";
+import ElderGameCardMatchScreen from "@/screens/elder/games/ElderGameCardMatch";
+import ElderGameColorScreen from "@/screens/elder/games/ElderGameColor";
+import ElderGameConsonantScreen from "@/screens/elder/games/ElderGameConsonant";
 
 const Tab = createBottomTabNavigator<ElderTabParamList>();
 const Stack = createNativeStackNavigator<ElderStackParamList>();
@@ -29,17 +34,18 @@ type TabKey = keyof ElderTabParamList;
 const TAB_META: Record<TabKey, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   ElderAiChat: { label: "AI 대화", icon: "chatbubbles-outline" },
   ElderCalendar: { label: "일기", icon: "calendar-outline" },
-  ElderHome: { label: "홈", icon: "home" },
+  ElderHome: { label: "홈", icon: "home-outline" },
   ElderGameHub: { label: "게임", icon: "game-controller-outline" },
   ElderMyPage: { label: "마이", icon: "person-outline" },
 };
 
 /**
- * Bottom bar with 홈 raised out of the middle.
+ * Bottom bar — five tabs of the same shape.
  *
- * The default tab bar cannot lift one item above the bar, so this replaces it
- * wholesale. The raised button overflows the bar upwards, which means the bar
- * itself must not clip — hence no `overflow: hidden` anywhere on the way down.
+ * The Figma lifts 홈 out of the bar as a raised circle; the team asked for a
+ * flat bar instead, so every tab is icon + label and only colour and weight
+ * mark the active one. Still a custom bar rather than the default one because
+ * the default cannot change icon stroke weight between states.
  */
 function ElderTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -50,7 +56,6 @@ function ElderTabBar({ state, navigation }: BottomTabBarProps) {
         const key = route.name as TabKey;
         const meta = TAB_META[key];
         const focused = state.index === index;
-        const isHome = key === "ElderHome";
 
         const onPress = () => {
           const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -66,29 +71,11 @@ function ElderTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityLabel={meta.label}
             style={styles.tab}
           >
-            {isHome ? (
-              <View
-                style={[
-                  styles.homeButton,
-                  {
-                    backgroundColor: focused ? colors.primary : colors.white,
-                    borderColor: focused ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="home"
-                  size={22}
-                  color={focused ? colors.white : colors.mutedForeground}
-                />
-              </View>
-            ) : (
-              <Ionicons
-                name={meta.icon}
-                size={21}
-                color={focused ? colors.primary : colors.mutedForeground}
-              />
-            )}
+            <Ionicons
+              name={meta.icon}
+              size={21}
+              color={focused ? colors.primary : colors.mutedForeground}
+            />
             <Text
               style={[
                 styles.tabLabel,
@@ -134,6 +121,11 @@ export default function ElderNavigator() {
       <Stack.Screen name="ElderResult" component={ElderResultScreen} />
       <Stack.Screen name="ElderNotifications" component={ElderNotificationsScreen} />
       <Stack.Screen name="ElderCampaign" component={ElderCampaignScreen} />
+      <Stack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
+      <Stack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
+      <Stack.Screen name="ElderGameCardMatch" component={ElderGameCardMatchScreen} />
+      <Stack.Screen name="ElderGameColor" component={ElderGameColorScreen} />
+      <Stack.Screen name="ElderGameConsonant" component={ElderGameConsonantScreen} />
     </Stack.Navigator>
   );
 }
@@ -148,15 +140,4 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4, paddingBottom: 6 },
   tabLabel: { fontSize: 10 },
-  homeButton: {
-    position: "absolute",
-    bottom: 20,
-    width: sizes.tabBarHomeButton,
-    height: sizes.tabBarHomeButton,
-    borderRadius: sizes.tabBarHomeButton / 2,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    ...shadow.floating,
-  },
 });

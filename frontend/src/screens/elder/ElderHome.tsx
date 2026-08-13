@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,11 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
-import type { DashboardCognitiveActivity, DashboardTask } from "@/api/types";
+import type {
+  DashboardCognitiveActivity,
+  DashboardDiarySummary,
+  DashboardTask,
+} from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, cognitiveStages } from "@/theme";
 import { Badge, Card, ErrorState, LoadingState } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -50,6 +54,22 @@ function taskBadge(task: DashboardTask): { label: string; color: string; backgro
   return { label: "3가지 게임", color: colors.success, background: colors.successLight };
 }
 
+/**
+ * Yesterday's diary, rendered as one more feature card alongside 정서 문답 and
+ * 두뇌 게임 — same `Card`, same row layout, same badge treatment.
+ *
+ * The status wording is the server's — `display_label` and `message` come from
+ * `latest_diary`, and only the badge colour is decided here. The prototype
+ * hardcoded "생성 완료"; deriving it from `generation_status` keeps the card
+ * honest when the overnight job is still running or failed.
+ */
+function diaryBadge(status: string): { color: string; background: string } {
+  if (status === "completed") {
+    return { color: colors.success, background: colors.successLight };
+  }
+  return { color: colors.warning, background: colors.warningLight };
+}
+
 function referenceLabel(date: string | null): string | null {
   if (!date) return null;
   const [y, m, d] = date.split("-");
@@ -71,6 +91,27 @@ export default function ElderHomeScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
         <View style={styles.stage}>
+          <Pressable
+            onPress={() => navigation.navigate("ElderNotifications")}
+            accessibilityRole="button"
+            accessibilityLabel={
+              data && data.unread_notification_count > 0
+                ? `알림 ${data.unread_notification_count}건`
+                : "알림"
+            }
+            hitSlop={8}
+            style={styles.bell}
+          >
+            <Ionicons name="notifications-outline" size={20} color={colors.white} />
+            {data && data.unread_notification_count > 0 ? (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellCount}>
+                  {data.unread_notification_count > 9 ? "9+" : data.unread_notification_count}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+
           <Memoi3D character={DEFAULT_MEMOI} height={116} style={{ width: 150 }} />
           <Text style={styles.greeting}>{greeting}</Text>
           <Text style={styles.name}>{userName ? `${userName} 어르신` : "어르신"}</Text>
@@ -126,12 +167,44 @@ export default function ElderHomeScreen() {
               })
             : null}
 
+          {data?.latest_diary ? <DiaryCard diary={data.latest_diary} /> : null}
+
           {data?.cognitive_activity ? (
             <CognitiveStatusCard activity={data.cognitive_activity} />
           ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function DiaryCard({ diary }: { diary: DashboardDiarySummary }) {
+  const navigation = useNavigation<ElderNav>();
+  const badge = diaryBadge(diary.generation_status);
+
+  return (
+    <Card
+      onPress={() => navigation.navigate("ElderTabs", { screen: "ElderCalendar" })}
+      accessibilityLabel={`일기. ${diary.message ?? ""}`}
+      style={styles.feature}
+    >
+      <View style={styles.featureRow}>
+        <View style={{ flex: 1, paddingRight: spacing.md }}>
+          <View style={styles.featureTitleRow}>
+            <Text style={styles.featureTitle}>일기</Text>
+            {diary.display_label ? (
+              <Badge
+                label={diary.display_label}
+                color={badge.color}
+                background={badge.background}
+              />
+            ) : null}
+          </View>
+          {diary.message ? <Text style={styles.featureDesc}>{diary.message}</Text> : null}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.mutedForeground} />
+      </View>
+    </Card>
   );
 }
 
@@ -208,6 +281,31 @@ function CognitiveStatusCard({ activity }: { activity: DashboardCognitiveActivit
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
+  bell: {
+    position: "absolute",
+    top: spacing.lg,
+    right: spacing.xl,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.destructive,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bellCount: { fontSize: 9, fontWeight: fontWeight.bold, color: colors.white },
   stage: {
     backgroundColor: colors.primary,
     alignItems: "center",

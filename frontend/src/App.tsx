@@ -7,7 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { RootStackParamList } from "@/navigation/types";
 import { navigationRef } from "@/navigation/ref";
-import { colors } from "@/theme";
+import { colors, isDarkApplied } from "@/theme";
 import { AppProvider } from "@/store/AppContext";
 
 import SplashScreen from "@/screens/auth/SplashScreen";
@@ -40,7 +40,7 @@ export default function App() {
     <SafeAreaProvider>
       <AppProvider>
         <NavigationContainer ref={navigationRef} theme={navTheme}>
-          <StatusBar style="dark" />
+          <StatusBar style={isDarkApplied() ? "light" : "dark"} />
           <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />

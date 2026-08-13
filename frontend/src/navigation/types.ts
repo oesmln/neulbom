@@ -38,6 +38,14 @@ export type ElderStackParamList = {
   ElderResult: { sessionId: string } | undefined;
   ElderNotifications: undefined;
   ElderCampaign: undefined;
+  /** 비밀번호 변경 — reached from 마이페이지. */
+  ElderPasswordChange: undefined;
+  /** 앱 설정 — reached from 마이페이지. */
+  ElderAppSettings: undefined;
+  /** 두뇌 게임 3종 — pushed over the tabs from the game hub. */
+  ElderGameCardMatch: undefined;
+  ElderGameColor: undefined;
+  ElderGameConsonant: undefined;
 };
 
 /** Bottom tabs: 홈 sits in the middle as a raised button. */
@@ -49,7 +57,21 @@ export type ElderTabParamList = {
   ElderMyPage: undefined;
 };
 
-/** Guardian area */
+/**
+ * Guardian area.
+ *
+ * Tabs sit inside a stack for the same reason the elder side does: 상담 예약 and
+ * 앱 설정 are reached from the dashboard and push over the tabs rather than
+ * becoming tabs of their own.
+ */
+export type GuardianStackParamList = {
+  GuardianTabs: NavigatorScreenParams<GuardianTabParamList>;
+  /** 전문의 상담 예약 — reached from the score-drop alert on the dashboard. */
+  GuardianCounselingCenters: undefined;
+  /** 앱 설정 — reached from the gear button in the dashboard header. */
+  GuardianAppSettings: undefined;
+};
+
 export type GuardianTabParamList = {
   GuardianDashboard: undefined;
   GuardianDiary: undefined;
@@ -59,3 +81,4 @@ export type GuardianTabParamList = {
 
 export type RootNav = NativeStackNavigationProp<RootStackParamList>;
 export type ElderNav = NativeStackNavigationProp<ElderStackParamList>;
+export type GuardianNav = NativeStackNavigationProp<GuardianStackParamList>;

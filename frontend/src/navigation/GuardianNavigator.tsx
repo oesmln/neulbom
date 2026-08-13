@@ -1,51 +1,134 @@
 import React from "react";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import {
+  createBottomTabNavigator,
+  type BottomTabBarProps,
+} from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { GuardianTabParamList } from "@/navigation/types";
-import { colors, fontWeight, sizes } from "@/theme";
+import { GuardianStackParamList, GuardianTabParamList } from "@/navigation/types";
+import { colors, fontWeight, guardian, sizes } from "@/theme";
 
 import GuardianDashboardScreen from "@/screens/guardian/GuardianDashboard";
 import GuardianDiaryScreen from "@/screens/guardian/GuardianDiary";
 import GuardianChartScreen from "@/screens/guardian/GuardianChart";
 import GuardianNotificationsScreen from "@/screens/guardian/GuardianNotifications";
+import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounselingCenters";
+import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
+const Stack = createNativeStackNavigator<GuardianStackParamList>();
 
-export default function GuardianNavigator() {
+type TabKey = keyof GuardianTabParamList;
+
+const TAB_META: Record<TabKey, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  GuardianDashboard: { label: "홈", icon: "home-outline" },
+  GuardianDiary: { label: "일기", icon: "eye-outline" },
+  GuardianChart: { label: "추이", icon: "bar-chart-outline" },
+  GuardianNotifications: { label: "알림", icon: "notifications-outline" },
+};
+
+/**
+ * Guardian tab bar.
+ *
+ * Hand-drawn rather than configured through `screenOptions` because the design
+ * changes icon stroke weight as well as colour between states, and the default
+ * bar only exposes a tint colour.
+ */
+function GuardianTabBar({ state, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View
+      style={[
+        styles.tabBar,
+        { height: sizes.tabBarHeight + insets.bottom, paddingBottom: insets.bottom + 8 },
+      ]}
+    >
+      {state.routes.map((route, index) => {
+        const key = route.name as TabKey;
+        const meta = TAB_META[key];
+        const focused = state.index === index;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+        };
+
+        return (
+          <Pressable
+            key={route.key}
+            onPress={onPress}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: focused }}
+            accessibilityLabel={meta.label}
+            style={styles.tab}
+          >
+            <Ionicons
+              name={meta.icon}
+              size={20}
+              color={focused ? guardian.blue : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color: focused ? guardian.blue : colors.mutedForeground,
+                  fontWeight: focused ? fontWeight.semibold : fontWeight.normal,
+                },
+              ]}
+            >
+              {meta.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function GuardianTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarStyle: {
-          height: sizes.tabBarHeight,
-          paddingBottom: 12,
-          paddingTop: 8,
-          borderTopColor: colors.border,
-          backgroundColor: colors.background,
-        },
-        tabBarLabelStyle: { fontSize: 13, fontWeight: fontWeight.semibold },
-        tabBarIcon: ({ color, size }) => {
-          const map: Record<keyof GuardianTabParamList, keyof typeof Ionicons.glyphMap> = {
-            GuardianDashboard: "grid",
-            GuardianDiary: "heart",
-            GuardianChart: "trending-up",
-            GuardianNotifications: "notifications",
-          };
-          return <Ionicons name={map[route.name]} size={size + 4} color={color} />;
-        },
-      })}
+      initialRouteName="GuardianDashboard"
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <GuardianTabBar {...props} />}
     >
-      <Tab.Screen name="GuardianDashboard" component={GuardianDashboardScreen} options={{ title: "대시보드" }} />
-      <Tab.Screen name="GuardianDiary" component={GuardianDiaryScreen} options={{ title: "일기·반응" }} />
-      <Tab.Screen name="GuardianChart" component={GuardianChartScreen} options={{ title: "위험추이" }} />
-      <Tab.Screen
-        name="GuardianNotifications"
-        component={GuardianNotificationsScreen}
-        options={{ title: "알림" }}
-      />
+      <Tab.Screen name="GuardianDashboard" component={GuardianDashboardScreen} />
+      <Tab.Screen name="GuardianDiary" component={GuardianDiaryScreen} />
+      <Tab.Screen name="GuardianChart" component={GuardianChartScreen} />
+      <Tab.Screen name="GuardianNotifications" component={GuardianNotificationsScreen} />
     </Tab.Navigator>
   );
 }
+
+export default function GuardianNavigator() {
+  return (
+    <Stack.Navigator initialRouteName="GuardianTabs" screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="GuardianTabs" component={GuardianTabs} />
+      <Stack.Screen
+        name="GuardianCounselingCenters"
+        component={GuardianCounselingCentersScreen}
+      />
+      <Stack.Screen name="GuardianAppSettings" component={GuardianAppSettingsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    backgroundColor: colors.white,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  tab: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4, paddingBottom: 6 },
+  tabLabel: { fontSize: 10 },
+});

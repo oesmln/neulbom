@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, radius, spacing, fontSize, fontWeight, sizes, shadow } from "@/theme";
+import { colors, onHeader, radius, spacing, fontSize, fontWeight, sizes, shadow } from "@/theme";
 
 /* ----------------------------------------------------------------- Screen */
 
@@ -74,6 +74,7 @@ export function Screen({
 export function ScreenHeader({
   title,
   subtitle,
+  eyebrow,
   onBack,
   backLabel,
   right,
@@ -82,6 +83,8 @@ export function ScreenHeader({
 }: {
   title?: string;
   subtitle?: string;
+  /** Small tracked-out label above the title, e.g. 보호자 모드 on the guardian dashboard. */
+  eyebrow?: string;
   onBack?: () => void;
   backLabel?: string;
   right?: React.ReactNode;
@@ -98,7 +101,7 @@ export function ScreenHeader({
           hitSlop={10}
           style={styles.headerBackLink}
         >
-          <Ionicons name="chevron-back" size={16} color="rgba(255,255,255,0.65)" />
+          <Ionicons name="chevron-back" size={16} color={onHeader.action} />
           <Text style={styles.headerBackLabel}>{backLabel}</Text>
         </Pressable>
       ) : null}
@@ -117,6 +120,7 @@ export function ScreenHeader({
         ) : null}
 
         <View style={{ flex: 1 }}>
+          {eyebrow ? <Text style={styles.headerEyebrow}>{eyebrow}</Text> : null}
           {title ? <Text style={styles.headerTitle}>{title}</Text> : null}
           {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
         </View>
@@ -327,8 +331,21 @@ export function Subtitle({ children, style }: { children: React.ReactNode; style
   return <Text style={[styles.subtitle, style]}>{children}</Text>;
 }
 
-export function Body({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.body, style]}>{children}</Text>;
+export function Body({
+  children,
+  style,
+  numberOfLines,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<TextStyle>;
+  /** Truncate to N lines — list rows that preview longer copy need this. */
+  numberOfLines?: number;
+}) {
+  return (
+    <Text style={[styles.body, style]} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
 }
 
 export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
@@ -485,9 +502,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
   },
   headerBackLink: { flexDirection: "row", alignItems: "center", marginBottom: spacing.lg },
-  headerBackLabel: { fontSize: fontSize.caption, color: "rgba(255,255,255,0.65)", marginLeft: 2 },
+  headerBackLabel: { fontSize: fontSize.caption, color: onHeader.action, marginLeft: 2 },
   headerTitle: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.white },
-  headerSubtitle: { fontSize: fontSize.caption, color: "rgba(255,255,255,0.6)", marginTop: 6 },
+  headerSubtitle: { fontSize: fontSize.caption, color: onHeader.muted, marginTop: 6 },
+  headerEyebrow: {
+    fontSize: fontSize.micro,
+    fontWeight: fontWeight.semibold,
+    color: onHeader.muted,
+    letterSpacing: 0.7,
+    marginBottom: 2,
+  },
 
   button: {
     borderRadius: radius.xl,

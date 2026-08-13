@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 import { useApp } from "@/store/AppContext";
 import { notifications as notificationsApi } from "@/api";
@@ -8,27 +7,33 @@ import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { notificationTime } from "@/utils/format";
 import type { NotificationResponse, Uuid } from "@/api/types";
-import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Screen, Card, Body, Caption, EmptyState, ErrorState, LoadingState } from "@/components/ui";
+import { colors, guardian, onHeader, spacing, fontSize, fontWeight } from "@/theme";
+import {
+  Screen,
+  ScreenHeader,
+  Card,
+  Badge,
+  Body,
+  Caption,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/components/ui";
 
 /**
  * Guardian alerts from `GET /notifications/{user_id}`.
  *
- * The icon and colour come from the notification `type` and `severity` the
- * server sends — the app does not decide what counts as a warning.
+ * The badge comes from the notification `severity` the server sends — the app
+ * does not decide what counts as a warning.
  */
-const TYPE_ICONS: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  score_drop: { icon: "warning", color: colors.destructive },
-  screening_completed: { icon: "checkmark-circle", color: colors.primary },
-  diary_created: { icon: "book", color: "#6B9CB8" },
-  diary_generated: { icon: "book", color: "#6B9CB8" },
-  guardian_reaction: { icon: "heart", color: colors.destructive },
-  appointment_reminder: { icon: "calendar", color: colors.accent },
-  weekly_report: { icon: "document-text", color: colors.primary },
+const SEVERITY_BADGE: Record<string, { label: string; color: string; background: string }> = {
+  critical: { label: "위험", color: colors.destructive, background: colors.destructiveLight },
+  warning: { label: "주의", color: colors.warning, background: colors.accentLight },
+  info: { label: "완료", color: guardian.blue, background: guardian.blueLight },
 };
 
-function iconFor(item: NotificationResponse) {
-  return TYPE_ICONS[item.type] ?? { icon: "notifications" as const, color: colors.primary };
+function badgeFor(item: NotificationResponse) {
+  return SEVERITY_BADGE[item.severity ?? "info"] ?? SEVERITY_BADGE.info;
 }
 
 export default function GuardianNotificationsScreen() {
@@ -50,10 +55,38 @@ export default function GuardianNotificationsScreen() {
     void notificationsApi.markRead(id).catch(reload);
   };
 
-  return (
-    <Screen>
-      <Text style={styles.h1}>알림</Text>
+  const markAllRead = () => {
+    const unread = items.filter((n) => !n.is_read);
+    if (unread.length === 0) return;
+    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    // No bulk endpoint in the spec, so this is one call per unread item; a
+    // failure re-reads the list rather than guessing which ones stuck.
+    void Promise.all(unread.map((n) => notificationsApi.markRead(n.notification_id))).catch(reload);
+  };
 
+  const hasUnread = items.some((n) => !n.is_read);
+
+  const header = (
+    <ScreenHeader
+      color={guardian.blue}
+      title="알림"
+      right={
+        hasUnread ? (
+          <Pressable
+            onPress={markAllRead}
+            accessibilityRole="button"
+            accessibilityLabel="모든 알림 읽음 처리"
+            hitSlop={10}
+          >
+            <Text style={styles.headerAction}>모두 읽음</Text>
+          </Pressable>
+        ) : undefined
+      }
+    />
+  );
+
+  return (
+    <Screen header={header}>
       {loading && items.length === 0 ? <LoadingState /> : null}
 
       {error && items.length === 0 ? (
@@ -64,10 +97,10 @@ export default function GuardianNotificationsScreen() {
         <EmptyState message="새로운 알림이 없어요" icon="notifications-outline" />
       ) : null}
 
-      <View style={{ gap: spacing.md, marginTop: spacing.lg }}>
+      <View style={{ gap: spacing.md }}>
         {items.map((n) => {
-          const visual = iconFor(n);
-          const warn = n.severity === "warning" || n.severity === "critical";
+          const badge = badgeFor(n);
+          const unread = !n.is_read;
           return (
             <Pressable
               key={n.notification_id}
@@ -75,19 +108,22 @@ export default function GuardianNotificationsScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${n.title}. ${n.body}`}
             >
-              <Card style={warn && !n.is_read ? styles.warn : undefined}>
-                <View style={styles.row}>
-                  <View style={[styles.iconWrap, { backgroundColor: visual.color }]}>
-                    <Ionicons name={visual.icon} size={22} color={colors.white} />
+              <Card style={unread ? styles.unreadCard : undefined}>
+                <View style={styles.titleRow}>
+                  <View style={styles.titleGroup}>
+                    <Text style={[styles.title, unread && { fontWeight: fontWeight.bold }]}>
+                      {n.title}
+                    </Text>
+                    <Badge
+                      label={badge.label}
+                      color={badge.color}
+                      background={badge.background}
+                    />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.title}>{n.title}</Text>
-                    <Body style={{ color: colors.mutedForeground, marginTop: 2 }}>{n.body}</Body>
-                    <Caption style={{ marginTop: spacing.sm }}>
-                      {notificationTime(n.created_at)}
-                    </Caption>
-                  </View>
+                  {unread ? <View style={styles.unreadDot} /> : null}
                 </View>
+                <Body style={{ color: colors.mutedForeground, marginTop: 2 }}>{n.body}</Body>
+                <Caption style={styles.time}>{notificationTime(n.created_at)}</Caption>
               </Card>
             </Pressable>
           );
@@ -98,9 +134,17 @@ export default function GuardianNotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  h1: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.foreground },
-  warn: { borderColor: colors.destructive, backgroundColor: "#FBEBE9" },
-  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
-  iconWrap: { width: 44, height: 44, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
+  headerAction: { fontSize: fontSize.caption, color: onHeader.action },
+  unreadCard: { borderColor: guardian.blue },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: spacing.sm },
+  titleGroup: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, flex: 1 },
+  title: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.semibold, color: colors.foreground },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.destructive,
+    marginTop: 6,
+  },
+  time: { textAlign: "right", marginTop: spacing.sm },
 });

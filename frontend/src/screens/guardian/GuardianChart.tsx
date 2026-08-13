@@ -1,69 +1,67 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 
 import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
+import { monthDayLabel } from "@/utils/format";
 import type { HistoryRecordResponse } from "@/api/types";
-import { colors, spacing, radius, fontSize, fontWeight, chartColors } from "@/theme";
+import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
+import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
 import {
   Screen,
+  ScreenHeader,
   Card,
   Body,
   Caption,
-  Pill,
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/components/ui";
 
 /**
- * Score trend from `GET /analysis/cognitive/{user_id}/history`, plus the
- * per-domain change the same records carry in `domain_scores`.
+ * Score trend from `GET /analysis/cognitive/{user_id}/history`.
  *
- * Bars are plain Views on purpose — no chart library, per the project rules.
+ * The period toggle maps onto the endpoint's own `limit` + `aggregation` rather
+ * than filtering client-side, so a longer period actually fetches more history
+ * instead of stretching the same six records.
  */
-const DEFAULT_MAX = 30;
-const AGGREGATION = "weekly";
-const HISTORY_LIMIT = 6;
+const PERIODS = [
+  { key: "3m", label: "3개월", limit: 3 },
+  { key: "6m", label: "6개월", limit: 6 },
+  { key: "1y", label: "1년", limit: 12 },
+] as const;
 
-/** `domain_scores` is a free-form JsonNode; only known keys are shown. */
-const DOMAIN_LABELS: { key: string; label: string }[] = [
-  { key: "memory", label: "기억력" },
-  { key: "attention", label: "주의력" },
-  { key: "language", label: "언어능력" },
-  { key: "visuospatial", label: "시공간" },
-];
+type PeriodKey = (typeof PERIODS)[number]["key"];
 
-function domainDeltas(record: HistoryRecordResponse | undefined) {
-  if (!record?.domain_scores || typeof record.domain_scores !== "object") return [];
-  const scores = record.domain_scores as Record<string, unknown>;
-  return DOMAIN_LABELS.flatMap(({ key, label }) => {
-    const value = scores[key];
-    if (typeof value !== "number") return [];
-    return [{ label, delta: `${value > 0 ? "+" : ""}${value}%`, up: value >= 0 }];
-  });
+const AGGREGATION = "monthly";
+
+function scoreOf(record: HistoryRecordResponse): number | null {
+  return record.display_score ?? record.screening_reference_score ?? null;
 }
 
-function trendPill(trend: string | undefined) {
-  if (trend === "declining") {
-    return { label: "▼ 하락 추세", icon: "trending-down" as const };
+/**
+ * How many of the most recent readings fell in a row.
+ *
+ * The design labels this in days, but the endpoint aggregates by period — so it
+ * is reported in readings (회), which is what the data actually supports.
+ */
+function decliningRun(points: TrendPoint[]): number {
+  let run = 0;
+  for (let i = points.length - 1; i > 0; i -= 1) {
+    if (points[i].score < points[i - 1].score) run += 1;
+    else break;
   }
-  if (trend === "improving") {
-    return { label: "▲ 개선 추세", icon: "trending-up" as const };
-  }
-  return { label: "— 유지", icon: "remove" as const };
-}
-
-function weekLabel(index: number, total: number) {
-  return `${total - index}주 전`;
+  return run;
 }
 
 export default function GuardianChartScreen() {
   const { userId, selectedElderId } = useApp();
+  const [period, setPeriod] = React.useState<PeriodKey>("6m");
 
-  // The written summary lives on the guardian report, not on the history rows.
+  const limit = PERIODS.find((p) => p.key === period)?.limit ?? 6;
+
   const report = useApi(
     () => reports.guardianReport(userId as string, selectedElderId as string),
     [userId, selectedElderId],
@@ -71,18 +69,24 @@ export default function GuardianChartScreen() {
   );
 
   const history = useApi(
-    () =>
-      reports.cognitiveHistory(selectedElderId as string, {
-        limit: HISTORY_LIMIT,
-        aggregation: AGGREGATION,
-      }),
-    [selectedElderId],
+    () => reports.cognitiveHistory(selectedElderId as string, { limit, aggregation: AGGREGATION }),
+    [selectedElderId, limit],
     { enabled: !!selectedElderId },
+  );
+
+  const header = (
+    <ScreenHeader
+      color={guardian.blue}
+      title="인지 저하 추이"
+      subtitle={
+        report.data ? `${report.data.elder_name} · 보호자 모니터링` : "보호자 모니터링"
+      }
+    />
   );
 
   if (!selectedElderId) {
     return (
-      <Screen>
+      <Screen header={header}>
         <EmptyState message="먼저 대시보드에서 어르신을 선택해 주세요." icon="people-outline" />
       </Screen>
     );
@@ -90,7 +94,7 @@ export default function GuardianChartScreen() {
 
   if (history.error) {
     return (
-      <Screen>
+      <Screen header={header}>
         <ErrorState
           message={
             history.error.isForbidden
@@ -105,54 +109,102 @@ export default function GuardianChartScreen() {
 
   if (!history.data) {
     return (
-      <Screen>
+      <Screen header={header}>
         <LoadingState />
       </Screen>
     );
   }
 
-  // Oldest first so the bars read left to right. Records without a score are
-  // dropped rather than drawn as a zero bar — a zero-height bar reads as "very
-  // low", which is the opposite of "not measured".
-  const records = [...history.data.records]
-    .filter((r) => (r.display_score ?? r.screening_reference_score) != null)
-    .sort((a, b) => (a.analyzed_at ?? "").localeCompare(b.analyzed_at ?? ""));
-  const latest = records[records.length - 1];
-  const max = latest?.score_max ?? DEFAULT_MAX;
-  const pill = trendPill(latest?.trend);
-  const deltas = domainDeltas(latest);
+  // Oldest first so the line reads left to right. Records without a score are
+  // dropped rather than plotted at zero — a zero point reads as "very low",
+  // which is the opposite of "not measured".
+  const points: TrendPoint[] = [...history.data.records]
+    .sort((a, b) => (a.analyzed_at ?? "").localeCompare(b.analyzed_at ?? ""))
+    .flatMap((record) => {
+      const score = scoreOf(record);
+      if (score === null) return [];
+      return [{ label: record.analyzed_at ? monthDayLabel(record.analyzed_at) : "", score }];
+    });
+
+  const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
+  const run = decliningRun(points);
+  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
 
   return (
-    <Screen>
-      <Text style={styles.h1}>인지 위험 추이</Text>
-      <Caption style={{ marginTop: 4 }}>주간 CIST 점수 변화 ({max}점 만점)</Caption>
+    <Screen header={header}>
+      <View style={styles.periodRow}>
+        {PERIODS.map((p) => {
+          const on = p.key === period;
+          return (
+            <Pressable
+              key={p.key}
+              onPress={() => setPeriod(p.key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${p.label} 보기`}
+              style={[
+                styles.periodChip,
+                {
+                  backgroundColor: on ? guardian.blue : colors.white,
+                  borderColor: on ? guardian.blue : colors.border,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.periodLabel, { color: on ? colors.white : colors.mutedForeground }]}
+              >
+                {p.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      {records.length === 0 ? (
+      {points.length === 0 ? (
         <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" />
       ) : (
-        <Card style={{ marginTop: spacing.lg }}>
-          <View style={styles.rowBetween}>
-            <Body style={{ fontWeight: fontWeight.bold }}>최근 {records.length}주</Body>
-            <Pill
-              label={pill.label}
-              color={colors.secondary}
-              textColor={colors.secondaryForeground}
-              icon={pill.icon}
-            />
-          </View>
-
-          <View style={styles.chart}>
-            {records.map((record, i) => {
-              const score = (record.display_score ?? record.screening_reference_score) as number;
-              const h = (score / max) * 140;
-              return (
-                <View key={record.analysis_id} style={styles.barCol}>
-                  <Text style={styles.barValue}>{score}</Text>
-                  <View style={[styles.bar, { height: h, backgroundColor: chartColors[0] }]} />
-                  <Caption>{weekLabel(i, records.length)}</Caption>
+        <>
+          <Card style={{ marginTop: spacing.lg }}>
+            <View style={styles.chartHead}>
+              <Body style={{ fontWeight: fontWeight.semibold }}>CIST 인지 점수</Body>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendRule, { backgroundColor: colors.accent }]} />
+                  <Caption style={styles.legendLabel}>정상 하한 24</Caption>
                 </View>
-              );
-            })}
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendRule, { backgroundColor: colors.destructive }]} />
+                  <Caption style={styles.legendLabel}>경도 치매 18</Caption>
+                </View>
+              </View>
+            </View>
+
+            <ScoreTrendChart points={points} variant="full" />
+          </Card>
+
+          <View style={styles.summaryRow}>
+            <Card style={{ flex: 1 }}>
+              <Caption style={styles.eyebrow}>{periodLabel} 변화</Caption>
+              <Text
+                style={[
+                  styles.summaryValue,
+                  { color: delta !== null && delta < 0 ? colors.destructive : guardian.blue },
+                ]}
+              >
+                {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta}점`}
+              </Text>
+            </Card>
+            <Card style={{ flex: 1 }}>
+              <Caption style={styles.eyebrow}>연속 하락</Caption>
+              <Text
+                style={[
+                  styles.summaryValue,
+                  { color: run > 0 ? colors.accent : colors.mutedForeground },
+                ]}
+              >
+                {run > 0 ? `${run}회` : "없음"}
+              </Text>
+            </Card>
           </View>
 
           {history.data.sample_sufficient ? null : (
@@ -160,47 +212,34 @@ export default function GuardianChartScreen() {
               표본이 아직 적어 추세는 참고용이에요.
             </Caption>
           )}
-        </Card>
+        </>
       )}
-
-      {deltas.length > 0 ? (
-        <Card style={{ marginTop: spacing.lg }}>
-          <Body style={{ fontWeight: fontWeight.bold, marginBottom: spacing.md }}>
-            영역별 변화 (전월 대비)
-          </Body>
-          {deltas.map((d, i, arr) => (
-            <View key={d.label} style={[styles.deltaRow, i < arr.length - 1 && styles.deltaBorder]}>
-              <Body style={{ fontWeight: fontWeight.semibold }}>{d.label}</Body>
-              <Text style={[styles.delta, { color: d.up ? colors.primary : colors.destructive }]}>
-                {d.delta}
-              </Text>
-            </View>
-          ))}
-        </Card>
-      ) : null}
-
-      {report.data?.latest_summary ? (
-        <Card style={{ marginTop: spacing.lg }} color={colors.secondary}>
-          <Body style={{ fontWeight: fontWeight.bold, color: colors.secondaryForeground }}>
-            AI 요약
-          </Body>
-          <Body style={{ marginTop: spacing.sm, color: colors.secondaryForeground }}>
-            {report.data.latest_summary}
-          </Body>
-        </Card>
-      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  h1: { fontSize: fontSize.title, fontWeight: fontWeight.bold, color: colors.foreground },
-  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
-  chart: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", height: 190 },
-  barCol: { alignItems: "center", flex: 1, gap: 6 },
-  bar: { width: 22, borderRadius: radius.sm },
-  barValue: { fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.foreground },
-  deltaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.md },
-  deltaBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  delta: { fontSize: fontSize.body, fontWeight: fontWeight.bold },
+  periodRow: { flexDirection: "row", gap: spacing.sm },
+  periodChip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  periodLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+
+  chartHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  legendRow: { flexDirection: "row", gap: spacing.md },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendRule: { width: 12, height: 2, borderRadius: 1 },
+  legendLabel: { fontSize: 10 },
+
+  summaryRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+  eyebrow: { letterSpacing: 0.5, marginBottom: spacing.sm },
+  summaryValue: { fontSize: 22, fontWeight: fontWeight.bold },
 });

@@ -14,6 +14,7 @@ import type {
   AuthTokenResponse,
   CalendarActivitiesResponse,
   CharacterResponse,
+  CounselingCentersResponse,
   DashboardResponse,
   DiariesResponse,
   DiaryDetailResponse,
@@ -609,6 +610,73 @@ export function mockGuardianReport(): GuardianReportResponse {
     })),
     daily_summary: null,
   };
+}
+
+/**
+ * Counselling centres, mirroring the `V9__create_counseling_centers.sql` seed.
+ *
+ * The MVP seed is 부산광역시 해운대구 only, so the fixture is too — inventing
+ * institutions for other regions would make the offline app look like it has
+ * nationwide coverage the backend does not have.
+ */
+const counselingCenters = [
+  {
+    center_id: "00000000-0000-0000-0000-000000009001",
+    name: "부산대학교병원 신경과",
+    facility_type: "hospital",
+    address: "부산광역시 해운대구 APEC로 170",
+    latitude: 35.1712,
+    longitude: 129.1284,
+    phone: "051-240-7000",
+    naver_map_url: "https://map.naver.com/p/search/부산대학교병원",
+    homepage_url: "https://www.pnuh.or.kr",
+  },
+  {
+    center_id: "00000000-0000-0000-0000-000000009002",
+    name: "해운대구 치매안심센터",
+    facility_type: "dementia_center",
+    address: "부산광역시 해운대구 반여로 30",
+    latitude: 35.2074,
+    longitude: 129.1262,
+    phone: "051-749-7575",
+    naver_map_url: "https://map.naver.com/p/search/해운대구%20치매안심센터",
+    homepage_url: "https://www.haeundae.go.kr",
+  },
+  {
+    center_id: "00000000-0000-0000-0000-000000009003",
+    name: "해운대구 보건소",
+    facility_type: "public_health_center",
+    address: "부산광역시 해운대구 양운로 100",
+    latitude: 35.1638,
+    longitude: 129.1631,
+    phone: "051-746-4000",
+    naver_map_url: "https://map.naver.com/p/search/해운대구%20보건소",
+    homepage_url: "https://www.haeundae.go.kr/health",
+  },
+];
+
+export function mockCounselingCenters(
+  provinceCode: string,
+  districtCode?: string,
+  facilityType?: string,
+): CounselingCentersResponse {
+  // Filtered the way the server filters, so selecting a province with no seeded
+  // centres correctly shows the empty state instead of Busan's list.
+  const centers = counselingCenters
+    .filter(() => provinceCode === "26")
+    .filter(() => !districtCode || districtCode === "26350")
+    .filter((c) => !facilityType || c.facility_type === facilityType)
+    .map((c) => ({
+      ...c,
+      province_code: "26",
+      district_code: "26350",
+      province_name: "부산광역시",
+      district_name: "해운대구",
+      reservation_mode: "external_link",
+      source_name: "공공기관 기준정보",
+      source_updated_at: daysAgo(30).toISOString(),
+    }));
+  return { centers, total: centers.length };
 }
 
 export function mockHistory(): HistoryResponse {
