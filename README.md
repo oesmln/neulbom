@@ -91,3 +91,4 @@ cd backend
 
 - [Frontend README](frontend/README.md)
 - [Backend README](backend/README.md)
+- [백엔드·프론트엔드 통합 트러블슈팅](docs/troubleshooting.md)
