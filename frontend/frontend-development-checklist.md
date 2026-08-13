@@ -84,11 +84,11 @@
 - [ ] 문항 유형 분기 — 음성 답변형 / 듣기형(단어 등록)
 - [ ] 마이크 권한 요청 및 거부 시 대체 흐름
 - [ ] 녹음 UI — 파형, 경과 시간, 녹음/완료 상태 (대형 원형 버튼)
-- [ ] `POST /recordings` multipart 업로드 (`purpose`, `session_id`, `question_id`)
-- [ ] **오프라인 큐** — 기기 저장 후 재전송
+- [x] `POST /recordings` multipart 업로드 (`purpose`, `session_id`, `question_id`)
+- [x] **오프라인 큐** — 기기 저장 후 재전송 (#61)
       상태 전이 `device_saved → server_pending → server_uploaded → analysis_completed`, 실패 시 `failed`
-- [ ] `client_recording_id` (기기 생성 UUID) 멱등 보장 — 재전송해도 중복 생성 없음
-- [ ] `Idempotency-Key` 헤더 지원
+- [x] `client_recording_id` (기기 생성 UUID) 멱등 보장 — 재전송해도 중복 생성 없음 (#61)
+- [x] `Idempotency-Key` 헤더 지원
 - [ ] `POST /sessions/{id}/answers` 문항별 답변 저장
 - [ ] `PATCH /sessions/{id}/end` 종료 + 경험치 적립 상태 수신
 - [ ] `PATCH /sessions/{id}/settings` 자막·음성·말하기 속도 반영

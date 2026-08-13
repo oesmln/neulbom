@@ -53,7 +53,7 @@
 | 세션 | 검사·정서 문답 시작, 조회, 종료 | `POST /sessions`, `GET/PATCH /sessions/{sessionId}` | [ ] |
 | 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [ ] |
 | 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [ ] |
-| 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [ ] |
+| 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [x] (#61) |
 | 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
 | 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
 | 일기 | 생성·목록·상세·생성 상태 | `/diaries/**` | [ ] |
@@ -72,7 +72,7 @@
 - [ ] query parameter의 snake_case와 camelCase 사용이 Controller 선언과 일치한다.
 - [ ] 날짜는 `YYYY-MM-DD`, timestamp는 timezone을 포함한 ISO 8601 형식으로 교환한다.
 - [ ] 목록 응답의 `page`, `limit`, `total`, `has_next` 구조가 화면 pagination과 일치한다.
-- [ ] `client_answer_id`, `client_recording_id`, `client_game_result_id` 재전송 시 중복 생성되지 않는다.
+- [x] `client_answer_id`, `client_recording_id`, `client_game_result_id` 재전송 시 중복 생성되지 않는다. (#61 녹음 queue 포함)
 - [ ] 고령자와 보호자 역할별 접근 권한이 프론트 내비게이션과 백엔드 권한 검사에서 모두 일치한다.
 - [ ] 일기 목록과 상세가 같은 `GET /diaries/{id}` 경로에서 의도한 기준으로 구분된다.
 
@@ -103,7 +103,7 @@
 | 캠페인 화면 | Entity와 정적 화면만 있고 Controller/API가 없음 | 구현 누락 | 캠페인 조회·참여 API 및 화면 연결 Issue 필요 |
 | 앱 다크 모드·글씨 크기 | `SecureStore` 기반 기기 로컬 설정으로 명시되어 있음 | 의도적인 로컬 기능 | 서버 동기화 요구가 생길 때 별도 검토 |
 | 캐릭터 표시·상호작용 | 서버 캐릭터 상태와 화면의 로컬 상태가 일치하는지 | [ ] | |
-| 녹음 UI·재전송 | 실제 캡처·업로드·메모리 내 동일 ID 재시도는 구현, 앱 재실행을 버티는 오프라인 queue는 없음 | 부분 구현 | 영속 queue는 후속 Issue 필요 |
+| 녹음 UI·재전송 | Native 파일·Web IndexedDB에 음성과 동일 ID를 보존하고 세션 복원·재연결·앱 활성화 시 순차 재전송 | 연결 완료 | #61 |
 | 소셜 로그인 화면 | 서버 OAuth API는 있으나 버튼이 authorization code를 얻지 않고 회원가입 흐름으로 이동 | 프론트 구현 누락 | Kakao·Naver 브라우저 인증 연결 Issue 필요 |
 | 차트·리포트 UI | mock 통계가 아닌 실제 history/report 응답을 사용하는지 | [ ] | |
 
@@ -114,7 +114,7 @@
 | 캠페인 목록·참여 | `frontend/src/screens/elder/ElderCampaign.tsx` | `GET /campaigns`, `POST /campaigns/{id}/participations` 등 | 구현 누락 | #56 |
 | 표시 설정 | `frontend/src/store/settings.ts` | 없음 | 의도적인 로컬 기능 | #56 |
 | 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}` | 프론트 부분 구현 | #56 |
-| 녹음 영속 재전송 queue | `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 프론트 부분 구현 | #56 |
+| 녹음 영속 재전송 queue | `frontend/src/recording/recordingQueue.ts`, `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 연결 완료 | #61 |
 
 ## 3. 백엔드에는 있지만 프론트엔드에는 구현되지 않은 기능
 
