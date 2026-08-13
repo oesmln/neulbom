@@ -76,6 +76,7 @@ export default function ElderCistScreen() {
   const isLast = index === list.length - 1;
   const isListenQuestion = question?.type === "listen";
   const canAdvance = isListenQuestion ? listened : answered;
+  const canGoPrevious = index > 0 || navigation.canGoBack();
 
   React.useEffect(() => {
     setAskedAt(Date.now());
@@ -134,10 +135,12 @@ export default function ElderCistScreen() {
         <View style={styles.headerRow}>
           <Pressable
             onPress={goBack}
+            disabled={!canGoPrevious}
             accessibilityRole="button"
             accessibilityLabel="이전 문항"
+            accessibilityState={{ disabled: !canGoPrevious }}
             hitSlop={10}
-            style={styles.backButton}
+            style={[styles.backButton, !canGoPrevious && { opacity: 0.35 }]}
           >
             <Ionicons name="chevron-back" size={18} color={colors.white} />
           </Pressable>
