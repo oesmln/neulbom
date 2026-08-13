@@ -563,7 +563,7 @@ export function mockElders(): EldersResponse {
         elder_name: "김영자",
         link_id: fixedId("77777777", 1),
         status: "active",
-        access_scope: ["screening", "diary", "report"],
+        access_scope: ["screening", "summary", "diary", "activity"],
         consent_status: "granted",
         latest_display_score: 24,
         latest_score_max: 30,

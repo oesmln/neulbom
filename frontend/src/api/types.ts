@@ -751,6 +751,18 @@ export interface InvitationCreateResponse {
   expires_at: IsoInstant;
 }
 
+export interface InvitationCreateRequest {
+  relation?: string;
+  access_scope?: string[];
+  expires_in?: number;
+}
+
+export interface GuardianLinkUpdateRequest {
+  status?: "active" | "revoked";
+  access_scope?: string[];
+  relation?: string;
+}
+
 export interface GuardianLinkResponse {
   invitation_id: Uuid | null;
   link_id: Uuid | null;
