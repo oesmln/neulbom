@@ -7,6 +7,7 @@ import { auth, users } from "@/api";
 import { resetToLogin } from "@/navigation/ref";
 import { MOCK_ELDER_ID, MOCK_GUARDIAN_ID } from "@/api/mock";
 import type { AuthTokenResponse, Uuid } from "@/api/types";
+import { installRecordingQueueSync } from "@/recording/recordingQueue";
 
 export type UserRole = "elder" | "guardian" | null;
 
@@ -111,6 +112,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [userId, role]);
+
+  // A restored session owns its pending audio queue. The installer also
+  // retries when connectivity returns or the app becomes active again, and
+  // removes stale files that belong to a different signed-in account.
+  useEffect(() => {
+    if (!userId || !role || USE_MOCK_API) return;
+    return installRecordingQueueSync(userId);
+  }, [role, userId]);
 
   const signIn = useCallback(async (tokens: AuthTokenResponse) => {
     await saveSession({
