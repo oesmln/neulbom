@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderStackParamList, ElderTabParamList } from "@/navigation/types";
+import { useApp } from "@/store/AppContext";
 import { colors, fontWeight, sizes } from "@/theme";
 
 import ElderHomeScreen from "@/screens/elder/ElderHome";
@@ -111,11 +112,12 @@ function ElderTabs() {
 }
 
 export default function ElderNavigator() {
+  const { baselineCompleted } = useApp();
   return (
-    // The initial CIST screening comes before the tabs, matching the Figma
-    // flow: 유형 선택 → CIST 초기 검사 → 홈. Finishing it replaces this route,
-    // so 뒤로 가기 cannot land back in the middle of a completed screening.
-    <Stack.Navigator initialRouteName="ElderCist" screenOptions={{ headerShown: false }}>
+    // Baseline screening is shown only until the server/session state says it
+    // has been completed. Returning elders therefore land on the tabs instead
+    // of being asked to choose a role or repeat the initial test.
+    <Stack.Navigator initialRouteName={baselineCompleted ? "ElderTabs" : "ElderCist"} screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ElderCist" component={ElderCistScreen} />
       <Stack.Screen name="ElderTabs" component={ElderTabs} />
       <Stack.Screen name="ElderResult" component={ElderResultScreen} />

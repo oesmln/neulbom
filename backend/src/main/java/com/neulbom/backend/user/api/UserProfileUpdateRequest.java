@@ -21,6 +21,10 @@ public record UserProfileUpdateRequest(
         String smokingStatus,
         String hearingStatus,
         Boolean communicationDifficulty,
-        String smartphoneSkill
+        String smartphoneSkill,
+        String onboardingStep,
+        Boolean onboardingCompleted,
+        Boolean baselineCompleted,
+        @Size(max = 100) String characterName
 ) {
 }

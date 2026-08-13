@@ -86,6 +86,10 @@ export function mockAuthToken(role: Role = lastRole): AuthTokenResponse {
     role,
     profile_completed: true,
     is_new_user: false,
+    onboarding_step: "completed",
+    onboarding_completed: true,
+    baseline_completed: true,
+    character_name: "늘봄",
   };
 }
 
@@ -108,6 +112,10 @@ export function mockProfile(userId: Uuid, role: Role): UserProfileResponse {
     communication_difficulty: false,
     smartphone_skill: "basic",
     profile_completed: true,
+    onboarding_step: "completed",
+    onboarding_completed: true,
+    baseline_completed: true,
+    character_name: "늘봄",
     created_at: now,
     updated_at: now,
   };

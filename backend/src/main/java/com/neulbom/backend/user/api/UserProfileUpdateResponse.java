@@ -10,6 +10,10 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 public record UserProfileUpdateResponse(
         UUID userId,
         boolean profileCompleted,
+        String onboardingStep,
+        boolean onboardingCompleted,
+        boolean baselineCompleted,
+        String characterName,
         Instant updatedAt
 ) {
 }

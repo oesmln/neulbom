@@ -89,6 +89,32 @@ class UserOnboardingIntegrationTest {
     }
 
     @Test
+    void onboardingProgressAndCharacterNameArePersistedWithoutRequiredProfileFields() throws Exception {
+        UserEntity user = saveUser("onboarding-progress");
+
+        mockMvc.perform(patch("/api/v1/users/{userId}", user.getId())
+                        .with(jwtFor(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "onboarding_step": "character_name",
+                                  "character_name": "봄이"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboarding_step").value("character_name"))
+                .andExpect(jsonPath("$.onboarding_completed").value(false))
+                .andExpect(jsonPath("$.baseline_completed").value(false))
+                .andExpect(jsonPath("$.character_name").value("봄이"));
+
+        mockMvc.perform(get("/api/v1/users/{userId}", user.getId())
+                        .with(jwtFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboarding_step").value("character_name"))
+                .andExpect(jsonPath("$.character_name").value("봄이"));
+    }
+
+    @Test
     void preferencesUseDocumentedDefaultsAndCanBePatched() throws Exception {
         UserEntity user = saveUser("onboarding-preferences");
 

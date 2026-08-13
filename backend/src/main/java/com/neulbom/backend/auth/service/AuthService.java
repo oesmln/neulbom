@@ -321,7 +321,11 @@ public class AuthService {
                 user.getId(),
                 user.getRole(),
                 user.isProfileCompleted(),
-                newUser);
+                newUser,
+                user.getOnboardingStep(),
+                user.isOnboardingCompleted(),
+                user.isBaselineCompleted(),
+                user.getCharacterName());
     }
 
     private void revokeAllRefreshTokens(UUID userId, Instant now) {

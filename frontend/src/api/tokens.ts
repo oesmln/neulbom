@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
-import type { Role, Uuid } from "./types";
+import type { OnboardingStep, Role, Uuid } from "./types";
 
 /**
  * Where the signed-in session lives between launches.
@@ -20,6 +20,10 @@ export interface AuthSession {
   userId: Uuid;
   role: Role;
   profileCompleted: boolean;
+  onboardingStep: OnboardingStep;
+  onboardingCompleted: boolean;
+  baselineCompleted: boolean;
+  characterName: string | null;
 }
 
 const KEY = "neulbom.auth.session";
