@@ -11,6 +11,7 @@ export type RootStackParamList = {
    * in memory and `POST /auth/register` is sent with the chosen role.
    */
   UserType: { signup?: PendingSignup } | undefined;
+  EmailVerification: { signup: PendingSignup };
   Onboarding: undefined;
   Elder: undefined;
   Guardian: undefined;

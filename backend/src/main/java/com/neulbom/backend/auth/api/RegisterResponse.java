@@ -9,6 +9,7 @@ public record RegisterResponse(
         @JsonProperty("user_id") UUID userId,
         String role,
         @JsonProperty("profile_completed") boolean profileCompleted,
+        @JsonProperty("email_verified") boolean emailVerified,
         @JsonProperty("created_at") Instant createdAt
 ) {
 }

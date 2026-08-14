@@ -58,6 +58,7 @@ import type {
   RecordingUploadResponse,
   RegisterRequest,
   RegisterResponse,
+  EmailVerificationRequestResponse,
   Role,
   ScreeningResultResponse,
   SessionEndResponse,
@@ -95,10 +96,34 @@ export const auth = {
         user_id: body.role === "guardian" ? mock.MOCK_GUARDIAN_ID : mock.MOCK_ELDER_ID,
         role: body.role,
         profile_completed: false,
+        email_verified: true,
         created_at: new Date().toISOString(),
       });
     }
     return request("/auth/register", { method: "POST", body, anonymous: true });
+  },
+
+  requestEmailVerification(email: string): Promise<EmailVerificationRequestResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        request_id: mock.MOCK_ELDER_ID,
+        expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+      });
+    }
+    return request("/auth/email/verify/request", {
+      method: "POST",
+      body: { email },
+      anonymous: true,
+    });
+  },
+
+  confirmEmailVerification(verificationToken: string): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request("/auth/email/verify/confirm", {
+      method: "POST",
+      body: { verification_token: verificationToken },
+      anonymous: true,
+    });
   },
 
   login(body: LoginRequest): Promise<AuthTokenResponse> {

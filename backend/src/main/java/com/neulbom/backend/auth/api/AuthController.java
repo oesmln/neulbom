@@ -32,6 +32,21 @@ public class AuthController {
         return authService.login(request);
     }
 
+    @PostMapping("/email/verify/request")
+    public ResponseEntity<EmailVerificationResponse> requestEmailVerification(
+            @Valid @RequestBody EmailVerificationRequest request
+    ) {
+        return ResponseEntity.accepted().body(authService.requestEmailVerification(request));
+    }
+
+    @PostMapping("/email/verify/confirm")
+    public ResponseEntity<Void> confirmEmailVerification(
+            @Valid @RequestBody EmailVerificationConfirmRequest request
+    ) {
+        authService.confirmEmailVerification(request);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/oauth/{provider}")
     public AuthTokenResponse oauthLogin(
             @PathVariable String provider,

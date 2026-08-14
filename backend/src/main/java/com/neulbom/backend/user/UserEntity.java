@@ -52,6 +52,9 @@ public class UserEntity {
     @Column(name = "profile_completed", nullable = false)
     private boolean profileCompleted;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
     @Column(name = "onboarding_step", nullable = false, length = 30)
     private String onboardingStep;
 
@@ -98,6 +101,7 @@ public class UserEntity {
         this.gender = gender;
         this.phone = phone;
         this.profileCompleted = profileCompleted;
+        this.emailVerified = true;
         this.onboardingStep = "not_started";
         this.onboardingCompleted = false;
         this.baselineCompleted = false;
@@ -156,6 +160,19 @@ public class UserEntity {
 
     public boolean isProfileCompleted() {
         return profileCompleted;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void markEmailUnverified() {
+        this.emailVerified = false;
+    }
+
+    public void verifyEmail(Instant verifiedAt) {
+        this.emailVerified = true;
+        this.updatedAt = verifiedAt;
     }
 
     public String getOnboardingStep() {
@@ -246,6 +263,7 @@ public class UserEntity {
         this.gender = null;
         this.phone = null;
         this.profileCompleted = false;
+        this.emailVerified = false;
         this.onboardingCompleted = false;
         this.baselineCompleted = false;
         this.onboardingStep = "not_started";
