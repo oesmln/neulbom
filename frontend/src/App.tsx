@@ -14,6 +14,7 @@ import SplashScreen from "@/screens/auth/SplashScreen";
 import LoginScreen from "@/screens/auth/LoginScreen";
 import UserTypeScreen from "@/screens/auth/UserTypeScreen";
 import EmailVerificationScreen from "@/screens/auth/EmailVerificationScreen";
+import SignupCompleteScreen from "@/screens/auth/SignupCompleteScreen";
 import OnboardingScreen from "@/screens/auth/OnboardingScreen";
 import ElderNavigator from "@/navigation/ElderNavigator";
 import GuardianNavigator from "@/navigation/GuardianNavigator";
@@ -48,6 +49,7 @@ export default function App() {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="UserType" component={UserTypeScreen} />
             <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+            <Stack.Screen name="SignupComplete" component={SignupCompleteScreen} />
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Elder" component={ElderNavigator} />
             <Stack.Screen name="Guardian" component={GuardianNavigator} />

@@ -6,9 +6,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import { Button, Card, ScreenHeader } from "@/components/ui";
-import type { AuthTokenResponse } from "@/api/types";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
+import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
 
 /**
@@ -47,11 +47,6 @@ export default function EmailVerificationScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const routeAfterAuth = (tokens: AuthTokenResponse) => {
-    if (tokens.role === "guardian") return "Guardian" as const;
-    return tokens.onboarding_completed || tokens.profile_completed ? "Elder" as const : "Onboarding" as const;
-  };
-
   const confirm = async () => {
     const trimmed = token.trim();
     if (!trimmed || busy) return;
@@ -61,10 +56,30 @@ export default function EmailVerificationScreen() {
       await auth.confirmEmailVerification(trimmed);
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
+      await saveRequiredSignupConsents(tokens.user_id);
       if (signup.inviteCode && tokens.role === "elder") {
         await guardian.acceptInvitation(signup.inviteCode, true);
       }
-      navigation.reset({ index: 0, routes: [{ name: routeAfterAuth(tokens) }] });
+
+      let inviteCode: string | undefined;
+      let invitationError: string | undefined;
+      if (tokens.role === "guardian") {
+        try {
+          const invitation = await guardian.createInvitation({
+            relation: "보호자",
+            access_scope: ["screening", "summary", "diary", "activity"],
+            expires_in: 600,
+          });
+          inviteCode = invitation.invite_code;
+        } catch (invitationCause) {
+          invitationError = apiErrorMessage(invitationCause);
+        }
+      }
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SignupComplete", params: { role: tokens.role, inviteCode, invitationError } }],
+      });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));
     } finally {

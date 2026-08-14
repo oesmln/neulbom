@@ -19,16 +19,6 @@ type Step = "intro" | "character" | "consent" | "baseline";
 const CONSENT_VERSION = "onboarding-v2";
 const REQUIRED_CONSENTS: Array<{ type: ConsentType; title: string; body: string }> = [
   {
-    type: "terms_of_service",
-    title: "이용약관 동의",
-    body: "늘봄 서비스를 이용하기 위한 기본 약속을 확인해요.",
-  },
-  {
-    type: "privacy_collection",
-    title: "개인정보 수집·이용 동의",
-    body: "서비스 제공에 필요한 최소한의 개인정보를 안전하게 처리해요.",
-  },
-  {
     type: "sensitive_health",
     title: "건강·민감정보 처리 동의",
     body: "인지 활동을 참고 정보로 분석하기 위해 필요한 동의예요.",
@@ -211,7 +201,10 @@ export default function OnboardingScreen() {
 
       {step === "consent" ? (
         <View style={styles.stepBody}>
-          <ConversationHeader line="안전하게 이용하기 위해 꼭 필요한 약속을 먼저 확인할게요." />
+          <ConversationHeader line="이제 고령자 기능에 필요한 동의를 확인할게요." />
+          <Text style={styles.signupConsentNote}>
+            이용약관과 개인정보 수집·이용 동의는 회원가입 단계에서 확인했어요.
+          </Text>
           <View style={styles.consentList}>
             {[...REQUIRED_CONSENTS, ...OPTIONAL_CONSENTS].map((consent) => {
               const on = selected.has(consent.type);
@@ -306,6 +299,7 @@ const styles = StyleSheet.create({
   nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: fontSize.bodyLg, color: colors.foreground, backgroundColor: colors.white },
   help: { fontSize: fontSize.caption, color: colors.mutedForeground },
   consentList: { gap: spacing.xs },
+  signupConsentNote: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19 },
   consentRow: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.sm, alignItems: "flex-start" },
   consentCopy: { flex: 1, gap: 3 },
   consentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },

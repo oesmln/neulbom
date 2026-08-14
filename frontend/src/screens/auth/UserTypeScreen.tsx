@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -7,6 +8,7 @@ import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
+import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Badge, Button, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -28,11 +30,16 @@ const OPTIONS: {
   },
   {
     key: "guardian",
-    title: "보호자 / 의료진",
-    sub: "가족 또는 환자의 인지 상태를 모니터링해요",
+    title: "보호자",
+    sub: "연결된 어르신의 활동과 인지 상태를 확인해요",
     tags: ["인지 저하 그래프", "일기 열람", "위험 알림"],
   },
 ];
+
+const REQUIRED_CONSENT_ITEMS = [
+  { key: "terms", title: "이용약관 동의" },
+  { key: "privacy", title: "개인정보 수집·이용 동의" },
+] as const;
 
 export default function UserTypeScreen() {
   const navigation = useNavigation<RootNav>();
@@ -40,8 +47,13 @@ export default function UserTypeScreen() {
   const signup = route.params?.signup ?? null;
   const { setRole, signIn } = useApp();
   const [selected, setSelected] = React.useState<Choice | null>(null);
+  const [acceptedConsents, setAcceptedConsents] = React.useState<Record<"terms" | "privacy", boolean>>({
+    terms: false,
+    privacy: false,
+  });
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const allRequiredConsentsAccepted = acceptedConsents.terms && acceptedConsents.privacy;
 
   /**
    * The role is the last piece registration was waiting for: api-spec 3.1 wants
@@ -50,7 +62,7 @@ export default function UserTypeScreen() {
    * the account exists and is signed in.
    */
   const start = async () => {
-    if (!selected || busy) return;
+    if (!selected || !allRequiredConsentsAccepted || busy) return;
     if (signup?.inviteCode && selected !== "elder") {
       setMessage("보호자 초대 코드는 본인(고령자) 계정에서만 사용할 수 있어요.");
       return;
@@ -73,25 +85,42 @@ export default function UserTypeScreen() {
         role: selected,
       });
       if (!registration.email_verified) {
-        navigation.replace("EmailVerification", { signup: { ...signup } });
+        navigation.replace("EmailVerification", {
+          signup: { ...signup, requiredConsentsAccepted: true },
+        });
         return;
       }
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
+      await saveRequiredSignupConsents(tokens.user_id);
 
       if (signup.inviteCode && selected === "elder") {
         await guardian.acceptInvitation(signup.inviteCode, true);
+      }
+
+      let inviteCode: string | undefined;
+      let invitationError: string | undefined;
+      if (selected === "guardian") {
+        try {
+          const invitation = await guardian.createInvitation({
+            relation: "보호자",
+            access_scope: ["screening", "summary", "diary", "activity"],
+            expires_in: 600,
+          });
+          inviteCode = invitation.invite_code;
+        } catch (cause) {
+          // Account creation already succeeded. Keep the completion screen
+          // reachable and let the guardian issue a new code from Connections.
+          invitationError = apiErrorMessage(cause);
+        }
       }
 
       navigation.reset({
         index: 0,
         routes: [
           {
-            name: selected === "guardian"
-              ? "Guardian"
-              : tokens.onboarding_completed
-                ? "Elder"
-                : "Onboarding",
+            name: "SignupComplete",
+            params: { role: selected, inviteCode, invitationError },
           },
         ],
       });
@@ -160,12 +189,36 @@ export default function UserTypeScreen() {
           );
         })}
 
+        <View style={styles.consentCard}>
+          <Text style={styles.consentHeading}>가입에 필요한 동의</Text>
+          <Text style={styles.consentDescription}>
+            서비스를 시작하려면 아래 두 항목에 동의해 주세요.
+          </Text>
+          {REQUIRED_CONSENT_ITEMS.map((item) => (
+            <Pressable
+              key={item.key}
+              onPress={() => setAcceptedConsents((current) => ({ ...current, [item.key]: !current[item.key] }))}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: acceptedConsents[item.key] }}
+              accessibilityLabel={item.title}
+              style={styles.consentRow}
+            >
+              <Ionicons
+                name={acceptedConsents[item.key] ? "checkbox" : "square-outline"}
+                size={23}
+                color={acceptedConsents[item.key] ? colors.primary : colors.mutedForeground}
+              />
+              <Text style={styles.consentTitle}>{item.title} (필수)</Text>
+            </Pressable>
+          ))}
+        </View>
+
         {message ? <Text style={styles.errorText}>{message}</Text> : null}
 
         <Button
           label="시작하기"
           icon={selected ? "chevron-forward" : undefined}
-          disabled={!selected || busy}
+          disabled={!selected || !allRequiredConsentsAccepted || busy}
           onPress={() => void start()}
           style={{ marginTop: spacing.xs }}
         />
@@ -193,5 +246,10 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
   tagLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold },
+  consentCard: { borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.xs },
+  consentHeading: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
+  consentDescription: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.xs },
+  consentRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
+  consentTitle: { fontSize: fontSize.body, color: colors.foreground },
   errorText: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 20 },
 });

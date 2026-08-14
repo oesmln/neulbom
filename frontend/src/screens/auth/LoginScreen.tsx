@@ -79,6 +79,8 @@ export default function LoginScreen() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = React.useState("");
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [socialProvider, setSocialProvider] = React.useState<SocialProvider | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -90,8 +92,12 @@ export default function LoginScreen() {
   };
 
   const emailLooksValid = email.includes("@") && email.includes(".");
+  const passwordMatches = tab === "login" || password === passwordConfirmation;
   const canSubmitForm =
-    emailLooksValid && password.length >= 8 && (tab === "login" || name.trim().length > 0);
+    emailLooksValid &&
+    password.length >= 8 &&
+    passwordMatches &&
+    (tab === "login" || name.trim().length > 0);
 
   const [kakaoRequest, , promptKakao] = AuthSession.useAuthRequest(
     {
@@ -529,6 +535,50 @@ export default function LoginScreen() {
             </Pressable>
           </View>
         </Field>
+
+        {tab === "signup" ? (
+          <Field label="비밀번호 확인">
+            <View>
+              <TextInput
+                value={passwordConfirmation}
+                onChangeText={setPasswordConfirmation}
+                placeholder="비밀번호를 다시 입력해 주세요"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showPasswordConfirmation}
+                autoCapitalize="none"
+                accessibilityLabel="비밀번호 확인 입력"
+                style={[
+                  styles.input,
+                  {
+                    paddingRight: 48,
+                    borderColor:
+                      passwordConfirmation.length === 0
+                        ? colors.border
+                        : passwordMatches
+                          ? colors.primary
+                          : colors.destructive,
+                  },
+                ]}
+              />
+              <Pressable
+                onPress={() => setShowPasswordConfirmation((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={showPasswordConfirmation ? "비밀번호 확인 숨기기" : "비밀번호 확인 표시"}
+                hitSlop={10}
+                style={styles.eye}
+              >
+                <Ionicons
+                  name={showPasswordConfirmation ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.mutedForeground}
+                />
+              </Pressable>
+            </View>
+            {passwordConfirmation.length > 0 && !passwordMatches ? (
+              <Text style={styles.errorText}>비밀번호가 서로 일치하지 않아요.</Text>
+            ) : null}
+          </Field>
+        ) : null}
 
         {tab === "login" ? (
           <Pressable

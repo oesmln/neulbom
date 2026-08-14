@@ -12,6 +12,7 @@ export type RootStackParamList = {
    */
   UserType: { signup?: PendingSignup } | undefined;
   EmailVerification: { signup: PendingSignup };
+  SignupComplete: SignupCompleteParams;
   Onboarding: undefined;
   Elder: undefined;
   Guardian: undefined;
@@ -23,6 +24,13 @@ export type PendingSignup = {
   email: string;
   password: string;
   inviteCode?: string;
+  requiredConsentsAccepted?: boolean;
+};
+
+export type SignupCompleteParams = {
+  role: "elder" | "guardian";
+  inviteCode?: string;
+  invitationError?: string;
 };
 
 /** Elder area (bottom tabs live inside this stack so detail screens can be pushed) */
