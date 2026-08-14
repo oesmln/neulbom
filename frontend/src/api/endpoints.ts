@@ -27,6 +27,7 @@ import type {
   ConsentsResponse,
   CounselingCentersResponse,
   DashboardResponse,
+  EmailAvailabilityResponse,
   DiariesResponse,
   DiaryCreateRequest,
   DiaryDetailResponse,
@@ -48,6 +49,8 @@ import type {
   NotificationsReadAllResponse,
   NotificationsResponse,
   OAuthLoginRequest,
+  OAuthCompleteRequest,
+  OAuthPrepareResponse,
   PasswordChangeRequest,
   PasswordResetRequestResponse,
   QuestionsResponse,
@@ -91,6 +94,17 @@ export function newClientId(): Uuid {
 /* ── auth ───────────────────────────────────────────────────────────────── */
 
 export const auth = {
+  checkEmailAvailability(email: string): Promise<EmailAvailabilityResponse> {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (USE_MOCK_API) {
+      return Promise.resolve({ email: normalizedEmail, available: true });
+    }
+    return request("/auth/email/availability", {
+      query: { email: normalizedEmail },
+      anonymous: true,
+    });
+  },
+
   register(body: RegisterRequest): Promise<RegisterResponse> {
     if (USE_MOCK_API) {
       // Remember the role so the sign-in that follows returns the same one.
@@ -137,6 +151,27 @@ export const auth = {
   oauthLogin(provider: "kakao" | "naver", body: OAuthLoginRequest): Promise<AuthTokenResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockAuthToken(body.role));
     return request(`/auth/oauth/${provider}`, { method: "POST", body, anonymous: true });
+  },
+
+  prepareOAuthLogin(
+    provider: "kakao" | "naver",
+    body: OAuthLoginRequest,
+  ): Promise<OAuthPrepareResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        status: "role_required",
+        tokens: null,
+        pending_token: "mock-oauth-pending-token",
+        email: "social@example.com",
+        display_name: "소셜 사용자",
+      });
+    }
+    return request(`/auth/oauth/${provider}/prepare`, { method: "POST", body, anonymous: true });
+  },
+
+  completeOAuthLogin(provider: "kakao" | "naver", body: OAuthCompleteRequest): Promise<AuthTokenResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockAuthToken(body.role));
+    return request(`/auth/oauth/${provider}/complete`, { method: "POST", body, anonymous: true });
   },
 
   requestPasswordReset(email: string): Promise<PasswordResetRequestResponse> {
@@ -188,13 +223,16 @@ export const users = {
 
   updateProfile(userId: Uuid, body: UserProfileUpdateRequest): Promise<UserProfileUpdateResponse> {
     if (USE_MOCK_API) {
+      if (body.character_name?.trim()) {
+        mock.setMockCharacterDisplayName(body.character_name.trim());
+      }
       return Promise.resolve({
         user_id: userId,
         profile_completed: true,
         onboarding_step: body.onboarding_step ?? "completed",
         onboarding_completed: body.onboarding_completed ?? true,
         baseline_completed: body.baseline_completed ?? false,
-        character_name: body.character_name ?? "늘봄",
+        character_name: body.character_name ?? mock.mockCharacterDisplayNameValue(),
         updated_at: new Date().toISOString(),
       });
     }

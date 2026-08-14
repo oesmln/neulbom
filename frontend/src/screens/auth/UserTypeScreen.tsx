@@ -25,7 +25,7 @@ const OPTIONS: {
     key: "elder",
     title: "본인 (고령자)",
     sub: "AI와 대화하며 인지 건강을 스스로 관리해요",
-    tags: ["AI 정서 문답", "인지 캠페인", "나만의 일기"],
+    tags: ["AI 정서 문답", "인지능력 향상 게임", "나만의 일기"],
   },
   {
     key: "guardian",
@@ -49,17 +49,14 @@ export default function UserTypeScreen() {
     setSelected(choice);
     setMessage(null);
 
-    // Elder profile and feature consent are the very next sign-up screen.
-    // Registration is intentionally deferred until this form is complete.
+    // Once the elder role is selected, collect the optional guardian invite
+    // before opening the profile and elder consents.
     if (choice === "elder" && signup) {
       if (signup.requiredConsentsAccepted !== true) {
         setMessage("회원가입 화면에서 필수 동의를 먼저 완료해 주세요.");
         return;
       }
-      navigation.navigate("ElderProfile", {
-        signup,
-        inviteCode: signup.inviteCode,
-      });
+      navigation.navigate("SignupInvite", { signup });
     }
   };
 
@@ -88,10 +85,7 @@ export default function UserTypeScreen() {
     }
 
     if (selected === "elder") {
-      navigation.navigate("ElderProfile", {
-        signup,
-        inviteCode: signup.inviteCode,
-      });
+      navigation.navigate("SignupInvite", { signup });
       return;
     }
 

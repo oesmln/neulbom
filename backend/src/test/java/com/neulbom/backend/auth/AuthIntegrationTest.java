@@ -101,7 +101,32 @@ class AuthIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson(email, "password-1234")))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("이미 가입된 이메일입니다."))
+                .andExpect(jsonPath("$.detail").value("로그인해 주세요."));
+    }
+
+    @Test
+    void emailAvailabilityReportsExistingAndAvailableAddresses() throws Exception {
+        String existingEmail = uniqueEmail("availability-existing");
+        register(existingEmail, "password-1234");
+
+        mockMvc.perform(get("/api/v1/auth/email/availability")
+                        .param("email", existingEmail.toUpperCase()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(existingEmail))
+                .andExpect(jsonPath("$.available").value(false));
+
+        String availableEmail = uniqueEmail("availability-free");
+        mockMvc.perform(get("/api/v1/auth/email/availability")
+                        .param("email", availableEmail))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(availableEmail))
+                .andExpect(jsonPath("$.available").value(true));
+
+        mockMvc.perform(get("/api/v1/auth/email/availability")
+                        .param("email", "not-an-email"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -364,6 +389,57 @@ class AuthIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(
                 oauthAccountRepository.findByProviderAndProviderUserId("kakao", profile.providerUserId()))
                 .isEmpty();
+    }
+
+    @Test
+    void oauthPrepareAuthenticatesExistingAccountAndAsksRoleOnlyForNewAccount() throws Exception {
+        OAuthProviderClient client = org.mockito.Mockito.mock(OAuthProviderClient.class);
+        OAuthProfile profile = new OAuthProfile("kakao", "kakao-pending-" + UUID.randomUUID(),
+                uniqueEmail("oauth-pending"), "신규 소셜 사용자", true);
+        when(oauthProviderClientRegistry.clientFor("kakao")).thenReturn(client);
+        when(client.fetchProfile(any())).thenReturn(profile);
+
+        String preparedResponse = mockMvc.perform(post("/api/v1/auth/oauth/kakao/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authorization_code": "one-time-code",
+                                  "redirect_uri": "http://localhost/callback",
+                                  "state": "state-value"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("role_required"))
+                .andExpect(jsonPath("$.tokens").doesNotExist())
+                .andExpect(jsonPath("$.pending_token").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String pendingToken = objectMapper.readTree(preparedResponse).get("pending_token").asText();
+
+        mockMvc.perform(post("/api/v1/auth/oauth/kakao/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pending_token\":\"" + pendingToken + "\",\"role\":\"guardian\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.is_new_user").value(true))
+                .andExpect(jsonPath("$.role").value("guardian"));
+
+        mockMvc.perform(post("/api/v1/auth/oauth/kakao/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authorization_code": "another-one-time-code",
+                                  "redirect_uri": "http://localhost/callback"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("authenticated"))
+                .andExpect(jsonPath("$.tokens.is_new_user").value(false))
+                .andExpect(jsonPath("$.tokens.role").value("guardian"))
+                .andExpect(jsonPath("$.pending_token").doesNotExist());
+
+        mockMvc.perform(post("/api/v1/auth/oauth/kakao/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"pending_token\":\"" + pendingToken + "\",\"role\":\"elder\"}"))
+                .andExpect(status().isGone());
     }
 
     @Test

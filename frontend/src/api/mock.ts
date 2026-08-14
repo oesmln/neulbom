@@ -67,6 +67,15 @@ function daysAgo(n: number): Date {
  * handed an elder session on the very next call.
  */
 let lastRole: Role = "elder";
+let mockCharacterDisplayName = "늘봄";
+
+export function setMockCharacterDisplayName(name: string) {
+  mockCharacterDisplayName = name;
+}
+
+export function mockCharacterDisplayNameValue(): string {
+  return mockCharacterDisplayName;
+}
 
 export function rememberMockRole(role: Role) {
   lastRole = role;
@@ -90,7 +99,7 @@ export function mockAuthToken(role: Role = lastRole): AuthTokenResponse {
     onboarding_step: "completed",
     onboarding_completed: true,
     baseline_completed: true,
-    character_name: "늘봄",
+    character_name: mockCharacterDisplayName,
   };
 }
 
@@ -116,7 +125,7 @@ export function mockProfile(userId: Uuid, role: Role): UserProfileResponse {
     onboarding_step: "completed",
     onboarding_completed: true,
     baseline_completed: true,
-    character_name: "늘봄",
+    character_name: mockCharacterDisplayName,
     created_at: now,
     updated_at: now,
   };
@@ -131,7 +140,7 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
     role: "elder",
     character: {
       level: 2,
-      display_name: "늘봄",
+      display_name: mockCharacterDisplayName,
       stage: "puppy",
       xp_current: 210,
       xp_goal: 250,
@@ -197,7 +206,7 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
 export function mockCharacter(userId: Uuid): CharacterResponse {
   return {
     user_id: userId,
-    display_name: "늘봄",
+    display_name: mockCharacterDisplayName,
     level: 2,
     stage: "puppy",
     stage_index: 1,

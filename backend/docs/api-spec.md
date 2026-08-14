@@ -126,8 +126,11 @@
 | Method | Endpoint | 설명 | 인증 | 주요 역할 | 우선순위 |
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/auth/register` | 회원가입 | 불필요 | 전체 | MVP |
+| `GET` | `/auth/email/availability` | 회원가입 이메일 중복 확인 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/login` | 로그인 및 JWT 발급 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/oauth/{provider}` | 카카오·네이버 소셜 로그인 및 JWT 발급 | 불필요 | 전체 | MVP |
+| `POST` | `/auth/oauth/{provider}/prepare` | provider 인증 후 기존 계정 확인·신규 역할 선택 준비 | 불필요 | 전체 | MVP |
+| `POST` | `/auth/oauth/{provider}/complete` | 신규 소셜 계정 역할 선택 및 계정 생성 완료 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/email/verify/request` | 가입 이메일 인증 메일 재발송 요청 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/email/verify/confirm` | 인증 token 검증 및 이메일 활성화 | 불필요 | 전체 | MVP |
 | `POST` | `/auth/password/reset/request` | 비밀번호 재설정 요청 | 불필요 | 전체 | MVP |
@@ -243,7 +246,7 @@
 
 ### 3.1 `POST /auth/register` - 회원가입
 
-Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코드 입력 또는 건너뛰기 → 사용자 유형 선택`이다. 첫 화면 입력만으로 계정을 생성하지 않으며, 클라이언트는 사용자 유형이 확정될 때까지 값을 안전하게 임시 보관한 뒤 최종 `role`과 함께 이 API를 호출한다. 초대 코드를 입력한 경우 공개 `verify`를 먼저 호출하고, `elder` 가입·로그인 완료 후 `accept`를 호출한다.
+Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 사용자 유형 선택 → (고령자라면) 초대 코드 입력 또는 건너뛰기`이다. 첫 화면 입력만으로 계정을 생성하지 않으며, 클라이언트는 사용자 유형과 초대 코드가 처리될 때까지 값을 안전하게 임시 보관한 뒤 최종 `role`과 함께 이 API를 호출한다. 고령자가 초대 코드를 입력한 경우 공개 `verify`를 먼저 호출하고, `elder` 가입·로그인 완료 후 `accept`를 호출한다.
 
 #### Request Body
 
@@ -279,6 +282,31 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 ```
 
 `EMAIL_VERIFICATION_REQUIRED=true`인 환경에서는 가입 직후 `email_verified=false`가 되며, 인증 메일이 전송된다. 인증이 끝나기 전 비밀번호 로그인은 `403`으로 거절된다. 로컬·테스트 기본값은 `false`라 기존 개발 흐름을 막지 않는다.
+
+### 3.1.0 `GET /auth/email/availability` - 회원가입 이메일 중복 확인
+
+회원가입 화면에서 계정을 만들기 전에 이메일 사용 가능 여부를 확인한다. 인증이 필요하지 않으며, 서버는 이메일을 trim·소문자화한 뒤 대소문자를 구분하지 않고 기존 계정을 조회한다. 이 API의 `available=true` 응답은 확인 시점의 상태이므로, 최종 회원가입에서도 중복을 다시 검증한다.
+
+#### Query Parameter
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `email` | string | Y | 이메일 형식의 가입 이메일 |
+
+#### Response `200`
+
+```json
+{
+  "email": "user@example.com",
+  "available": true
+}
+```
+
+- `available=true`: 현재 가입에 사용할 수 있는 이메일
+- `available=false`: 이미 가입된 이메일. 회원가입을 다시 시도하지 말고 로그인 화면으로 이동한다.
+- 형식이 올바르지 않거나 비어 있으면 `400`을 반환한다.
+
+회원가입 API가 같은 이메일을 다시 받으면 `409`와 함께 `error="이미 가입된 이메일입니다."`, `detail="로그인해 주세요."`를 반환한다. 프론트는 이를 `이미 가입된 이메일입니다. 로그인해 주세요.`로 표시한다.
 
 ### 3.1.1 `POST /auth/email/verify/request` - 이메일 인증 메일 요청
 
@@ -373,6 +401,31 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 
 지원하지 않는 provider, 등록되지 않은 `redirect_uri`, 만료된 authorization code, provider 계정의 이메일 검증 실패는 `400` 또는 `401`로 반환한다. credential 미설정 또는 provider 장애는 `503`으로 반환한다. provider access token, authorization code, client secret은 로그에 기록하지 않는다. `redirect_uri`는 provider별 `*_ALLOWED_REDIRECT_URIS`에 정확히 일치해야 한다.
 
+신규 소셜 계정은 provider 인증을 먼저 완료한 뒤 역할을 선택한다. 앱은
+`POST /auth/oauth/{provider}/prepare`에 `role` 없이 authorization code를 보내고,
+서버는 기존 계정이면 `status=authenticated`와 저장된 역할의 `tokens`를 반환한다.
+신규 계정이면 `status=role_required`와 10분 유효·1회 사용 가능한 `pending_token`을
+반환하며 계정을 아직 생성하지 않는다. 사용자가 역할을 선택한 뒤
+`POST /auth/oauth/{provider}/complete`에 pending token과 `role`을 보내면 계정 생성과
+JWT 발급을 완료한다. 기존 소셜 계정에는 역할 선택 화면을 표시하지 않는다.
+
+#### `POST /auth/oauth/{provider}/prepare` 응답
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `status` | enum | `authenticated` 또는 `role_required` |
+| `tokens` | object/null | 기존 계정이면 기존 로그인 응답. 신규 계정이면 `null` |
+| `pending_token` | string/null | 신규 역할 선택용 일회성 토큰 |
+| `email` | string/null | 신규 provider 이메일 |
+| `display_name` | string/null | 신규 provider 표시 이름 |
+
+#### `POST /auth/oauth/{provider}/complete` 요청
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `pending_token` | string | Y | prepare 응답의 일회성 토큰 |
+| `role` | enum | Y | `elder`, `guardian` |
+
 ### 3.2.2 `POST /auth/password/reset/request` - 비밀번호 재설정 요청
 
 #### Request Body
@@ -401,11 +454,12 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 #### 발송 provider·요청 제한 정책
 
 - 현재 요청 계약은 `email`을 기준으로 하며, 서버의 `PasswordResetNotifier` adapter가 재설정 링크 또는 token 전달을 담당한다.
+- `MAIL_ENABLED=true`이면 SMTP adapter가 `PASSWORD_RESET_URL?token=...` 형식의 일회성 재설정 링크를 발송한다. `MAIL_ENABLED=false`(로컬 기본값)이면 요청·token 저장만 수행하고 실제 메일은 발송하지 않는다.
 - 운영에서는 이메일 provider를 연결하고, SMS를 지원할 경우 인증된 사용자 전화번호가 있는 계정에 한해 SMS provider를 연결한다. SMS를 앱에서 직접 선택하게 하는 `delivery_channel` 필드는 provider·전화번호 정책을 확정한 뒤 별도 계약으로 추가한다.
-- provider credential, 발신 주소·번호, 재설정 링크의 Base URL은 환경변수 또는 secret manager로 주입하며 소스와 로그에 저장하지 않는다.
+- SMTP host·port·username·password, 발신 주소, 재설정 링크의 Base URL은 환경변수 또는 secret manager로 주입하며 소스와 로그에 저장하지 않는다.
 - 이메일 기준과 IP 기준의 rate limit을 모두 적용한다. 권장 초기값은 동일 이메일 15분당 3회, 동일 IP 1시간당 10회이며 운영 트래픽에 맞춰 환경변수로 조정한다.
 - 제한을 초과하면 `429`와 `Retry-After` 헤더를 반환한다. 계정 존재 여부가 드러나지 않도록 제한 전후의 응답 본문은 동일한 오류 형식을 사용한다.
-- provider 장애 시 token 원문을 응답·로그에 남기지 않고 전송 작업을 재시도하거나 실패 상태로 기록한다. 로컬·테스트 환경은 provider가 연결되지 않은 상태이므로 실제 메시지는 발송되지 않는다.
+- SMTP 장애 시 token 원문을 응답·로그에 남기지 않고 `503`으로 실패한다. 메일 발송 예외가 발생하면 token 저장 트랜잭션도 롤백되어 사용자가 새 요청을 안전하게 재시도할 수 있다.
 
 ### 3.2.3 `POST /auth/password/reset/confirm` - 비밀번호 재설정 확정
 

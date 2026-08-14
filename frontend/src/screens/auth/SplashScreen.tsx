@@ -51,16 +51,15 @@ export default function SplashScreen() {
         </Pressable>
 
         <View style={styles.brandBlock}>
-          <Text style={styles.brand}>메모케어</Text>
+          <Text style={styles.brand}>늘봄</Text>
           {__DEV__ && shapeIndex >= 0 ? (
             <Text style={styles.shapeLabel}>{character.name}</Text>
           ) : null}
-          <Text style={styles.brandSub}>MEMOCARE · CIST 기반 AI 스크리닝</Text>
         </View>
 
         <Text style={styles.tagline}>
-          매일 5분, AI와 함께하는{"\n"}
-          <Text style={styles.taglineStrong}>인지 건강 조기 스크리닝</Text>
+          매일 성장형 AI 캐릭터와 함께하는{"\n"}
+          <Text style={styles.taglineStrong}>인지 활력 케어</Text>
         </Text>
 
         <View style={styles.bubble}>
@@ -101,12 +100,6 @@ const styles = StyleSheet.create({
   brandBlock: { alignItems: "center" },
   brand: { fontSize: fontSize.display, fontWeight: fontWeight.bold, color: colors.white },
   shapeLabel: { fontSize: fontSize.caption, color: colors.accent, marginTop: 2 },
-  brandSub: {
-    fontSize: fontSize.badge,
-    color: "rgba(255,255,255,0.4)",
-    letterSpacing: 1.4,
-    marginTop: spacing.xs,
-  },
   tagline: {
     fontSize: fontSize.bodyLg - 1,
     color: "rgba(255,255,255,0.75)",

@@ -66,6 +66,9 @@ export function apiErrorMessage(error: unknown): string {
     case 404:
       return "요청하신 정보를 찾을 수 없어요.";
     case 409:
+      if (error.message.includes("가입된 이메일")) {
+        return "이미 가입된 이메일입니다. 로그인해 주세요.";
+      }
       return "이미 처리된 요청이에요.";
     case 410:
       // Invite codes are one-shot and time-limited (api-spec 4.2).

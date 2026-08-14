@@ -9,15 +9,32 @@ import type {
 /** Root onboarding + role stacks */
 export type RootStackParamList = {
   Splash: undefined;
-  Login: { mode?: "login" | "signup" } | undefined;
+  Login:
+    | {
+        mode?: "login" | "signup";
+        socialProvider?: "kakao" | "naver";
+        socialPendingToken?: string;
+        socialDisplayName?: string | null;
+      }
+    | undefined;
+  OAuthCallback: {
+    provider: "kakao" | "naver";
+    code?: string;
+    state?: string;
+    error?: string;
+    error_description?: string;
+  };
   /**
    * Sign-up only. api-spec 3.1 creates the account once, at the end of
-   * 이름·이메일·비밀번호 → 초대 코드 → 유형 선택, so the form values travel here
-   * in memory and `POST /auth/register` is sent with the chosen role.
+   * 이름·이메일·비밀번호 → 유형 선택 → (고령자라면) 초대 코드, so the form
+   * values travel here in memory and `POST /auth/register` is sent with the chosen role.
    */
   UserType: { signup?: PendingSignup } | undefined;
+  SignupInvite: { signup: PendingSignup };
   EmailVerification: { signup: PendingSignup };
+  EmailVerificationLink: { token?: string } | undefined;
   SignupComplete: SignupCompleteParams;
+  PasswordReset: { token?: string } | undefined;
   ElderProfile: { inviteCode?: string; signup?: PendingSignup } | undefined;
   Onboarding: undefined;
   Elder: undefined;

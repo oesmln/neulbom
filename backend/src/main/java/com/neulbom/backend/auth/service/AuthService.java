@@ -8,11 +8,14 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.neulbom.backend.auth.api.AuthTokenResponse;
+import com.neulbom.backend.auth.api.EmailAvailabilityResponse;
 import com.neulbom.backend.auth.api.EmailVerificationConfirmRequest;
 import com.neulbom.backend.auth.api.EmailVerificationRequest;
 import com.neulbom.backend.auth.api.EmailVerificationResponse;
 import com.neulbom.backend.auth.api.LoginRequest;
 import com.neulbom.backend.auth.api.OAuthLoginRequest;
+import com.neulbom.backend.auth.api.OAuthCompleteRequest;
+import com.neulbom.backend.auth.api.OAuthPrepareResponse;
 import com.neulbom.backend.auth.api.PasswordResetConfirmRequest;
 import com.neulbom.backend.auth.api.PasswordResetRequest;
 import com.neulbom.backend.auth.api.PasswordResetRequestResponse;
@@ -30,6 +33,8 @@ import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.user.OAuthAccountEntity;
 import com.neulbom.backend.user.OAuthAccountRepository;
+import com.neulbom.backend.user.OAuthPendingLoginEntity;
+import com.neulbom.backend.user.OAuthPendingLoginRepository;
 import com.neulbom.backend.user.EmailVerificationTokenEntity;
 import com.neulbom.backend.user.EmailVerificationTokenRepository;
 import com.neulbom.backend.user.PasswordResetTokenEntity;
@@ -61,6 +66,7 @@ public class AuthService {
     private final JwtTokenService jwtTokenService;
     private final PasswordResetNotifier passwordResetNotifier;
     private final OAuthProviderClientRegistry oauthProviderClientRegistry;
+    private final OAuthPendingLoginRepository oauthPendingLoginRepository;
     private final AuditLogRepository auditLogRepository;
     private final PasswordResetRateLimiter passwordResetRateLimiter;
     private final EmailVerificationNotifier emailVerificationNotifier;
@@ -79,6 +85,7 @@ public class AuthService {
             JwtTokenService jwtTokenService,
             PasswordResetNotifier passwordResetNotifier,
             OAuthProviderClientRegistry oauthProviderClientRegistry,
+            OAuthPendingLoginRepository oauthPendingLoginRepository,
             AuditLogRepository auditLogRepository,
             PasswordResetRateLimiter passwordResetRateLimiter,
             EmailVerificationNotifier emailVerificationNotifier,
@@ -96,6 +103,7 @@ public class AuthService {
         this.jwtTokenService = jwtTokenService;
         this.passwordResetNotifier = passwordResetNotifier;
         this.oauthProviderClientRegistry = oauthProviderClientRegistry;
+        this.oauthPendingLoginRepository = oauthPendingLoginRepository;
         this.auditLogRepository = auditLogRepository;
         this.passwordResetRateLimiter = passwordResetRateLimiter;
         this.emailVerificationNotifier = emailVerificationNotifier;
@@ -106,7 +114,7 @@ public class AuthService {
     public RegisterResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new ApiException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.", "다른 이메일을 사용하세요.");
+            throw new ApiException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.", "로그인해 주세요.");
         }
 
         Instant now = jwtTokenService.now();
@@ -136,6 +144,12 @@ public class AuthService {
                 user.isProfileCompleted(),
                 user.isEmailVerified(),
                 user.getCreatedAt());
+    }
+
+    @Transactional(readOnly = true)
+    public EmailAvailabilityResponse checkEmailAvailability(String requestedEmail) {
+        String email = normalizeEmail(requestedEmail);
+        return new EmailAvailabilityResponse(email, !userRepository.existsByEmailIgnoreCase(email));
     }
 
     @Transactional
@@ -193,65 +207,80 @@ public class AuthService {
 
     @Transactional
     public AuthTokenResponse loginWithOAuth(String provider, OAuthLoginRequest request) {
-        String normalizedProvider = provider.toLowerCase(Locale.ROOT);
-        OAuthProfile profile = oauthProviderClientRegistry.clientFor(normalizedProvider).fetchProfile(request);
-        if (!normalizedProvider.equals(profile.provider())) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "소셜 provider 정보가 일치하지 않습니다.");
+        String normalizedProvider = normalizeProvider(provider);
+        OAuthProfile profile = fetchAndValidateOAuthProfile(normalizedProvider, request);
+        Instant now = jwtTokenService.now();
+        ExistingOAuthAccount existing = findExistingOAuthAccount(profile, now);
+        if (existing != null) {
+            oauthAccountRepository.save(existing.oauthAccount());
+            return issueTokens(existing.user(), false);
         }
-        if (!profile.emailVerified() || profile.email() == null || profile.email().isBlank()) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "검증된 이메일을 제공하는 계정만 사용할 수 있습니다.");
+        if (request.role() == null || request.role().isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "가입 역할이 필요합니다.", "신규 소셜 계정은 role을 함께 보내야 합니다.");
+        }
+        return createOAuthUser(profile, request.role(), now);
+    }
+
+    /**
+     * Exchanges the provider authorization code before asking a first-time
+     * social user for a role. Existing accounts receive normal app tokens;
+     * new accounts receive a one-time pending token instead.
+     */
+    @Transactional
+    public OAuthPrepareResponse prepareOAuthLogin(String provider, OAuthLoginRequest request) {
+        String normalizedProvider = normalizeProvider(provider);
+        OAuthProfile profile = fetchAndValidateOAuthProfile(normalizedProvider, request);
+        Instant now = jwtTokenService.now();
+        ExistingOAuthAccount existing = findExistingOAuthAccount(profile, now);
+        if (existing != null) {
+            oauthAccountRepository.save(existing.oauthAccount());
+            return OAuthPrepareResponse.authenticated(issueTokens(existing.user(), false));
         }
 
+        String pendingToken = tokenGenerator.generate();
+        oauthPendingLoginRepository.save(new OAuthPendingLoginEntity(
+                uuidGenerator.generate(),
+                tokenHasher.hash(pendingToken),
+                profile.provider(),
+                profile.providerUserId(),
+                normalizeEmail(profile.email()),
+                profile.displayName(),
+                now.plus(Duration.ofMinutes(10)),
+                now));
+        return OAuthPrepareResponse.roleRequired(pendingToken, normalizeEmail(profile.email()), profile.displayName());
+    }
+
+    /** Completes a first-time social login after the user chooses a role. */
+    @Transactional
+    public AuthTokenResponse completeOAuthLogin(String provider, OAuthCompleteRequest request) {
+        String normalizedProvider = normalizeProvider(provider);
         Instant now = jwtTokenService.now();
-        OAuthAccountEntity oauthAccount = oauthAccountRepository
-                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
-                .orElse(null);
-        boolean newUser = false;
-        UserEntity user;
-        if (oauthAccount != null) {
-            user = userRepository.findById(oauthAccount.getUserId()).orElseThrow(this::invalidCredentials);
-            if (!user.isActive()) {
-                throw invalidCredentials();
-            }
-            oauthAccount.updateProfile(profile.email(), profile.displayName(), now);
-        } else {
-            user = userRepository.findByEmailIgnoreCase(normalizeEmail(profile.email())).orElse(null);
-            if (user != null && !user.isActive()) {
-                throw invalidCredentials();
-            }
-            if (user == null) {
-                if (request.role() == null || request.role().isBlank()) {
-                    throw new ApiException(HttpStatus.BAD_REQUEST, "가입 역할이 필요합니다.", "신규 소셜 계정은 role을 함께 보내야 합니다.");
-                }
-                user = new UserEntity(
-                        uuidGenerator.generate(),
-                        normalizeEmail(profile.email()),
-                        null,
-                        profile.displayName() == null || profile.displayName().isBlank()
-                                ? "소셜 사용자" : profile.displayName(),
-                        request.role(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        false,
-                        now,
-                        now);
-                userRepository.save(user);
-                newUser = true;
-            }
-            oauthAccount = new OAuthAccountEntity(
-                    uuidGenerator.generate(),
-                    user.getId(),
-                    profile.provider(),
-                    profile.providerUserId(),
-                    normalizeEmail(profile.email()),
-                    profile.displayName(),
-                    now,
-                    now);
+        OAuthPendingLoginEntity pending = oauthPendingLoginRepository
+                .findByTokenHash(tokenHasher.hash(request.pendingToken()))
+                .filter(candidate -> normalizedProvider.equals(candidate.getProvider()))
+                .filter(candidate -> candidate.isUsable(now))
+                .orElseThrow(() -> new ApiException(
+                        HttpStatus.GONE,
+                        "소셜 로그인 요청이 만료되었어요.",
+                        "처음부터 소셜 로그인을 다시 시도해 주세요."));
+        OAuthProfile profile = new OAuthProfile(
+                pending.getProvider(),
+                pending.getProviderUserId(),
+                pending.getProviderEmail(),
+                pending.getProviderDisplayName(),
+                true);
+        ExistingOAuthAccount existing = findExistingOAuthAccount(profile, now);
+        if (existing != null) {
+            pending.markConsumed(now);
+            oauthPendingLoginRepository.save(pending);
+            oauthAccountRepository.save(existing.oauthAccount());
+            return issueTokens(existing.user(), false);
         }
-        oauthAccountRepository.save(oauthAccount);
-        return issueTokens(user, newUser);
+
+        AuthTokenResponse tokens = createOAuthUser(profile, request.role(), now);
+        pending.markConsumed(now);
+        oauthPendingLoginRepository.save(pending);
+        return tokens;
     }
 
     @Transactional
@@ -373,6 +402,83 @@ public class AuthService {
         } catch (IllegalArgumentException exception) {
             throw invalidCredentials();
         }
+    }
+
+    private OAuthProfile fetchAndValidateOAuthProfile(String normalizedProvider, OAuthLoginRequest request) {
+        OAuthProfile profile = oauthProviderClientRegistry.clientFor(normalizedProvider).fetchProfile(request);
+        if (!normalizedProvider.equals(profile.provider())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "소셜 provider 정보가 일치하지 않습니다.");
+        }
+        if (!profile.emailVerified() || profile.email() == null || profile.email().isBlank()) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "검증된 이메일을 제공하는 계정만 사용할 수 있습니다.");
+        }
+        return profile;
+    }
+
+    private ExistingOAuthAccount findExistingOAuthAccount(OAuthProfile profile, Instant now) {
+        OAuthAccountEntity oauthAccount = oauthAccountRepository
+                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
+                .orElse(null);
+        if (oauthAccount != null) {
+            UserEntity user = userRepository.findById(oauthAccount.getUserId()).orElseThrow(this::invalidCredentials);
+            if (!user.isActive()) {
+                throw invalidCredentials();
+            }
+            oauthAccount.updateProfile(profile.email(), profile.displayName(), now);
+            return new ExistingOAuthAccount(user, oauthAccount);
+        }
+
+        UserEntity user = userRepository.findByEmailIgnoreCase(normalizeEmail(profile.email())).orElse(null);
+        if (user == null) {
+            return null;
+        }
+        if (!user.isActive()) {
+            throw invalidCredentials();
+        }
+        return new ExistingOAuthAccount(user, new OAuthAccountEntity(
+                uuidGenerator.generate(),
+                user.getId(),
+                profile.provider(),
+                profile.providerUserId(),
+                normalizeEmail(profile.email()),
+                profile.displayName(),
+                now,
+                now));
+    }
+
+    private AuthTokenResponse createOAuthUser(OAuthProfile profile, String role, Instant now) {
+        UserEntity user = new UserEntity(
+                uuidGenerator.generate(),
+                normalizeEmail(profile.email()),
+                null,
+                profile.displayName() == null || profile.displayName().isBlank()
+                        ? "소셜 사용자" : profile.displayName(),
+                role,
+                null,
+                null,
+                null,
+                null,
+                false,
+                now,
+                now);
+        userRepository.save(user);
+        oauthAccountRepository.save(new OAuthAccountEntity(
+                uuidGenerator.generate(),
+                user.getId(),
+                profile.provider(),
+                profile.providerUserId(),
+                normalizeEmail(profile.email()),
+                profile.displayName(),
+                now,
+                now));
+        return issueTokens(user, true);
+    }
+
+    private String normalizeProvider(String provider) {
+        return provider.toLowerCase(Locale.ROOT);
+    }
+
+    private record ExistingOAuthAccount(UserEntity user, OAuthAccountEntity oauthAccount) {
     }
 
     private AuthTokenResponse issueTokens(UserEntity user, boolean newUser) {
