@@ -129,6 +129,7 @@ export default function GuardianDashboardScreen() {
           >
             <Ionicons name="people-outline" size={18} color={colors.white} />
           </Pressable>
+          <GuardianNotificationButton />
           <Pressable
             onPress={() => navigation.navigate("GuardianAppSettings")}
             accessibilityRole="button"
