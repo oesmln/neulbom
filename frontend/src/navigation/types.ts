@@ -4,7 +4,7 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 /** Root onboarding + role stacks */
 export type RootStackParamList = {
   Splash: undefined;
-  Login: undefined;
+  Login: { mode?: "login" | "signup" } | undefined;
   /**
    * Sign-up only. api-spec 3.1 creates the account once, at the end of
    * 이름·이메일·비밀번호 → 초대 코드 → 유형 선택, so the form values travel here

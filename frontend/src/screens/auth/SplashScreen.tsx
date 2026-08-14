@@ -76,12 +76,12 @@ export default function SplashScreen() {
           label={ready ? "시작하기" : "로그인 정보를 확인하는 중이에요"}
           size="lg"
           disabled={!ready}
-          onPress={() => navigation.navigate("Login")}
+          onPress={() => navigation.navigate("Login", { mode: "signup" })}
         />
         <Button
           label="이미 계정이 있어요"
           variant="onDark"
-          onPress={() => navigation.navigate("Login")}
+          onPress={() => navigation.navigate("Login", { mode: "login" })}
           style={{ marginTop: spacing.md }}
         />
       </View>
