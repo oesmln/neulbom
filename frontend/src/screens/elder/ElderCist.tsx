@@ -234,8 +234,17 @@ function MicRecorder({
   answered: boolean;
   onAnswer: (recordingId: Uuid) => void;
 }) {
-  const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
+  const [transcript, setTranscript] = React.useState<string | null>(null);
+  const recording = useAnswerRecording(
+    { userId, sessionId, questionId },
+    onAnswer,
+    (text) => setTranscript(text),
+  );
   const elapsed = Math.floor(recording.durationMillis / 1000);
+
+  React.useEffect(() => {
+    setTranscript(null);
+  }, [questionId]);
 
   const tap = async () => {
     if (answered || recording.uploading) return;
@@ -312,6 +321,12 @@ function MicRecorder({
       </Pressable>
 
       <Text style={styles.status}>{status}</Text>
+      {transcript ? (
+        <View style={styles.transcriptCard}>
+          <Text style={styles.transcriptLabel}>음성 인식 결과</Text>
+          <Text style={styles.transcriptText}>{transcript}</Text>
+        </View>
+      ) : null}
       {recording.error ? <Text style={styles.recordingError}>{recording.error}</Text> : null}
     </View>
   );
@@ -364,6 +379,18 @@ const styles = StyleSheet.create({
   },
   timer: { fontSize: fontSize.badge, color: colors.white },
   status: { fontSize: fontSize.caption, color: colors.mutedForeground },
+  transcriptCard: {
+    width: "100%",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  transcriptLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  transcriptText: { fontSize: fontSize.body, lineHeight: 23, color: colors.foreground },
   recordingError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
   submissionError: {
     marginBottom: spacing.md,

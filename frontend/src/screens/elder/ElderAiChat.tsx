@@ -76,6 +76,7 @@ export default function ElderAiChatScreen() {
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<string[]>([]);
+  const [transcripts, setTranscripts] = React.useState<string[]>([]);
   const [recordingIds, setRecordingIds] = React.useState<Array<Uuid | null>>([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
@@ -114,6 +115,7 @@ export default function ElderAiChatScreen() {
     setPhase("intro");
     setIndex(0);
     setAnswers([]);
+    setTranscripts([]);
     setRecordingIds([]);
     setSubmissionError(null);
   };
@@ -222,7 +224,10 @@ export default function ElderAiChatScreen() {
 
             {answered ? (
               <View style={styles.myBubble}>
-                <Text style={styles.myText}>{answers[index] || "답변 녹음을 저장했어요"}</Text>
+                <Text style={styles.transcriptLabel}>음성 인식 결과</Text>
+                <Text style={styles.myText}>
+                  {answers[index] || transcripts[index] || "음성 답변을 글자로 옮기고 있어요"}
+                </Text>
               </View>
             ) : null}
           </>
@@ -266,6 +271,13 @@ export default function ElderAiChatScreen() {
                   return next;
                 })
               }
+              onTranscript={(text) =>
+                setTranscripts((current) => {
+                  const next = [...current];
+                  next[index] = text;
+                  return next;
+                })
+              }
             />
           ) : null
         )}
@@ -279,13 +291,15 @@ function ChatRecorder({
   sessionId,
   questionId,
   onAnswer,
+  onTranscript,
 }: {
   userId: Uuid | null;
   sessionId: Uuid | null;
   questionId: Uuid;
   onAnswer: (recordingId: Uuid) => void;
+  onTranscript: (transcript: string) => void;
 }) {
-  const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
+  const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer, onTranscript);
   const seconds = Math.floor(recording.durationMillis / 1000);
 
   const tap = async () => {
@@ -365,6 +379,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  transcriptLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold, color: colors.white, marginBottom: spacing.xs },
   myText: { fontSize: fontSize.body, color: colors.white, lineHeight: 22 },
   submissionError: {
     fontSize: fontSize.caption,

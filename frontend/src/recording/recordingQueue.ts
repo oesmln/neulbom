@@ -29,7 +29,13 @@ export type RecordingQueueItem = {
 
 export type RecordingQueueEvent =
   | { type: "changed"; item: RecordingQueueItem }
-  | { type: "uploaded"; clientRecordingId: Uuid; recordingId: Uuid }
+  | {
+      type: "uploaded";
+      clientRecordingId: Uuid;
+      recordingId: Uuid;
+      transcript?: string;
+      transcriptId?: Uuid;
+    }
   | { type: "removed"; clientRecordingId: Uuid };
 
 type CapturedRecording = Omit<
@@ -44,6 +50,8 @@ type RecordingReceipt = {
   sessionId?: Uuid;
   questionId?: Uuid;
   recordingId: Uuid;
+  transcript?: string;
+  transcriptId?: Uuid;
   completedAt: string;
 };
 type WebStoredRow =
@@ -300,7 +308,7 @@ export async function consumeUploadedRecording(
   userId: Uuid,
   sessionId: Uuid,
   questionId: Uuid,
-): Promise<Uuid | null> {
+): Promise<{ recordingId: Uuid; transcript?: string; transcriptId?: Uuid } | null> {
   return serializeMutation(async () => {
     const receipts = await readReceipts();
     const receipt = receipts.find(
@@ -309,7 +317,11 @@ export async function consumeUploadedRecording(
     );
     if (!receipt) return null;
     await deleteReceipt(receipt.clientRecordingId);
-    return receipt.recordingId;
+    return {
+      recordingId: receipt.recordingId,
+      transcript: receipt.transcript,
+      transcriptId: receipt.transcriptId,
+    };
   });
 }
 
@@ -363,6 +375,9 @@ async function performSync(activeUserId: Uuid): Promise<void> {
         mimeType: uploading.mimeType,
         fileName: uploading.fileName,
       });
+      const transcript = uploading.purpose === "answer"
+        ? await recordings.transcribe(response.recording_id)
+        : null;
       await serializeMutation(() => deleteStored(uploading.clientRecordingId));
       await serializeMutation(() =>
         saveReceipt({
@@ -371,6 +386,8 @@ async function performSync(activeUserId: Uuid): Promise<void> {
           sessionId: uploading.sessionId,
           questionId: uploading.questionId,
           recordingId: response.recording_id,
+          transcript: transcript?.transcript,
+          transcriptId: transcript?.transcript_id,
           completedAt: new Date().toISOString(),
         }),
       );
@@ -378,6 +395,8 @@ async function performSync(activeUserId: Uuid): Promise<void> {
         type: "uploaded",
         clientRecordingId: uploading.clientRecordingId,
         recordingId: response.recording_id,
+        transcript: transcript?.transcript,
+        transcriptId: transcript?.transcript_id,
       });
     } catch (cause) {
       const failed: RecordingQueueItem = {
