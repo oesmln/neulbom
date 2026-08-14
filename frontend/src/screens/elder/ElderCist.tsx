@@ -18,7 +18,7 @@ import { Badge, Button, ErrorState, LoadingState, ProgressBar } from "@/componen
  * CIST initial screening.
  *
  * The flow follows the backend one step at a time:
- *   `POST /sessions` (`session_type=cist`) → `GET /questions/daily`
+ *   `POST /sessions` (`session_type=baseline`) → `GET /questions/daily`
  *   → `POST /sessions/{id}/answers` per question → `PATCH /sessions/{id}/end`
  * and then the result screen reads `GET /screenings/{session_id}/result`.
  *
@@ -61,13 +61,13 @@ export default function ElderCistScreen() {
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
   const session = useApi(
-    () => sessions.start({ user_id: userId as string, session_type: "cist" }),
+    () => sessions.start({ user_id: userId as string, session_type: "baseline" }),
     [userId],
     { enabled: !!userId },
   );
 
   const questions = useApi(
-    () => sessions.dailyQuestions(userId as string, "cist"),
+    () => sessions.dailyQuestions(userId as string, "baseline"),
     [userId],
     { enabled: !!userId },
   );
@@ -115,7 +115,7 @@ export default function ElderCistScreen() {
 
       if (isLast) {
         await sessions.end(sessionId);
-        navigation.replace("ElderResult", { sessionId });
+        navigation.replace("ElderResult", { sessionId, mode: "baseline" });
         return;
       }
       setListened(false);
@@ -148,7 +148,7 @@ export default function ElderCistScreen() {
           >
             <Ionicons name="chevron-back" size={18} color={colors.white} />
           </Pressable>
-          <Text style={styles.headerTitle}>CIST 초기 검사</Text>
+          <Text style={styles.headerTitle}>초기 인지 활동 확인</Text>
           <Text style={styles.headerCount}>
             {list.length > 0 ? `${index + 1} / ${list.length}` : ""}
           </Text>

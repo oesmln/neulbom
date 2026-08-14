@@ -36,7 +36,7 @@ export type ElderStackParamList = {
    * Carries the session it belongs to so the screen can read
    * `GET /screenings/{session_id}/result` instead of guessing.
    */
-  ElderResult: { sessionId: string } | undefined;
+  ElderResult: { sessionId: string; mode?: "daily" | "baseline" } | undefined;
   ElderNotifications: undefined;
   ElderCampaign: undefined;
   /** 비밀번호 변경 — reached from 마이페이지. */

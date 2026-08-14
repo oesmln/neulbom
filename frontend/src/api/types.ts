@@ -70,6 +70,10 @@ export interface AuthTokenResponse {
   role: Role;
   profile_completed: boolean;
   is_new_user: boolean;
+  onboarding_step: OnboardingStep;
+  onboarding_completed: boolean;
+  baseline_completed: boolean;
+  character_name: string | null;
 }
 
 export interface PasswordResetRequestResponse {
@@ -102,6 +106,10 @@ export interface UserProfileResponse {
   communication_difficulty: boolean | null;
   smartphone_skill: string | null;
   profile_completed: boolean;
+  onboarding_step: OnboardingStep;
+  onboarding_completed: boolean;
+  baseline_completed: boolean;
+  character_name: string | null;
   created_at: IsoInstant;
   updated_at: IsoInstant;
 }
@@ -120,11 +128,19 @@ export interface UserProfileUpdateRequest {
   hearing_status?: string;
   communication_difficulty?: boolean;
   smartphone_skill?: string;
+  onboarding_step?: OnboardingStep;
+  onboarding_completed?: boolean;
+  baseline_completed?: boolean;
+  character_name?: string;
 }
 
 export interface UserProfileUpdateResponse {
   user_id: Uuid;
   profile_completed: boolean;
+  onboarding_step: OnboardingStep;
+  onboarding_completed: boolean;
+  baseline_completed: boolean;
+  character_name: string | null;
   updated_at: IsoInstant;
 }
 
@@ -160,6 +176,10 @@ export interface VoiceProfilesResponse {
 }
 
 export type ConsentType =
+  | "terms_of_service"
+  | "privacy_collection"
+  | "sensitive_health"
+  | "report_sharing"
   | "data_sharing"
   | "guardian_access"
   | "analysis"
@@ -188,7 +208,15 @@ export interface ConsentsResponse {
 
 /* ── sessions & questions ───────────────────────────────────────────────── */
 
-export type SessionType = "cist" | "emotional_qa" | "game" | "mixed";
+export type OnboardingStep =
+  | "not_started"
+  | "intro"
+  | "character_name"
+  | "consent"
+  | "baseline"
+  | "completed";
+
+export type SessionType = "cist" | "baseline" | "onboarding" | "emotional_qa" | "game" | "mixed";
 
 export interface SessionStartRequest {
   user_id: Uuid;

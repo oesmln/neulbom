@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
+import { useApp } from "@/store/AppContext";
+import ConsentManagementView from "@/components/ConsentManagementView";
 import { Screen, ScreenHeader, Caption } from "@/components/ui";
 import {
   currentDisplaySettings,
@@ -59,6 +61,7 @@ export default function AppSettingsView({
   backLabel?: string;
   headerRight?: React.ReactNode;
 }) {
+  const { userId } = useApp();
   // Boot already loaded the stored settings, so the sync read is populated.
   const stored = currentDisplaySettings();
   const [darkMode, setDarkMode] = React.useState(stored.darkMode);
@@ -155,6 +158,8 @@ export default function AppSettingsView({
           <Caption>{version}</Caption>
         </View>
       </SettingsGroup>
+
+      <ConsentManagementView userId={userId} />
     </Screen>
   );
 }

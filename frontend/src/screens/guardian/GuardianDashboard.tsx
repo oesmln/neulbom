@@ -119,6 +119,7 @@ export default function GuardianDashboardScreen() {
       }
       right={
         <View style={styles.headerActions}>
+          <GuardianNotificationButton />
           <Pressable
             onPress={() => navigation.navigate("GuardianConnections")}
             accessibilityRole="button"

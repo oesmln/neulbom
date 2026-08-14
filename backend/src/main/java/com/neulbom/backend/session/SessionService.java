@@ -31,6 +31,8 @@ import com.neulbom.backend.session.api.SessionSettingsUpdateRequest;
 import com.neulbom.backend.session.api.SessionStartRequest;
 import com.neulbom.backend.session.api.SessionsResponse;
 import com.neulbom.backend.user.UserEntity;
+import com.neulbom.backend.user.ConsentEntity;
+import com.neulbom.backend.user.ConsentRepository;
 import com.neulbom.backend.user.UserPreferenceEntity;
 import com.neulbom.backend.user.UserPreferenceRepository;
 import com.neulbom.backend.user.UserRepository;
@@ -44,13 +46,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SessionService {
 
-    private static final Set<String> SESSION_TYPES = Set.of("cist", "emotional_qa", "game", "mixed");
+    private static final Set<String> SESSION_TYPES = Set.of(
+            "cist", "baseline", "onboarding", "emotional_qa", "game", "mixed");
     private static final Set<String> QUESTION_TYPES = Set.of("orientation", "memory", "attention", "language", "emotion");
     private static final Set<String> HEARING_SIDES = Set.of("left", "right", "both", "unknown");
     private static final BigDecimal DEFAULT_SPEECH_RATE = new BigDecimal("0.90");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
+    private final ConsentRepository consentRepository;
     private final UserPreferenceRepository userPreferenceRepository;
     private final VoiceProfileRepository voiceProfileRepository;
     private final SessionRepository sessionRepository;
@@ -63,6 +67,7 @@ public class SessionService {
 
     public SessionService(
             UserRepository userRepository,
+            ConsentRepository consentRepository,
             UserPreferenceRepository userPreferenceRepository,
             VoiceProfileRepository voiceProfileRepository,
             SessionRepository sessionRepository,
@@ -74,6 +79,7 @@ public class SessionService {
             Clock clock
     ) {
         this.userRepository = userRepository;
+        this.consentRepository = consentRepository;
         this.userPreferenceRepository = userPreferenceRepository;
         this.voiceProfileRepository = voiceProfileRepository;
         this.sessionRepository = sessionRepository;
@@ -97,6 +103,10 @@ public class SessionService {
         String sessionType = request.sessionType() == null || request.sessionType().isBlank()
                 ? "cist" : request.sessionType();
         validateEnum("session_type", sessionType, SESSION_TYPES);
+        if (Set.of("baseline", "emotional_qa").contains(sessionType)) {
+            requireAgreedConsent(user.getId(), "analysis", "인지 활동 분석 동의가 필요합니다.");
+            requireAgreedConsent(user.getId(), "voice_collection", "음성 수집 동의가 필요합니다.");
+        }
         SessionSettings settings = settingsForStart(user.getId(), request);
         int totalQuestions = questionCount(sessionType);
         Instant now = clock.instant();
@@ -152,8 +162,17 @@ public class SessionService {
     public SessionEndResponse endSession(UUID authenticatedUserId, UUID sessionId) {
         SessionEntity session = ownedSession(authenticatedUserId, sessionId);
         if (SessionEntity.ACTIVE.equals(session.getStatus())) {
-            session.end(clock.instant());
+            Instant endedAt = clock.instant();
+            session.end(endedAt);
             sessionRepository.save(session);
+            if ("baseline".equals(session.getSessionType())) {
+                userRepository.findById(session.getUserId())
+                        .filter(UserEntity::isActive)
+                        .ifPresent(user -> {
+                            user.completeBaseline(endedAt);
+                            userRepository.save(user);
+                        });
+            }
         }
         return new SessionEndResponse(
                 session.getId(),
@@ -290,14 +309,15 @@ public class SessionService {
     ) {
         canReadUser(authenticatedUserId, requestedUserId);
         String normalizedSessionType = sessionType == null || sessionType.isBlank() ? "cist" : sessionType;
-        validateEnum("session_type", normalizedSessionType, Set.of("cist", "emotional_qa"));
+        validateEnum("session_type", normalizedSessionType, Set.of("cist", "baseline", "emotional_qa"));
         if (questionType != null) {
             validateEnum("type", questionType, QUESTION_TYPES);
         }
+        String questionSessionType = questionSessionType(normalizedSessionType);
         List<QuestionEntity> questions = questionType == null
-                ? questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(normalizedSessionType)
+                ? questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(questionSessionType)
                 : questionRepository.findAllByActiveTrueAndSessionTypeAndQuestionTypeOrderByDisplayOrderAsc(
-                        normalizedSessionType, questionType);
+                        questionSessionType, questionType);
         return new QuestionsResponse(questions.stream().map(this::toQuestionResponse).toList());
     }
 
@@ -373,14 +393,23 @@ public class SessionService {
     }
 
     private int questionCount(String sessionType) {
-        String lookupType = "mixed".equals(sessionType) ? "cist" : sessionType;
+        String lookupType = questionSessionType(sessionType);
         int count = questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(lookupType).size();
         return count == 0 ? 1 : count;
     }
 
     private boolean questionMatchesSession(QuestionEntity question, String sessionType) {
-        return "mixed".equals(sessionType) ? Set.of("cist", "emotional_qa", "game").contains(question.getSessionType())
-                : sessionType.equals(question.getSessionType());
+        if ("mixed".equals(sessionType)) {
+            return Set.of("cist", "emotional_qa", "game").contains(question.getSessionType());
+        }
+        return questionSessionType(sessionType).equals(question.getSessionType());
+    }
+
+    private String questionSessionType(String sessionType) {
+        return switch (sessionType) {
+            case "mixed", "baseline", "onboarding" -> "cist";
+            default -> sessionType;
+        };
     }
 
     private void validateAnswerRequest(AnswerRequest request) {
@@ -434,6 +463,15 @@ public class SessionService {
         }
         String normalized = value.trim();
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private void requireAgreedConsent(UUID userId, String consentType, String detail) {
+        boolean agreed = consentRepository.findFirstByUserIdAndConsentTypeOrderByCreatedAtDesc(userId, consentType)
+                .map(ConsentEntity::isAgreed)
+                .orElse(false);
+        if (!agreed) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "필수 동의가 필요합니다.", detail);
+        }
     }
 
     private String writeSettings(SessionSettings settings) {

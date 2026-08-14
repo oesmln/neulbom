@@ -183,7 +183,10 @@ public class RecordingService {
         QuestionEntity question = questionRepository.findById(questionId)
                 .filter(QuestionEntity::isActive)
                 .orElseThrow(() -> new ResourceNotFoundException("질문을 찾을 수 없습니다."));
-        if (!(session.getSessionType().equals(question.getSessionType()) || "mixed".equals(session.getSessionType()))) {
+        String questionSessionType = "baseline".equals(session.getSessionType())
+                || "onboarding".equals(session.getSessionType())
+                ? "cist" : session.getSessionType();
+        if (!(questionSessionType.equals(question.getSessionType()) || "mixed".equals(session.getSessionType()))) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "세션 문항이 아닙니다.", "session_id와 question_id를 확인하세요.");
         }
     }

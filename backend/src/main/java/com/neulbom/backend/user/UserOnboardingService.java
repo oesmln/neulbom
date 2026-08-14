@@ -41,7 +41,10 @@ public class UserOnboardingService {
     private static final Set<String> HEARING_STATUS = Set.of("no_difficulty", "difficulty", "unknown");
     private static final Set<String> SMARTPHONE_SKILLS = Set.of("low", "medium", "high");
     private static final Set<String> HEARING_SIDES = Set.of("left", "right", "both", "unknown");
+    private static final Set<String> ONBOARDING_STEPS = Set.of(
+            "not_started", "intro", "character_name", "consent", "baseline", "completed");
     private static final Set<String> CONSENT_TYPES = Set.of(
+            "terms_of_service", "privacy_collection", "sensitive_health", "report_sharing",
             "data_sharing", "guardian_access", "analysis", "voice_collection", "research_use");
 
     private final UserRepository userRepository;
@@ -122,8 +125,21 @@ public class UserOnboardingService {
                 smartphoneSkill);
         userProfileRepository.save(profile);
         user.updateProfile(name, birthDate, ageGroup, gender, phone, isProfileComplete(name, birthDate, ageGroup, gender), now);
+        user.updateOnboarding(
+                request.onboardingStep(),
+                request.onboardingCompleted(),
+                request.baselineCompleted(),
+                request.characterName(),
+                now);
         userRepository.save(user);
-        return new UserProfileUpdateResponse(user.getId(), user.isProfileCompleted(), user.getUpdatedAt());
+        return new UserProfileUpdateResponse(
+                user.getId(),
+                user.isProfileCompleted(),
+                user.getOnboardingStep(),
+                user.isOnboardingCompleted(),
+                user.isBaselineCompleted(),
+                user.getCharacterName(),
+                user.getUpdatedAt());
     }
 
     @Transactional
@@ -256,6 +272,7 @@ public class UserOnboardingService {
         validateOptionalEnum("smoking_status", request.smokingStatus(), SMOKING_STATUS);
         validateOptionalEnum("hearing_status", request.hearingStatus(), HEARING_STATUS);
         validateOptionalEnum("smartphone_skill", request.smartphoneSkill(), SMARTPHONE_SKILLS);
+        validateOptionalEnum("onboarding_step", request.onboardingStep(), ONBOARDING_STEPS);
         if (request.healthConditions() != null) {
             if (request.healthConditions().size() > 20 || request.healthConditions().stream().anyMatch(value -> value == null || value.isBlank() || value.length() > 100)) {
                 throw invalidField("health_conditions", "항목은 1~100자, 최대 20개까지 입력할 수 있습니다.");
@@ -361,6 +378,10 @@ public class UserOnboardingService {
                 profile == null ? null : profile.getCommunicationDifficulty(),
                 profile == null ? null : profile.getSmartphoneSkill(),
                 user.isProfileCompleted(),
+                user.getOnboardingStep(),
+                user.isOnboardingCompleted(),
+                user.isBaselineCompleted(),
+                user.getCharacterName(),
                 user.getCreatedAt(),
                 user.getUpdatedAt());
     }

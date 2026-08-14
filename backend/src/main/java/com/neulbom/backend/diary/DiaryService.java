@@ -135,6 +135,9 @@ public class DiaryService {
     public DiaryResponse createFromSession(UUID authenticatedUserId, DiaryFromSessionRequest request) {
         requireOwner(authenticatedUserId, request.userId());
         SessionEntity session = requireOwnedSession(request.userId(), request.sessionId());
+        if (Set.of("baseline", "onboarding").contains(session.getSessionType())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "초기 설정 세션은 일기로 만들 수 없습니다.", "일반 AI 대화 세션만 일기 생성에 사용할 수 있습니다.");
+        }
         SessionSummaryEntity summary = request.summaryId() == null
                 ? sessionSummaryRepository.findBySessionId(session.getId()).orElseThrow(() -> new ResourceNotFoundException("세션 요약을 찾을 수 없습니다."))
                 : sessionSummaryRepository.findById(request.summaryId()).filter(item -> item.getSessionId().equals(session.getId()))

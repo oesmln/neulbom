@@ -10,6 +10,7 @@ import { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
+import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
 import { Button, ScreenHeader } from "@/components/ui";
 
@@ -83,6 +84,11 @@ export default function LoginScreen() {
   const [message, setMessage] = React.useState<string | null>(null);
   const [codeError, setCodeError] = React.useState<string | null>(null);
 
+  const routeAfterAuth = (tokens: AuthTokenResponse) => {
+    if (tokens.role === "guardian") return "Guardian" as const;
+    return (tokens.onboarding_completed ?? tokens.profile_completed) ? "Elder" as const : "Onboarding" as const;
+  };
+
   const emailLooksValid = email.includes("@") && email.includes(".");
   const canSubmitForm =
     emailLooksValid && password.length >= 8 && (tab === "login" || name.trim().length > 0);
@@ -117,11 +123,7 @@ export default function LoginScreen() {
         index: 0,
         routes: [
           {
-            name: tokens.profile_completed
-              ? tokens.role === "guardian"
-                ? "Guardian"
-                : "Elder"
-              : "Onboarding",
+            name: routeAfterAuth(tokens),
           },
         ],
       });
@@ -228,7 +230,7 @@ export default function LoginScreen() {
       await signIn(tokens);
       navigation.reset({
         index: 0,
-        routes: [{ name: tokens.role === "guardian" ? "Guardian" : "Elder" }],
+        routes: [{ name: routeAfterAuth(tokens) }],
       });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));

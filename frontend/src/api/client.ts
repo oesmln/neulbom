@@ -137,6 +137,10 @@ async function refreshAccessToken(): Promise<string | null> {
       userId: tokens.user_id,
       role: tokens.role,
       profileCompleted: tokens.profile_completed,
+      onboardingStep: tokens.onboarding_step,
+      onboardingCompleted: tokens.onboarding_completed,
+      baselineCompleted: tokens.baseline_completed,
+      characterName: tokens.character_name,
     });
     return tokens.access_token;
   })();

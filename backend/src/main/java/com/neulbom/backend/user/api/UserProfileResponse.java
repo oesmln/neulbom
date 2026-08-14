@@ -26,6 +26,10 @@ public record UserProfileResponse(
         Boolean communicationDifficulty,
         String smartphoneSkill,
         boolean profileCompleted,
+        String onboardingStep,
+        boolean onboardingCompleted,
+        boolean baselineCompleted,
+        String characterName,
         Instant createdAt,
         Instant updatedAt
 ) {

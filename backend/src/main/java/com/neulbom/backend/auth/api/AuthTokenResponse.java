@@ -11,6 +11,10 @@ public record AuthTokenResponse(
         @JsonProperty("user_id") UUID userId,
         String role,
         @JsonProperty("profile_completed") boolean profileCompleted,
-        @JsonProperty("is_new_user") boolean isNewUser
+        @JsonProperty("is_new_user") boolean isNewUser,
+        @JsonProperty("onboarding_step") String onboardingStep,
+        @JsonProperty("onboarding_completed") boolean onboardingCompleted,
+        @JsonProperty("baseline_completed") boolean baselineCompleted,
+        @JsonProperty("character_name") String characterName
 ) {
 }

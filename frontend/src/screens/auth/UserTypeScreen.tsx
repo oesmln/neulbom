@@ -83,11 +83,11 @@ export default function UserTypeScreen() {
         index: 0,
         routes: [
           {
-            name: tokens.profile_completed
-              ? selected === "elder"
+            name: selected === "guardian"
+              ? "Guardian"
+              : tokens.onboarding_completed
                 ? "Elder"
-                : "Guardian"
-              : "Onboarding",
+                : "Onboarding",
           },
         ],
       });
