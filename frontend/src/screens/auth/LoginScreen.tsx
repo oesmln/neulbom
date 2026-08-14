@@ -495,27 +495,9 @@ export default function LoginScreen() {
         subtitle={
           tab === "login" ? "로그인해서 오늘의 검사를 시작하세요." : "계정을 만들어 시작해보세요."
         }
+        onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+        backLabel={navigation.canGoBack() ? "시작 화면" : undefined}
       />
-
-      <View style={styles.tabRow}>
-        {(["login", "signup"] as const).map((t) => {
-          const on = tab === t;
-          return (
-            <Pressable
-              key={t}
-              onPress={() => setTab(t)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={t === "login" ? "로그인" : "회원가입"}
-              style={[styles.tab, { borderBottomColor: on ? colors.primary : "transparent" }]}
-            >
-              <Text style={[styles.tabLabel, { color: on ? colors.primary : colors.mutedForeground }]}>
-                {t === "login" ? "로그인" : "회원가입"}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       <ScrollView
         contentContainerStyle={styles.formBody}
@@ -770,10 +752,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   body: { flex: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl - 4, gap: spacing.xxl - 4 },
   formBody: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xl, gap: spacing.lg },
-
-  tabRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border },
-  tab: { flex: 1, paddingVertical: 14, alignItems: "center", borderBottomWidth: 2, marginBottom: -1 },
-  tabLabel: { fontSize: fontSize.bodyLg - 1, fontWeight: fontWeight.semibold },
 
   label: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   input: {
