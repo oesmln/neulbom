@@ -6,7 +6,7 @@ import { clearSession, loadSession, saveSession } from "@/api/tokens";
 import { auth, users } from "@/api";
 import { resetToLogin } from "@/navigation/ref";
 import { MOCK_ELDER_ID, MOCK_GUARDIAN_ID } from "@/api/mock";
-import type { AuthTokenResponse, Uuid } from "@/api/types";
+import type { AuthTokenResponse, OnboardingStep, Uuid } from "@/api/types";
 import { installRecordingQueueSync } from "@/recording/recordingQueue";
 
 export type UserRole = "elder" | "guardian" | null;
@@ -18,6 +18,10 @@ type AppState = {
   role: UserRole;
   setRole: (r: UserRole) => void;
   profileCompleted: boolean;
+  onboardingStep: OnboardingStep;
+  onboardingCompleted: boolean;
+  baselineCompleted: boolean;
+  characterName: string | null;
 
   /** Signed-in user. Every backend call needs it in the path or query. */
   userId: Uuid | null;
@@ -33,7 +37,14 @@ type AppState = {
 
   /** Stores tokens and switches the app into its signed-in state. */
   signIn: (tokens: AuthTokenResponse) => Promise<void>;
+  updateOnboardingState: (state: {
+    step?: OnboardingStep;
+    completed?: boolean;
+    baselineCompleted?: boolean;
+    characterName?: string | null;
+  }) => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  completeBaseline: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -51,6 +62,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [role, setRoleState] = useState<UserRole>(null);
   const [profileCompleted, setProfileCompleted] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("not_started");
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [baselineCompleted, setBaselineCompleted] = useState(false);
+  const [characterName, setCharacterName] = useState<string | null>(null);
   const [userId, setUserId] = useState<Uuid | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [selectedElderId, setSelectedElderId] = useState<Uuid | null>(null);
@@ -65,6 +80,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setRoleState(stored.role);
         setUserId(stored.userId);
         setProfileCompleted(stored.profileCompleted);
+        setOnboardingStep(stored.onboardingStep ?? "not_started");
+        setOnboardingCompleted(stored.onboardingCompleted ?? false);
+        setBaselineCompleted(stored.baselineCompleted ?? false);
+        setCharacterName(stored.characterName ?? null);
       }
       setReady(true);
     })();
@@ -82,6 +101,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await clearSession();
     setRoleState(null);
     setProfileCompleted(false);
+    setOnboardingStep("not_started");
+    setOnboardingCompleted(false);
+    setBaselineCompleted(false);
+    setCharacterName(null);
     setUserId(null);
     setUserName("");
     setSelectedElderId(null);
@@ -95,6 +118,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUnauthorizedListener(() => {
       setRoleState(null);
       setProfileCompleted(false);
+      setOnboardingStep("not_started");
+      setOnboardingCompleted(false);
+      setBaselineCompleted(false);
+      setCharacterName(null);
       setUserId(null);
       setUserName("");
       setSelectedElderId(null);
@@ -134,17 +161,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       userId: tokens.user_id,
       role: tokens.role,
       profileCompleted: tokens.profile_completed,
+      onboardingStep: tokens.onboarding_step ?? "not_started",
+      onboardingCompleted: tokens.onboarding_completed ?? false,
+      baselineCompleted: tokens.baseline_completed ?? false,
+      characterName: tokens.character_name ?? null,
     });
     setRoleState(tokens.role);
     setUserId(tokens.user_id);
     setProfileCompleted(tokens.profile_completed);
+    setOnboardingStep(tokens.onboarding_step ?? "not_started");
+    setOnboardingCompleted(tokens.onboarding_completed ?? false);
+    setBaselineCompleted(tokens.baseline_completed ?? false);
+    setCharacterName(tokens.character_name ?? null);
   }, []);
+
+  const updateOnboardingState = useCallback(async (state: {
+    step?: OnboardingStep;
+    completed?: boolean;
+    baselineCompleted?: boolean;
+    characterName?: string | null;
+  }) => {
+    const stored = await loadSession();
+    const nextStep = state.step ?? onboardingStep;
+    const nextCompleted = state.completed ?? onboardingCompleted;
+    const nextBaseline = state.baselineCompleted ?? baselineCompleted;
+    const nextCharacter = state.characterName === undefined ? characterName : state.characterName;
+    if (stored) {
+      await saveSession({
+        ...stored,
+        onboardingStep: nextStep,
+        onboardingCompleted: nextCompleted,
+        baselineCompleted: nextBaseline,
+        characterName: nextCharacter,
+      });
+    }
+    setOnboardingStep(nextStep);
+    setOnboardingCompleted(nextCompleted);
+    setBaselineCompleted(nextBaseline);
+    setCharacterName(nextCharacter);
+  }, [baselineCompleted, characterName, onboardingCompleted, onboardingStep]);
 
   const completeOnboarding = useCallback(async () => {
     const stored = await loadSession();
-    if (stored) await saveSession({ ...stored, profileCompleted: true });
+    if (stored) {
+      await saveSession({
+        ...stored,
+        profileCompleted: true,
+        onboardingStep: "completed",
+        onboardingCompleted: true,
+      });
+    }
     setProfileCompleted(true);
+    setOnboardingStep("completed");
+    setOnboardingCompleted(true);
   }, []);
+
+  const completeBaseline = useCallback(async () => {
+    await updateOnboardingState({
+      step: "completed",
+      completed: true,
+      baselineCompleted: true,
+    });
+  }, [updateOnboardingState]);
 
   const setRole = useCallback((next: UserRole) => {
     setRoleState(next);
@@ -160,13 +238,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role,
       setRole,
       profileCompleted,
+      onboardingStep,
+      onboardingCompleted,
+      baselineCompleted,
+      characterName,
       userId,
       userName,
       setUserName,
       selectedElderId,
       setSelectedElderId,
       signIn,
+      updateOnboardingState,
       completeOnboarding,
+      completeBaseline,
       signOut,
     }),
     [
@@ -174,11 +258,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       role,
       setRole,
       profileCompleted,
+      onboardingStep,
+      onboardingCompleted,
+      baselineCompleted,
+      characterName,
       userId,
       userName,
       selectedElderId,
       signIn,
+      updateOnboardingState,
       completeOnboarding,
+      completeBaseline,
       signOut,
     ],
   );

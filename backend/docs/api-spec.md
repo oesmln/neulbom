@@ -291,7 +291,11 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `expires_in` | integer | 액세스 토큰 만료까지 남은 초 |
 | `user_id` | string | 사용자 ID |
 | `role` | enum | `elder`, `guardian` |
-| `profile_completed` | boolean | 초기 정보 입력 필요 여부 판단용 |
+| `profile_completed` | boolean | 기본 프로필 입력 완료 여부 |
+| `onboarding_step` | enum | `not_started`, `intro`, `character_name`, `consent`, `baseline`, `completed` |
+| `onboarding_completed` | boolean | 초기 온보딩 완료 여부 |
+| `baseline_completed` | boolean | 최초 기준검사 완료 여부 |
+| `character_name` | string/null | 고령자가 설정한 캐릭터 이름 |
 
 ### 3.2.1 `POST /auth/oauth/{provider}` - 소셜 로그인
 
@@ -325,6 +329,10 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `role` | enum | `elder`, `guardian` |
 | `profile_completed` | boolean | 초기 정보 입력 완료 여부 |
 | `is_new_user` | boolean | 이번 소셜 로그인으로 최초 가입했는지 여부 |
+| `onboarding_step` | enum | 현재 초기 온보딩 단계 |
+| `onboarding_completed` | boolean | 초기 온보딩 완료 여부 |
+| `baseline_completed` | boolean | 최초 기준검사 완료 여부 |
+| `character_name` | string/null | 고령자가 설정한 캐릭터 이름 |
 
 지원하지 않는 provider, 등록되지 않은 `redirect_uri`, 만료된 authorization code, provider 계정의 이메일 검증 실패는 `400` 또는 `401`로 반환한다. credential 미설정 또는 provider 장애는 `503`으로 반환한다. provider access token, authorization code, client secret은 로그에 기록하지 않는다. `redirect_uri`는 provider별 `*_ALLOWED_REDIRECT_URIS`에 정확히 일치해야 한다.
 
@@ -459,6 +467,10 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `communication_difficulty` | boolean/null | 의사소통 어려움 여부 |
 | `smartphone_skill` | enum/null | `low`, `medium`, `high` |
 | `profile_completed` | boolean | 초기 정보 입력 완료 여부 |
+| `onboarding_step` | enum | 현재 초기 온보딩 단계 |
+| `onboarding_completed` | boolean | 초기 온보딩 완료 여부 |
+| `baseline_completed` | boolean | 최초 기준검사 완료 여부 |
+| `character_name` | string/null | 고령자가 설정한 캐릭터 이름 |
 | `created_at` | string | 가입 일시 |
 | `updated_at` | string | 최종 수정 일시 |
 
@@ -481,6 +493,10 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | `hearing_status` | enum | N | `no_difficulty`, `difficulty`, `unknown` |
 | `communication_difficulty` | boolean | N | 의사소통 어려움 여부 |
 | `smartphone_skill` | enum | N | `low`, `medium`, `high` |
+| `onboarding_step` | enum | N | 온보딩 진행 단계 저장 |
+| `onboarding_completed` | boolean | N | 온보딩 완료 표시 |
+| `baseline_completed` | boolean | N | 기준검사 완료 표시 |
+| `character_name` | string | N | 캐릭터 이름, 최대 100자 |
 
 #### Response `200`
 
@@ -488,6 +504,10 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 {
   "user_id": "usr_01J...",
   "profile_completed": true,
+  "onboarding_step": "completed",
+  "onboarding_completed": true,
+  "baseline_completed": true,
+  "character_name": "늘봄",
   "updated_at": "2026-08-05T10:35:00+09:00"
 }
 ```
@@ -573,7 +593,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `consent_type` | enum | Y | `data_sharing`, `guardian_access`, `analysis`, `voice_collection`, `research_use` |
+| `consent_type` | enum | Y | `terms_of_service`, `privacy_collection`, `sensitive_health`, `report_sharing`, `data_sharing`, `guardian_access`, `analysis`, `voice_collection`, `research_use` |
 | `agreed` | boolean | Y | 동의 여부 |
 | `agreed_at` | string | Y | 동의 일시, ISO 8601 |
 | `version` | string | Y | 동의 문서 버전 |
@@ -939,7 +959,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | string | Y | 검사 대상 고령자 ID |
-| `session_type` | enum | N | `cist`, `emotional_qa`, `game`, `mixed`; 기본 `cist` |
+| `session_type` | enum | N | `cist`, `baseline`, `onboarding`, `emotional_qa`, `game`, `mixed`; 기본 `cist` |
 | `voice_profile_id` | string | N | 세션에서 사용할 안내 음성 |
 | `preferred_hearing_side` | enum | N | `left`, `right`, `both`, `unknown` |
 | `subtitle_enabled` | boolean | N | 기본 `false`; 청력 보조 목적일 때만 활성화 |
@@ -1054,7 +1074,7 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 | 파라미터 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | string | Y | 조회 대상 고령자 ID |
-| `session_type` | enum | N | `cist`, `emotional_qa`, `game`, `mixed` |
+| `session_type` | enum | N | `cist`, `baseline`, `onboarding`, `emotional_qa`, `game`, `mixed` |
 | `date` | string | N | 특정 날짜, `YYYY-MM-DD` |
 | `page` | integer | N | 기본 `1` |
 | `limit` | integer | N | 기본 `20` |

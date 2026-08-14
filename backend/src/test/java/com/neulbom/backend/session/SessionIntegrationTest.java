@@ -226,6 +226,37 @@ class SessionIntegrationTest {
                 .andExpect(jsonPath("$.order").value(1));
     }
 
+    @Test
+    void baselineSessionUsesCistQuestionsAndMarksTheUserAsCompleted() throws Exception {
+        UserEntity elder = saveUser("baseline-owner", "elder");
+
+        String sessionBody = mockMvc.perform(post("/api/v1/sessions")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"baseline\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.session_type").value("baseline"))
+                .andExpect(jsonPath("$.total_questions").value(5))
+                .andReturn().getResponse().getContentAsString();
+        UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(sessionBody).get("session_id").asText());
+
+        mockMvc.perform(get("/api/v1/questions/daily")
+                        .with(jwtFor(elder))
+                        .param("user_id", elder.getId().toString())
+                        .param("session_type", "baseline"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions.length()").value(5));
+
+        mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ended"));
+
+        org.assertj.core.api.Assertions.assertThat(userRepository.findById(elder.getId()).orElseThrow().isBaselineCompleted())
+                .isTrue();
+    }
+
     private UserEntity saveUser(String prefix, String role) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();

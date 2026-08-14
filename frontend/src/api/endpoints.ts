@@ -163,6 +163,10 @@ export const users = {
       return Promise.resolve({
         user_id: userId,
         profile_completed: true,
+        onboarding_step: body.onboarding_step ?? "completed",
+        onboarding_completed: body.onboarding_completed ?? true,
+        baseline_completed: body.baseline_completed ?? false,
+        character_name: body.character_name ?? "늘봄",
         updated_at: new Date().toISOString(),
       });
     }

@@ -20,6 +20,7 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/ui";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 /**
  * The elder's month of diaries, with the guardian's reaction.
@@ -138,8 +139,9 @@ export default function GuardianDiaryScreen() {
   const header = (
     <ScreenHeader
       color={guardian.blue}
-      title="일기"
+      title="기록"
       subtitle={`${list.data?.diaries.length ?? 0}일 일기 기록됨 · ${month + 1}월`}
+      right={<GuardianNotificationButton />}
     />
   );
 
@@ -279,6 +281,32 @@ export default function GuardianDiaryScreen() {
           </View>
         ))}
       </View>
+
+      {report.data ? (
+        <Card style={styles.reportCard}>
+          <View style={styles.reportHead}>
+            <View>
+              <Caption style={styles.reportEyebrow}>오늘의 보호자 리포트</Caption>
+              <Body style={{ fontWeight: fontWeight.semibold }}>
+                {report.data.daily_summary?.local_date ?? "최근 활동"}
+              </Body>
+            </View>
+            <Badge
+              label={report.data.latest_risk_level === "warning" ? "확인 필요" : "안정적"}
+              color={report.data.latest_risk_level === "warning" ? colors.destructive : guardian.blueDark}
+              background={report.data.latest_risk_level === "warning" ? colors.destructiveLight : guardian.blueLight}
+            />
+          </View>
+          <Body style={styles.reportText}>
+            {report.data.latest_summary ?? "오늘 생성된 리포트가 아직 없어요."}
+          </Body>
+          {report.data.daily_summary ? (
+            <Caption style={styles.reportMeta}>
+              AI 대화 {report.data.daily_summary.session_count}회 · 분석 완료 {report.data.daily_summary.analyzed_session_count}회
+            </Caption>
+          ) : null}
+        </Card>
+      ) : null}
 
       {report.error?.isForbidden ? (
         <Text style={styles.permissionNotice}>
@@ -450,6 +478,11 @@ const styles = StyleSheet.create({
     color: colors.warning,
     textAlign: "center",
   },
+  reportCard: { marginTop: spacing.lg, borderColor: guardian.blueLight },
+  reportHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
+  reportEyebrow: { color: guardian.blueDark, marginBottom: 4 },
+  reportText: { marginTop: spacing.md, lineHeight: 23 },
+  reportMeta: { marginTop: spacing.md },
   monthButton: {
     width: 36,
     height: 36,

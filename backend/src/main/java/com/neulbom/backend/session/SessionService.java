@@ -44,7 +44,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SessionService {
 
-    private static final Set<String> SESSION_TYPES = Set.of("cist", "emotional_qa", "game", "mixed");
+    private static final Set<String> SESSION_TYPES = Set.of(
+            "cist", "baseline", "onboarding", "emotional_qa", "game", "mixed");
     private static final Set<String> QUESTION_TYPES = Set.of("orientation", "memory", "attention", "language", "emotion");
     private static final Set<String> HEARING_SIDES = Set.of("left", "right", "both", "unknown");
     private static final BigDecimal DEFAULT_SPEECH_RATE = new BigDecimal("0.90");
@@ -152,8 +153,17 @@ public class SessionService {
     public SessionEndResponse endSession(UUID authenticatedUserId, UUID sessionId) {
         SessionEntity session = ownedSession(authenticatedUserId, sessionId);
         if (SessionEntity.ACTIVE.equals(session.getStatus())) {
-            session.end(clock.instant());
+            Instant endedAt = clock.instant();
+            session.end(endedAt);
             sessionRepository.save(session);
+            if ("baseline".equals(session.getSessionType())) {
+                userRepository.findById(session.getUserId())
+                        .filter(UserEntity::isActive)
+                        .ifPresent(user -> {
+                            user.completeBaseline(endedAt);
+                            userRepository.save(user);
+                        });
+            }
         }
         return new SessionEndResponse(
                 session.getId(),
@@ -290,14 +300,15 @@ public class SessionService {
     ) {
         canReadUser(authenticatedUserId, requestedUserId);
         String normalizedSessionType = sessionType == null || sessionType.isBlank() ? "cist" : sessionType;
-        validateEnum("session_type", normalizedSessionType, Set.of("cist", "emotional_qa"));
+        validateEnum("session_type", normalizedSessionType, Set.of("cist", "baseline", "emotional_qa"));
         if (questionType != null) {
             validateEnum("type", questionType, QUESTION_TYPES);
         }
+        String questionSessionType = questionSessionType(normalizedSessionType);
         List<QuestionEntity> questions = questionType == null
-                ? questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(normalizedSessionType)
+                ? questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(questionSessionType)
                 : questionRepository.findAllByActiveTrueAndSessionTypeAndQuestionTypeOrderByDisplayOrderAsc(
-                        normalizedSessionType, questionType);
+                        questionSessionType, questionType);
         return new QuestionsResponse(questions.stream().map(this::toQuestionResponse).toList());
     }
 
@@ -373,14 +384,23 @@ public class SessionService {
     }
 
     private int questionCount(String sessionType) {
-        String lookupType = "mixed".equals(sessionType) ? "cist" : sessionType;
+        String lookupType = questionSessionType(sessionType);
         int count = questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(lookupType).size();
         return count == 0 ? 1 : count;
     }
 
     private boolean questionMatchesSession(QuestionEntity question, String sessionType) {
-        return "mixed".equals(sessionType) ? Set.of("cist", "emotional_qa", "game").contains(question.getSessionType())
-                : sessionType.equals(question.getSessionType());
+        if ("mixed".equals(sessionType)) {
+            return Set.of("cist", "emotional_qa", "game").contains(question.getSessionType());
+        }
+        return questionSessionType(sessionType).equals(question.getSessionType());
+    }
+
+    private String questionSessionType(String sessionType) {
+        return switch (sessionType) {
+            case "mixed", "baseline", "onboarding" -> "cist";
+            default -> sessionType;
+        };
     }
 
     private void validateAnswerRequest(AnswerRequest request) {

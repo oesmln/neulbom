@@ -36,7 +36,8 @@ export default function ElderResultScreen() {
   const navigation = useNavigation<ElderNav>();
   const route = useRoute<RouteProp<ElderStackParamList, "ElderResult">>();
   const sessionId = route.params?.sessionId ?? null;
-  const { userName } = useApp();
+  const mode = route.params?.mode ?? "daily";
+  const { userName, completeBaseline } = useApp();
 
   // Polling stops the moment the pipeline settles: `pending` feeds `intervalMs`,
   // and dropping it clears the interval inside the hook.
@@ -55,6 +56,10 @@ export default function ElderResultScreen() {
     if (result) setPending(!resultSettled);
   }, [result, resultSettled]);
 
+  React.useEffect(() => {
+    if (mode === "baseline" && resultSettled) void completeBaseline();
+  }, [completeBaseline, mode, resultSettled]);
+
   const message =
     result?.result_status === "failed"
       ? "결과를 준비하지 못했어요. 잠시 후 다시 대화해 주세요."
@@ -66,7 +71,7 @@ export default function ElderResultScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <Text style={styles.date}>{todayLabel()}</Text>
-        <Text style={styles.title}>대화 완료</Text>
+        <Text style={styles.title}>{mode === "baseline" ? "초기 설정이 완료됐어요" : "대화 완료"}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -93,7 +98,12 @@ export default function ElderResultScreen() {
               <LoadingState label="대화를 살펴보고 있어요. 잠시만 기다려 주세요" />
             </View>
           ) : (
-            <SpeechBubble text={`${userName ? `${userName}님, ` : ""}${message}`} side="below" />
+              <SpeechBubble
+                text={mode === "baseline"
+                  ? "이제 메모이와 매일 편하게 이야기할 수 있어요. 함께 천천히 시작해 볼까요?"
+                  : `${userName ? `${userName}님, ` : ""}${message}`}
+                side="below"
+              />
           )}
         </View>
 
@@ -105,14 +115,16 @@ export default function ElderResultScreen() {
 
         <View style={styles.note}>
           <Text style={styles.noteText}>
-            오늘 대화는 내일 0시에 일기로 생성돼요.{"\n"}내일 일기 탭에서 확인하실 수 있어요.
+            {mode === "baseline"
+              ? "이 검사는 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요."
+              : "오늘 대화는 내일 0시에 일기로 생성돼요.\n내일 일기 탭에서 확인하실 수 있어요."}
           </Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <Button
-          label="홈으로 돌아가기"
+          label={mode === "baseline" ? "늘봄 시작하기" : "홈으로 돌아가기"}
           onPress={() => navigation.navigate("ElderTabs", { screen: "ElderHome" })}
         />
       </View>

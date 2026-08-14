@@ -29,6 +29,7 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/ui";
+import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
 /**
  * 전문의 상담 예약 — `GET /counseling/centers`.
@@ -153,6 +154,7 @@ const TYPE_FILTERS = [
 
 export default function GuardianCounselingCentersScreen() {
   const navigation = useNavigation();
+  const canGoBack = navigation.canGoBack();
   const [province, setProvince] = React.useState<{ code: string; name: string } | null>(null);
   const [district, setDistrict] = React.useState<{ code: string; name: string } | null>(null);
   const [facilityType, setFacilityType] = React.useState<string | null>(null);
@@ -191,10 +193,11 @@ export default function GuardianCounselingCentersScreen() {
       header={
         <ScreenHeader
           color={guardian.blue}
-          onBack={() => navigation.goBack()}
-          backLabel="대시보드"
+          onBack={canGoBack ? () => navigation.goBack() : undefined}
+          backLabel={canGoBack ? "대시보드" : undefined}
           title="전문의 상담 예약"
           subtitle="지역을 선택하면 치매안심센터·병원·보건소를 안내해 드려요."
+          right={<GuardianNotificationButton />}
         />
       }
     >

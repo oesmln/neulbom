@@ -52,6 +52,18 @@ public class UserEntity {
     @Column(name = "profile_completed", nullable = false)
     private boolean profileCompleted;
 
+    @Column(name = "onboarding_step", nullable = false, length = 30)
+    private String onboardingStep;
+
+    @Column(name = "onboarding_completed", nullable = false)
+    private boolean onboardingCompleted;
+
+    @Column(name = "baseline_completed", nullable = false)
+    private boolean baselineCompleted;
+
+    @Column(name = "character_name", length = 100)
+    private String characterName;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -86,6 +98,10 @@ public class UserEntity {
         this.gender = gender;
         this.phone = phone;
         this.profileCompleted = profileCompleted;
+        this.onboardingStep = "not_started";
+        this.onboardingCompleted = false;
+        this.baselineCompleted = false;
+        this.characterName = null;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -142,6 +158,22 @@ public class UserEntity {
         return profileCompleted;
     }
 
+    public String getOnboardingStep() {
+        return onboardingStep;
+    }
+
+    public boolean isOnboardingCompleted() {
+        return onboardingCompleted;
+    }
+
+    public boolean isBaselineCompleted() {
+        return baselineCompleted;
+    }
+
+    public String getCharacterName() {
+        return characterName;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -173,6 +205,36 @@ public class UserEntity {
         this.updatedAt = updatedAt;
     }
 
+    public void updateOnboarding(
+            String onboardingStep,
+            Boolean onboardingCompleted,
+            Boolean baselineCompleted,
+            String characterName,
+            Instant updatedAt
+    ) {
+        if (onboardingStep != null) {
+            this.onboardingStep = onboardingStep;
+        }
+        if (onboardingCompleted != null) {
+            this.onboardingCompleted = onboardingCompleted;
+        }
+        if (baselineCompleted != null) {
+            this.baselineCompleted = baselineCompleted;
+        }
+        if (characterName != null) {
+            String normalized = characterName.trim();
+            this.characterName = normalized.isBlank() ? null : normalized;
+        }
+        this.updatedAt = updatedAt;
+    }
+
+    public void completeBaseline(Instant completedAt) {
+        this.baselineCompleted = true;
+        this.onboardingCompleted = true;
+        this.onboardingStep = "completed";
+        this.updatedAt = completedAt;
+    }
+
     public void withdraw(Instant withdrawnAt) {
         this.accountStatus = WITHDRAWN;
         this.withdrawnAt = withdrawnAt;
@@ -184,6 +246,10 @@ public class UserEntity {
         this.gender = null;
         this.phone = null;
         this.profileCompleted = false;
+        this.onboardingCompleted = false;
+        this.baselineCompleted = false;
+        this.onboardingStep = "not_started";
+        this.characterName = null;
         this.updatedAt = withdrawnAt;
     }
 }
