@@ -44,6 +44,25 @@ export default function UserTypeScreen() {
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
+  const chooseRole = (choice: Choice) => {
+    if (busy) return;
+    setSelected(choice);
+    setMessage(null);
+
+    // Elder profile and feature consent are the very next sign-up screen.
+    // Registration is intentionally deferred until this form is complete.
+    if (choice === "elder" && signup) {
+      if (signup.requiredConsentsAccepted !== true) {
+        setMessage("회원가입 화면에서 필수 동의를 먼저 완료해 주세요.");
+        return;
+      }
+      navigation.navigate("ElderProfile", {
+        signup,
+        inviteCode: signup.inviteCode,
+      });
+    }
+  };
+
   /**
    * The role is the last piece registration was waiting for: api-spec 3.1 wants
    * one `POST /auth/register` carrying it, not an account created earlier and
@@ -60,11 +79,19 @@ export default function UserTypeScreen() {
       setMessage("보호자 초대 코드는 본인(고령자) 계정에서만 사용할 수 있어요.");
       return;
     }
-    setRole(selected);
 
     if (!signup) {
       // Reached without a pending sign-up (demo entry point) — just enter.
+      setRole(selected);
       navigation.navigate(selected === "elder" ? "Elder" : "Guardian");
+      return;
+    }
+
+    if (selected === "elder") {
+      navigation.navigate("ElderProfile", {
+        signup,
+        inviteCode: signup.inviteCode,
+      });
       return;
     }
 
@@ -86,18 +113,6 @@ export default function UserTypeScreen() {
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
       await saveRequiredSignupConsents(tokens.user_id);
-
-      // Elder accounts continue straight into their optional profile and
-      // feature-consent form. The guardian-sharing consent on that screen is
-      // what authorizes redeeming an invite code, so do not show the generic
-      // completion screen first or accept the invitation here.
-      if (selected === "elder") {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "ElderProfile", params: { inviteCode: signup.inviteCode } }],
-        });
-        return;
-      }
 
       let inviteCode: string | undefined;
       let invitationError: string | undefined;
@@ -159,7 +174,7 @@ export default function UserTypeScreen() {
           return (
             <Pressable
               key={opt.key}
-              onPress={() => setSelected(opt.key)}
+              onPress={() => chooseRole(opt.key)}
               accessibilityRole="radio"
               accessibilityState={{ selected: on }}
               accessibilityLabel={`${opt.title}. ${opt.sub}`}

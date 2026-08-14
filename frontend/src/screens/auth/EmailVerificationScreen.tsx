@@ -9,6 +9,7 @@ import { Button, Card, ScreenHeader } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
+import { persistElderSetup } from "@/screens/auth/elderSetup";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
 
 /**
@@ -59,6 +60,11 @@ export default function EmailVerificationScreen() {
       await saveRequiredSignupConsents(tokens.user_id);
 
       if (tokens.role === "elder") {
+        if (signup.elderSetup) {
+          await persistElderSetup(tokens.user_id, signup.elderSetup, signup.inviteCode);
+          navigation.reset({ index: 0, routes: [{ name: "Onboarding" }] });
+          return;
+        }
         navigation.reset({
           index: 0,
           routes: [{ name: "ElderProfile", params: { inviteCode: signup.inviteCode } }],

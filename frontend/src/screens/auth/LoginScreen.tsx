@@ -1,12 +1,12 @@
 import React from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 
-import { RootNav } from "@/navigation/types";
+import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
@@ -84,10 +84,11 @@ const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"] as 
 
 export default function LoginScreen() {
   const navigation = useNavigation<RootNav>();
+  const route = useRoute<RouteProp<RootStackParamList, "Login">>();
   const { signIn } = useApp();
 
   const [step, setStep] = React.useState<Step>("form");
-  const [tab, setTab] = React.useState<Tab>("login");
+  const [tab, setTab] = React.useState<Tab>(route.params?.mode ?? "login");
   const [showPassword, setShowPassword] = React.useState(false);
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
@@ -103,6 +104,20 @@ export default function LoginScreen() {
   const [socialProvider, setSocialProvider] = React.useState<SocialProvider | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [codeError, setCodeError] = React.useState<string | null>(null);
+
+  // Splash has two intentional entry points. Keep the selected tab tied to
+  // that route mode so a previously mounted Login screen cannot leak its old
+  // signup/login tab into the next entry.
+  React.useEffect(() => {
+    const mode = route.params?.mode;
+    if (!mode) return;
+    setStep("form");
+    setTab(mode);
+    setMessage(null);
+    setCode("");
+    setCodeError(null);
+    setSocialProvider(null);
+  }, [route.params?.mode]);
 
   const routeAfterAuth = (tokens: AuthTokenResponse) => {
     if (tokens.role === "guardian") return "Guardian" as const;

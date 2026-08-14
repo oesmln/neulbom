@@ -1,10 +1,15 @@
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import type {
+  ConsentType,
+  UserPreferenceUpdateRequest,
+  UserProfileUpdateRequest,
+} from "@/api/types";
 
 /** Root onboarding + role stacks */
 export type RootStackParamList = {
   Splash: undefined;
-  Login: undefined;
+  Login: { mode?: "login" | "signup" } | undefined;
   /**
    * Sign-up only. api-spec 3.1 creates the account once, at the end of
    * 이름·이메일·비밀번호 → 초대 코드 → 유형 선택, so the form values travel here
@@ -13,7 +18,7 @@ export type RootStackParamList = {
   UserType: { signup?: PendingSignup } | undefined;
   EmailVerification: { signup: PendingSignup };
   SignupComplete: SignupCompleteParams;
-  ElderProfile: { inviteCode?: string } | undefined;
+  ElderProfile: { inviteCode?: string; signup?: PendingSignup } | undefined;
   Onboarding: undefined;
   Elder: undefined;
   Guardian: undefined;
@@ -26,6 +31,15 @@ export type PendingSignup = {
   password: string;
   inviteCode?: string;
   requiredConsentsAccepted?: boolean;
+  elderSetup?: PendingElderSetup;
+};
+
+/** Elder profile and feature consents held in memory until email verification. */
+export type PendingElderSetup = {
+  profile: UserProfileUpdateRequest;
+  preferences: UserPreferenceUpdateRequest;
+  consents: ConsentType[];
+  guardianConsentAccepted: boolean;
 };
 
 export type SignupCompleteParams = {
