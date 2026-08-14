@@ -61,6 +61,8 @@ import type {
   EmailVerificationRequestResponse,
   Role,
   ScreeningResultResponse,
+  SpeechSynthesizeRequest,
+  SpeechSynthesizeResponse,
   SessionEndResponse,
   SessionResponse,
   SessionStartRequest,
@@ -247,6 +249,26 @@ export const users = {
   consents(userId: Uuid): Promise<ConsentsResponse> {
     if (USE_MOCK_API) return Promise.resolve({ consents: [] });
     return request(`/consent/${userId}`);
+  },
+};
+
+/* ── speech ─────────────────────────────────────────────────────────────── */
+
+const MOCK_SILENT_WAV =
+  "UklGRmQBAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+export const speech = {
+  synthesize(body: SpeechSynthesizeRequest): Promise<SpeechSynthesizeResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        audio_content_base64: MOCK_SILENT_WAV,
+        content_type: "audio/wav",
+        voice_profile_id: body.voice_profile_id ?? "voice_ko_01",
+        voice_name: "ko-KR-Neural2-A",
+        speech_rate: body.speech_rate ?? 0.9,
+      });
+    }
+    return request("/speech/synthesize", { method: "POST", body });
   },
 };
 

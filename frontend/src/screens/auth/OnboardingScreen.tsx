@@ -9,7 +9,9 @@ import { apiErrorMessage } from "@/api/errors";
 import type { OnboardingStep } from "@/api/types";
 import { Button, Card, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
+import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import type { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
@@ -21,6 +23,12 @@ const STEP_META: Array<{ key: Step; label: string }> = [
   { key: "character", label: "이름" },
   { key: "baseline", label: "검사" },
 ];
+
+const STEP_LINES: Record<Step, string> = {
+  intro: "안녕하세요! 저는 메모이예요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요.",
+  character: "제가 어떤 이름으로 불리면 좋을까요?",
+  baseline: "좋아요. 이제 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요.",
+};
 
 function apiStep(step: Step): OnboardingStep {
   if (step === "character") return "character_name";
@@ -45,6 +53,7 @@ export default function OnboardingScreen() {
   const [message, setMessage] = React.useState<string | null>(null);
 
   const index = STEP_META.findIndex((item) => item.key === step);
+  const voice = useSpeechPlayback(STEP_LINES[step]);
 
   const persistStep = async (next: Step, extra?: { completed?: boolean }) => {
     if (!userId) return;
@@ -108,17 +117,18 @@ export default function OnboardingScreen() {
 
       {step === "intro" ? (
         <ConversationStep
-          line="안녕하세요! 저는 메모이예요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요."
+          line={STEP_LINES.intro}
           guide="이 초기 설정은 한 번만 진행해요. 중간에 닫아도 다음에 이어서 할 수 있어요."
           buttonLabel="다음"
           busy={busy}
           onPress={finishIntro}
+          voice={voice}
         />
       ) : null}
 
       {step === "character" ? (
         <View style={styles.stepBody}>
-          <ConversationHeader line="제가 어떤 이름으로 불리면 좋을까요?" />
+          <ConversationHeader line={STEP_LINES.character} voice={voice} />
           <Card style={styles.nameCard}>
             <Text style={styles.fieldLabel}>캐릭터 이름</Text>
             <TextInput
@@ -141,22 +151,33 @@ export default function OnboardingScreen() {
 
       {step === "baseline" ? (
         <ConversationStep
-          line="좋아요. 이제 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요."
+          line={STEP_LINES.baseline}
           guide="마이크를 누르고 메모이의 질문에 천천히 답해 주세요."
           buttonLabel="검사 시작하기"
           busy={busy}
           onPress={() => navigation.reset({ index: 0, routes: [{ name: "Elder" }] })}
+          voice={voice}
         />
       ) : null}
     </SafeAreaView>
   );
 }
 
-function ConversationHeader({ line }: { line: string }) {
+type SpeechPlayback = ReturnType<typeof useSpeechPlayback>;
+
+function ConversationHeader({ line, voice }: { line: string; voice: SpeechPlayback }) {
   return (
     <View style={styles.characterBlock}>
-      <Memoi3D character={DEFAULT_MEMOI} mouthSet={DEFAULT_MOUTH_SET} height={130} spinnerColor={colors.primary} style={{ width: 170 }} />
+      <Memoi3D character={DEFAULT_MEMOI} mouthSet={DEFAULT_MOUTH_SET} speaking={voice.speaking} height={130} spinnerColor={colors.primary} style={{ width: 170 }} />
       <SpeechBubble text={line} side="below" />
+      <VoicePlaybackButton
+        enabled={voice.enabled}
+        loading={voice.loading}
+        speaking={voice.speaking}
+        onPress={voice.toggle}
+        onReplay={voice.replay}
+      />
+      {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
     </View>
   );
 }
@@ -167,16 +188,18 @@ function ConversationStep({
   buttonLabel,
   busy,
   onPress,
+  voice,
 }: {
   line: string;
   guide: string;
   buttonLabel: string;
   busy: boolean;
   onPress: () => void;
+  voice: SpeechPlayback;
 }) {
   return (
     <View style={styles.stepBody}>
-      <ConversationHeader line={line} />
+      <ConversationHeader line={line} voice={voice} />
       <View style={styles.guideCard}><Text style={styles.guideText}>{guide}</Text></View>
       <View style={styles.footer}><Button label={busy ? "준비하고 있어요" : buttonLabel} disabled={busy} onPress={onPress} size="lg" /></View>
     </View>
@@ -201,4 +224,5 @@ const styles = StyleSheet.create({
   help: { fontSize: fontSize.caption, color: colors.mutedForeground },
   footer: { marginTop: "auto", gap: spacing.sm },
   error: { color: colors.destructive, fontSize: fontSize.caption, lineHeight: 20 },
+  voiceError: { color: colors.destructive, fontSize: fontSize.caption, lineHeight: 20, textAlign: "center" },
 });

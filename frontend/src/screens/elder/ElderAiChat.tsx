@@ -9,12 +9,14 @@ import { useApp } from "@/store/AppContext";
 import { newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
+import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
 import { USE_MOCK_API } from "@/api/config";
 import type { Uuid } from "@/api/types";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
+import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
 
 /**
@@ -43,31 +45,6 @@ const SAMPLE_ANSWERS = [
   "손자랑 통화한 게 가장 기뻤어요.",
   "내일 병원에 가야 해서 조금 걱정이 돼요.",
 ];
-
-/** Roughly how long the character would take to say a line, in ms. */
-function spokenDuration(line: string) {
-  return Math.min(6000, Math.max(1600, line.length * 130));
-}
-
-/**
- * Drives `speaking` for one line, restarting whenever the line changes.
- * Returns false while there is nothing to say.
- */
-function useSpokenLine(line: string | null) {
-  const [speaking, setSpeaking] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!line) {
-      setSpeaking(false);
-      return;
-    }
-    setSpeaking(true);
-    const timer = setTimeout(() => setSpeaking(false), spokenDuration(line));
-    return () => clearTimeout(timer);
-  }, [line]);
-
-  return speaking;
-}
 
 export default function ElderAiChatScreen() {
   const navigation = useNavigation<ElderNav>();
@@ -104,7 +81,7 @@ export default function ElderAiChatScreen() {
   // The character only mouths the question itself; once it has been answered it
   // goes back to resting until the next one arrives.
   const spokenLine = phase === "intro" ? INTRO_LINE : answered ? null : question?.content ?? null;
-  const speaking = useSpokenLine(spokenLine);
+  const voice = useSpeechPlayback(spokenLine);
 
   React.useEffect(() => {
     setAskedAt(Date.now());
@@ -164,12 +141,20 @@ export default function ElderAiChatScreen() {
           <Memoi3D
             character={DEFAULT_MEMOI}
             mouthSet={DEFAULT_MOUTH_SET}
-            speaking={speaking}
+            speaking={voice.speaking}
             height={180}
             spinnerColor={colors.primary}
             style={{ width: 220 }}
           />
           <SpeechBubble text={INTRO_LINE} side="below" />
+          <VoicePlaybackButton
+            enabled={voice.enabled}
+            loading={voice.loading}
+            speaking={voice.speaking}
+            onPress={voice.toggle}
+            onReplay={voice.replay}
+          />
+          {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
         </View>
 
         <View style={styles.introFooter}>
@@ -201,12 +186,21 @@ export default function ElderAiChatScreen() {
         <Memoi3D
           character={DEFAULT_MEMOI}
           mouthSet={DEFAULT_MOUTH_SET}
-          speaking={speaking}
+          speaking={voice.speaking}
           height={130}
           spinnerColor={colors.primary}
           style={{ width: 170 }}
         />
-        <Text style={styles.stageStatus}>{speaking ? "메모이가 말하고 있어요" : "메모이"}</Text>
+        <Text style={styles.stageStatus}>{voice.speaking ? "메모이가 말하고 있어요" : "메모이"}</Text>
+        <VoicePlaybackButton
+          enabled={voice.enabled}
+          loading={voice.loading}
+          speaking={voice.speaking}
+          onPress={voice.toggle}
+          onReplay={voice.replay}
+          compact
+        />
+        {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
       </View>
 
       <ScrollView contentContainerStyle={styles.thread} showsVerticalScrollIndicator={false}>
@@ -259,6 +253,7 @@ export default function ElderAiChatScreen() {
               userId={userId}
               sessionId={session.data?.session_id ?? null}
               questionId={question.question_id}
+              disabled={voice.loading || voice.speaking}
               onAnswer={(id) =>
                 setRecordingIds((current) => {
                   const next = [...current];
@@ -278,11 +273,13 @@ function ChatRecorder({
   userId,
   sessionId,
   questionId,
+  disabled,
   onAnswer,
 }: {
   userId: Uuid | null;
   sessionId: Uuid | null;
   questionId: Uuid;
+  disabled: boolean;
   onAnswer: (recordingId: Uuid) => void;
 }) {
   const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
@@ -295,7 +292,9 @@ function ChatRecorder({
   return (
     <View style={styles.recorderRow}>
       <Text style={styles.recorderHint}>
-        {recording.syncStatus === "pending"
+        {disabled
+          ? "메모이의 질문을 들은 뒤 답변해 주세요"
+          : recording.syncStatus === "pending"
           ? "기기에 저장됨 · 연결되면 자동 전송"
           : recording.syncStatus === "failed"
             ? "전송 대기 중 · 눌러서 다시 시도"
@@ -307,13 +306,13 @@ function ChatRecorder({
       </Text>
       <Pressable
         onPress={() => void tap()}
-        disabled={recording.uploading || !userId || !sessionId}
+        disabled={disabled || recording.uploading || !userId || !sessionId}
         accessibilityRole="button"
         accessibilityLabel={recording.isRecording ? "답변 녹음 완료" : "답변 녹음 시작"}
         style={({ pressed }) => [
           styles.micButton,
           {
-            opacity: pressed || recording.uploading || !userId || !sessionId ? 0.7 : 1,
+            opacity: pressed || disabled || recording.uploading || !userId || !sessionId ? 0.7 : 1,
             backgroundColor: recording.isRecording ? colors.destructive : colors.primary,
           },
         ]}
@@ -344,6 +343,7 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     marginTop: spacing.xs,
   },
+  voiceError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
 
   thread: { padding: spacing.xl, gap: spacing.md },
   aiBubble: {

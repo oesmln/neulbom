@@ -9,10 +9,12 @@ import { useApp } from "@/store/AppContext";
 import { newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
+import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
 import type { QuestionResponse, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Badge, Button, ErrorState, LoadingState, ProgressBar } from "@/components/ui";
+import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 
 /**
  * CIST initial screening.
@@ -78,6 +80,7 @@ export default function ElderCistScreen() {
   const isListenQuestion = question?.type === "listen";
   const canAdvance = isListenQuestion ? listened : answered;
   const canGoPrevious = index > 0 || navigation.canGoBack();
+  const voice = useSpeechPlayback(answered ? null : question?.content ?? null);
 
   React.useEffect(() => {
     setAskedAt(Date.now());
@@ -180,6 +183,14 @@ export default function ElderCistScreen() {
             <View style={{ gap: spacing.md }}>
               <Text style={styles.prompt}>{question.content}</Text>
               {question.hint ? <Text style={styles.hint}>{question.hint}</Text> : null}
+              <VoicePlaybackButton
+                enabled={voice.enabled}
+                loading={voice.loading}
+                speaking={voice.speaking}
+                onPress={voice.toggle}
+                onReplay={voice.replay}
+              />
+              {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
             </View>
 
             {isListenQuestion ? (
@@ -197,6 +208,7 @@ export default function ElderCistScreen() {
                 sessionId={session.data?.session_id ?? null}
                 questionId={question.question_id}
                 answered={answered}
+                disabled={voice.loading || voice.speaking}
                 onAnswer={(id) => {
                   setRecordingId(id);
                   setAnswered(true);
@@ -226,19 +238,21 @@ function MicRecorder({
   sessionId,
   questionId,
   answered,
+  disabled,
   onAnswer,
 }: {
   userId: Uuid | null;
   sessionId: Uuid | null;
   questionId: Uuid;
   answered: boolean;
+  disabled: boolean;
   onAnswer: (recordingId: Uuid) => void;
 }) {
   const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer);
   const elapsed = Math.floor(recording.durationMillis / 1000);
 
   const tap = async () => {
-    if (answered || recording.uploading) return;
+    if (disabled || answered || recording.uploading) return;
     await recording.toggle();
   };
 
@@ -249,6 +263,8 @@ function MicRecorder({
       : colors.primary;
   const status = answered
     ? "답변 완료"
+    : disabled
+      ? "질문을 들은 뒤 답변해 주세요"
     : recording.syncStatus === "pending"
       ? "기기에 저장됨 · 연결되면 자동 전송"
       : recording.syncStatus === "failed"
@@ -285,14 +301,14 @@ function MicRecorder({
 
       <Pressable
         onPress={() => void tap()}
-        disabled={recording.uploading || !userId || !sessionId}
+        disabled={disabled || recording.uploading || !userId || !sessionId}
         accessibilityRole="button"
         accessibilityLabel={status}
         style={({ pressed }) => [
           styles.micButton,
           {
             backgroundColor: buttonColor,
-            opacity: pressed || recording.uploading || !userId || !sessionId ? 0.7 : 1,
+            opacity: pressed || disabled || recording.uploading || !userId || !sessionId ? 0.7 : 1,
           },
         ]}
       >
@@ -351,6 +367,7 @@ const styles = StyleSheet.create({
   },
   prompt: { fontSize: fontSize.title, fontWeight: fontWeight.bold, lineHeight: 31, color: colors.foreground },
   hint: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
+  voiceError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
 
   recorder: { alignItems: "center", gap: spacing.lg, paddingVertical: spacing.sm },
   wave: { flexDirection: "row", alignItems: "center", gap: 2, height: 32 },
