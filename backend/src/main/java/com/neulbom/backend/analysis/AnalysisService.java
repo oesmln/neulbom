@@ -361,6 +361,7 @@ public class AnalysisService {
         }
         List<SessionEntity> sessions = sessionRepository.findAllByUserIdOrderByStartedAtDesc(request.userId()).stream()
                 .filter(session -> request.localDate().equals(session.getStartedAt().atZone(BUSINESS_ZONE).toLocalDate()))
+                .filter(session -> !Set.of("baseline", "onboarding").contains(session.getSessionType()))
                 .toList();
         int analyzedCount = (int) sessions.stream()
                 .flatMap(session -> cognitiveAnalysisRepository.findAllBySessionIdOrderByAnalyzedAtAsc(session.getId()).stream())

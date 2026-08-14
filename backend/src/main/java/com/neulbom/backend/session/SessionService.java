@@ -31,6 +31,8 @@ import com.neulbom.backend.session.api.SessionSettingsUpdateRequest;
 import com.neulbom.backend.session.api.SessionStartRequest;
 import com.neulbom.backend.session.api.SessionsResponse;
 import com.neulbom.backend.user.UserEntity;
+import com.neulbom.backend.user.ConsentEntity;
+import com.neulbom.backend.user.ConsentRepository;
 import com.neulbom.backend.user.UserPreferenceEntity;
 import com.neulbom.backend.user.UserPreferenceRepository;
 import com.neulbom.backend.user.UserRepository;
@@ -52,6 +54,7 @@ public class SessionService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
+    private final ConsentRepository consentRepository;
     private final UserPreferenceRepository userPreferenceRepository;
     private final VoiceProfileRepository voiceProfileRepository;
     private final SessionRepository sessionRepository;
@@ -64,6 +67,7 @@ public class SessionService {
 
     public SessionService(
             UserRepository userRepository,
+            ConsentRepository consentRepository,
             UserPreferenceRepository userPreferenceRepository,
             VoiceProfileRepository voiceProfileRepository,
             SessionRepository sessionRepository,
@@ -75,6 +79,7 @@ public class SessionService {
             Clock clock
     ) {
         this.userRepository = userRepository;
+        this.consentRepository = consentRepository;
         this.userPreferenceRepository = userPreferenceRepository;
         this.voiceProfileRepository = voiceProfileRepository;
         this.sessionRepository = sessionRepository;
@@ -98,6 +103,10 @@ public class SessionService {
         String sessionType = request.sessionType() == null || request.sessionType().isBlank()
                 ? "cist" : request.sessionType();
         validateEnum("session_type", sessionType, SESSION_TYPES);
+        if (Set.of("baseline", "emotional_qa").contains(sessionType)) {
+            requireAgreedConsent(user.getId(), "analysis", "인지 활동 분석 동의가 필요합니다.");
+            requireAgreedConsent(user.getId(), "voice_collection", "음성 수집 동의가 필요합니다.");
+        }
         SessionSettings settings = settingsForStart(user.getId(), request);
         int totalQuestions = questionCount(sessionType);
         Instant now = clock.instant();
@@ -454,6 +463,15 @@ public class SessionService {
         }
         String normalized = value.trim();
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private void requireAgreedConsent(UUID userId, String consentType, String detail) {
+        boolean agreed = consentRepository.findFirstByUserIdAndConsentTypeOrderByCreatedAtDesc(userId, consentType)
+                .map(ConsentEntity::isAgreed)
+                .orElse(false);
+        if (!agreed) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "필수 동의가 필요합니다.", detail);
+        }
     }
 
     private String writeSettings(SessionSettings settings) {

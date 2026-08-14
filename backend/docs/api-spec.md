@@ -627,6 +627,8 @@ Figma의 단계 순서는 `이름·이메일·비밀번호 입력 → 초대 코
 - 사용 환경 설정 행이 없으면 `preferred_hearing_side=unknown`, `speech_rate=0.90`, `subtitle_enabled=false`, `sound_effect_enabled=false`, 알림 5종은 `true`인 기본값을 생성해 반환한다.
 - `voice_profile_id`는 활성 상태의 한국어 안내 음성만 선택할 수 있으며, 존재하지 않거나 비활성인 ID는 `404`로 거부한다. `language`가 없으면 `ko`를 사용한다.
 - 동의는 `(user_id, consent_type, version)` 단위로 이력을 보존한다. 동일 버전을 다시 저장하면 `409`를 반환하며, 허용되지 않은 동의 유형·미래 시각은 `400`으로 거부한다.
+- `agreed=false`도 철회 이력으로 저장하며, 조회 시 동일 동의 유형의 가장 최근 상태를 현재 상태로 사용한다. 철회 이벤트를 삭제하거나 기존 이력으로 덮어쓰지 않는다.
+- `baseline`·`emotional_qa` 세션 시작은 최신 `analysis=true`와 `voice_collection=true` 동의를 모두 요구한다. 동의가 없거나 철회된 경우 `403`을 반환한다.
 
 ## 4. 보호자 연결 API
 
@@ -1920,6 +1922,8 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
 
 `daily_summary`에는 `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`, `conversation_results[]`를 포함한다. `conversation_results[]`에는 날짜 안에 종료된 각 세션의 `session_id`, `session_type`, `result_type`, `display_label`, `screening_reference_score`, `domain_scores`를 포함한다. `screening_reference_score`와 `domain_scores`는 보호자 리포트에서만 반환한다.
+
+서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
 
 `trend_points[]` 예시:
 
