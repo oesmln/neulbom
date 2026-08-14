@@ -30,6 +30,20 @@ import { Button, ScreenHeader } from "@/components/ui";
 type Step = "form" | "invite" | "socialRole" | "forgot" | "forgotSent";
 type Tab = "login" | "signup";
 type SocialProvider = "kakao" | "naver";
+type SignupConsentKey = "terms" | "privacy";
+
+const SIGNUP_CONSENT_ITEMS: Array<{ key: SignupConsentKey; title: string; body: string }> = [
+  {
+    key: "terms",
+    title: "이용약관 동의",
+    body: "늘봄 서비스 이용을 위해 필요한 약관이에요.",
+  },
+  {
+    key: "privacy",
+    title: "개인정보 수집·이용 동의",
+    body: "회원가입과 서비스 제공에 필요한 개인정보를 처리해요.",
+  },
+];
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -79,6 +93,12 @@ export default function LoginScreen() {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = React.useState("");
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = React.useState(false);
+  const [signupConsents, setSignupConsents] = React.useState<Record<SignupConsentKey, boolean>>({
+    terms: false,
+    privacy: false,
+  });
   const [busy, setBusy] = React.useState(false);
   const [socialProvider, setSocialProvider] = React.useState<SocialProvider | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -90,8 +110,13 @@ export default function LoginScreen() {
   };
 
   const emailLooksValid = email.includes("@") && email.includes(".");
+  const passwordMatches = tab === "login" || password === passwordConfirmation;
+  const signupConsentsAccepted = signupConsents.terms && signupConsents.privacy;
   const canSubmitForm =
-    emailLooksValid && password.length >= 8 && (tab === "login" || name.trim().length > 0);
+    emailLooksValid &&
+    password.length >= 8 &&
+    passwordMatches &&
+    (tab === "login" || (name.trim().length > 0 && signupConsentsAccepted));
 
   const [kakaoRequest, , promptKakao] = AuthSession.useAuthRequest(
     {
@@ -144,7 +169,13 @@ export default function LoginScreen() {
 
   const goToUserType = (inviteCode?: string) => {
     navigation.navigate("UserType", {
-      signup: { name: name.trim(), email, password, inviteCode },
+      signup: {
+        name: name.trim(),
+        email,
+        password,
+        inviteCode,
+        requiredConsentsAccepted: signupConsentsAccepted,
+      },
     });
   };
 
@@ -530,6 +561,82 @@ export default function LoginScreen() {
           </View>
         </Field>
 
+        {tab === "signup" ? (
+          <Field label="비밀번호 확인">
+            <View>
+              <TextInput
+                value={passwordConfirmation}
+                onChangeText={setPasswordConfirmation}
+                placeholder="비밀번호를 다시 입력해 주세요"
+                placeholderTextColor={colors.mutedForeground}
+                secureTextEntry={!showPasswordConfirmation}
+                autoCapitalize="none"
+                accessibilityLabel="비밀번호 확인 입력"
+                style={[
+                  styles.input,
+                  {
+                    paddingRight: 48,
+                    borderColor:
+                      passwordConfirmation.length === 0
+                        ? colors.border
+                        : passwordMatches
+                          ? colors.primary
+                          : colors.destructive,
+                  },
+                ]}
+              />
+              <Pressable
+                onPress={() => setShowPasswordConfirmation((v) => !v)}
+                accessibilityRole="button"
+                accessibilityLabel={showPasswordConfirmation ? "비밀번호 확인 숨기기" : "비밀번호 확인 표시"}
+                hitSlop={10}
+                style={styles.eye}
+              >
+                <Ionicons
+                  name={showPasswordConfirmation ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.mutedForeground}
+                />
+              </Pressable>
+            </View>
+            {passwordConfirmation.length > 0 && !passwordMatches ? (
+              <Text style={styles.errorText}>비밀번호가 서로 일치하지 않아요.</Text>
+            ) : null}
+          </Field>
+        ) : null}
+
+        {tab === "signup" ? (
+          <View style={styles.signupConsentCard}>
+            <Text style={styles.signupConsentHeading}>가입에 필요한 동의</Text>
+            <Text style={styles.signupConsentDescription}>
+              계정을 만들려면 아래 필수 항목에 동의해 주세요. 고령자 기능에 필요한 동의는 역할 선택 후 별도로 안내해요.
+            </Text>
+            {SIGNUP_CONSENT_ITEMS.map((item) => {
+              const checked = signupConsents[item.key];
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setSignupConsents((current) => ({ ...current, [item.key]: !current[item.key] }))}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={`${item.title} (필수)`}
+                  style={styles.signupConsentRow}
+                >
+                  <Ionicons
+                    name={checked ? "checkbox" : "square-outline"}
+                    size={24}
+                    color={checked ? colors.primary : colors.mutedForeground}
+                  />
+                  <View style={styles.signupConsentCopy}>
+                    <Text style={styles.signupConsentTitle}>{item.title} (필수)</Text>
+                    <Text style={styles.signupConsentBody}>{item.body}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
         {tab === "login" ? (
           <Pressable
             onPress={() => setStep("forgot")}
@@ -679,6 +786,21 @@ const styles = StyleSheet.create({
   errorText: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 20 },
   eye: { position: "absolute", right: spacing.lg, top: 0, bottom: 0, justifyContent: "center" },
   forgotLink: { fontSize: fontSize.caption, color: colors.primary },
+
+  signupConsentCard: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  signupConsentHeading: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
+  signupConsentDescription: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.xs },
+  signupConsentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: spacing.xs },
+  signupConsentCopy: { flex: 1, gap: 2 },
+  signupConsentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
+  signupConsentBody: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 18 },
 
   dividerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },

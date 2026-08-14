@@ -7,6 +7,7 @@ import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
+import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Badge, Button, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -28,8 +29,8 @@ const OPTIONS: {
   },
   {
     key: "guardian",
-    title: "보호자 / 의료진",
-    sub: "가족 또는 환자의 인지 상태를 모니터링해요",
+    title: "보호자",
+    sub: "연결된 어르신의 활동과 인지 상태를 확인해요",
     tags: ["인지 저하 그래프", "일기 열람", "위험 알림"],
   },
 ];
@@ -46,11 +47,15 @@ export default function UserTypeScreen() {
   /**
    * The role is the last piece registration was waiting for: api-spec 3.1 wants
    * one `POST /auth/register` carrying it, not an account created earlier and
-   * patched afterwards. The invite code, if one was entered, is redeemed once
-   * the account exists and is signed in.
+   * patched afterwards. The invite code, if one was entered, is redeemed after
+   * the elder has explicitly accepted the guardian-sharing consent.
    */
   const start = async () => {
     if (!selected || busy) return;
+    if (signup && signup.requiredConsentsAccepted !== true) {
+      setMessage("회원가입 화면에서 필수 동의를 먼저 완료해 주세요.");
+      return;
+    }
     if (signup?.inviteCode && selected !== "elder") {
       setMessage("보호자 초대 코드는 본인(고령자) 계정에서만 사용할 수 있어요.");
       return;
@@ -73,25 +78,54 @@ export default function UserTypeScreen() {
         role: selected,
       });
       if (!registration.email_verified) {
-        navigation.replace("EmailVerification", { signup: { ...signup } });
+        navigation.replace("EmailVerification", {
+          signup: { ...signup, requiredConsentsAccepted: true },
+        });
         return;
       }
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
+      await saveRequiredSignupConsents(tokens.user_id);
 
-      if (signup.inviteCode && selected === "elder") {
-        await guardian.acceptInvitation(signup.inviteCode, true);
+      // Elder accounts continue straight into their optional profile and
+      // feature-consent form. The guardian-sharing consent on that screen is
+      // what authorizes redeeming an invite code, so do not show the generic
+      // completion screen first or accept the invitation here.
+      if (selected === "elder") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "ElderProfile", params: { inviteCode: signup.inviteCode } }],
+        });
+        return;
+      }
+
+      let inviteCode: string | undefined;
+      let invitationError: string | undefined;
+      if (selected === "guardian") {
+        try {
+          const invitation = await guardian.createInvitation({
+            relation: "보호자",
+            access_scope: ["screening", "summary", "diary", "activity"],
+            expires_in: 600,
+          });
+          inviteCode = invitation.invite_code;
+        } catch (cause) {
+          // Account creation already succeeded. Keep the completion screen
+          // reachable and let the guardian issue a new code from Connections.
+          invitationError = apiErrorMessage(cause);
+        }
       }
 
       navigation.reset({
         index: 0,
         routes: [
           {
-            name: selected === "guardian"
-              ? "Guardian"
-              : tokens.onboarding_completed
-                ? "Elder"
-                : "Onboarding",
+            name: "SignupComplete",
+            params: {
+              role: selected,
+              inviteCode,
+              invitationError,
+            },
           },
         ],
       });
