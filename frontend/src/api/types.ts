@@ -363,6 +363,16 @@ export interface RecordingStatusResponse {
   updated_at: IsoInstant;
 }
 
+export interface TranscribeResponse {
+  transcript_id: Uuid;
+  recording_id: Uuid;
+  transcript: string;
+  duration_sec: number | null;
+  confidence: number | null;
+  language: string;
+  model: string | null;
+}
+
 /* ── dashboard & screening result ───────────────────────────────────────── */
 
 /** `stable | observe | attention_required` — the server decides, never the app. */

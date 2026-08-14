@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.neulbom.backend.auth.service.AuthService;
+import com.neulbom.backend.analysis.AnalysisService;
+import com.neulbom.backend.analysis.api.TranscribeResponse;
 import com.neulbom.backend.recording.api.RecordingStatusResponse;
 import com.neulbom.backend.recording.api.RecordingUploadResponse;
 import org.springframework.http.HttpStatus;
@@ -26,10 +28,16 @@ public class RecordingController {
 
     private final AuthService authService;
     private final RecordingService recordingService;
+    private final AnalysisService analysisService;
 
-    public RecordingController(AuthService authService, RecordingService recordingService) {
+    public RecordingController(
+            AuthService authService,
+            RecordingService recordingService,
+            AnalysisService analysisService
+    ) {
         this.authService = authService;
         this.recordingService = recordingService;
+        this.analysisService = analysisService;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -63,6 +71,15 @@ public class RecordingController {
             @PathVariable UUID recordingId
     ) {
         return recordingService.getStatus(authenticatedUserId(jwt), recordingId);
+    }
+
+    /** Start STT for an uploaded answer and return its text to the answer UI. */
+    @PostMapping("/{recordingId}/transcribe")
+    public TranscribeResponse transcribe(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID recordingId
+    ) {
+        return analysisService.transcribeForUser(authenticatedUserId(jwt), recordingId);
     }
 
     private UUID authenticatedUserId(Jwt jwt) {

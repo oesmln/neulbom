@@ -3,6 +3,7 @@ package com.neulbom.backend.recording;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -98,6 +99,34 @@ class RecordingIntegrationTest {
 
         Path storedRoot = Path.of("build/test-uploads/recordings");
         org.assertj.core.api.Assertions.assertThat(Files.list(storedRoot).findAny()).isPresent();
+    }
+
+    @Test
+    void elderCanRequestTranscriptForUploadedAnswer() throws Exception {
+        UserEntity elder = saveUser("recording-transcript");
+        UUID sessionId = saveSession(elder.getId());
+        UUID clientRecordingId = UUID.randomUUID();
+        String recordedAt = Instant.now().minusSeconds(1).toString();
+
+        String uploadBody = mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("transcript.wav"))
+                        .with(jwtFor(elder))
+                        .param("client_recording_id", clientRecordingId.toString())
+                        .param("user_id", elder.getId().toString())
+                        .param("purpose", "answer")
+                        .param("session_id", sessionId.toString())
+                        .param("question_id", QUESTION_ID.toString())
+                        .param("recorded_at", recordedAt))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID recordingId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(uploadBody).get("recording_id").asText());
+
+        mockMvc.perform(post("/api/v1/recordings/{recordingId}/transcribe", recordingId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recording_id").value(recordingId.toString()))
+                .andExpect(jsonPath("$.transcript").isNotEmpty());
     }
 
     @Test

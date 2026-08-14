@@ -66,6 +66,7 @@ import type {
   SessionStartRequest,
   SessionType,
   SessionsResponse,
+  TranscribeResponse,
   UserPreferenceResponse,
   UserPreferenceUpdateRequest,
   UserProfileResponse,
@@ -370,6 +371,21 @@ export const recordings = {
 
   status(recordingId: Uuid): Promise<RecordingStatusResponse> {
     return request(`/recordings/${recordingId}`);
+  },
+
+  transcribe(recordingId: Uuid): Promise<TranscribeResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve({
+        transcript_id: newClientId(),
+        recording_id: recordingId,
+        transcript: "음성 답변이 텍스트로 변환됐어요.",
+        duration_sec: null,
+        confidence: null,
+        language: "ko",
+        model: "mock",
+      });
+    }
+    return request(`/recordings/${recordingId}/transcribe`, { method: "POST" });
   },
 };
 
