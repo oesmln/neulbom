@@ -58,6 +58,14 @@ export default function EmailVerificationScreen() {
       await signIn(tokens);
       await saveRequiredSignupConsents(tokens.user_id);
 
+      if (tokens.role === "elder") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "ElderProfile", params: { inviteCode: signup.inviteCode } }],
+        });
+        return;
+      }
+
       let inviteCode: string | undefined;
       let invitationError: string | undefined;
       if (tokens.role === "guardian") {
@@ -80,7 +88,7 @@ export default function EmailVerificationScreen() {
             name: "SignupComplete",
             params: {
               role: tokens.role,
-              inviteCode: tokens.role === "elder" ? signup.inviteCode : inviteCode,
+              inviteCode,
               invitationError,
             },
           },

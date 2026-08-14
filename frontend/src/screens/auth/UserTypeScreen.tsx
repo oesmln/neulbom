@@ -87,6 +87,18 @@ export default function UserTypeScreen() {
       await signIn(tokens);
       await saveRequiredSignupConsents(tokens.user_id);
 
+      // Elder accounts continue straight into their optional profile and
+      // feature-consent form. The guardian-sharing consent on that screen is
+      // what authorizes redeeming an invite code, so do not show the generic
+      // completion screen first or accept the invitation here.
+      if (selected === "elder") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "ElderProfile", params: { inviteCode: signup.inviteCode } }],
+        });
+        return;
+      }
+
       let inviteCode: string | undefined;
       let invitationError: string | undefined;
       if (selected === "guardian") {
@@ -111,7 +123,7 @@ export default function UserTypeScreen() {
             name: "SignupComplete",
             params: {
               role: selected,
-              inviteCode: selected === "elder" ? signup.inviteCode : inviteCode,
+              inviteCode,
               invitationError,
             },
           },

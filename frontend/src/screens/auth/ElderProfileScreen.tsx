@@ -232,8 +232,6 @@ export default function ElderProfileScreen() {
       <ScreenHeader
         title="고령자 기본정보"
         subtitle="더 편안하게 이용할 수 있도록 선택해서 알려 주세요."
-        onBack={() => navigation.goBack()}
-        backLabel="가입 완료"
       />
       <ScrollView
         contentContainerStyle={styles.body}
