@@ -1,5 +1,10 @@
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { NavigatorScreenParams } from "@react-navigation/native";
+import type {
+  ConsentType,
+  UserPreferenceUpdateRequest,
+  UserProfileUpdateRequest,
+} from "@/api/types";
 
 /** Root onboarding + role stacks */
 export type RootStackParamList = {
@@ -13,7 +18,7 @@ export type RootStackParamList = {
   UserType: { signup?: PendingSignup } | undefined;
   EmailVerification: { signup: PendingSignup };
   SignupComplete: SignupCompleteParams;
-  ElderProfile: { inviteCode?: string } | undefined;
+  ElderProfile: { inviteCode?: string; signup?: PendingSignup } | undefined;
   Onboarding: undefined;
   Elder: undefined;
   Guardian: undefined;
@@ -26,6 +31,15 @@ export type PendingSignup = {
   password: string;
   inviteCode?: string;
   requiredConsentsAccepted?: boolean;
+  elderSetup?: PendingElderSetup;
+};
+
+/** Elder profile and feature consents held in memory until email verification. */
+export type PendingElderSetup = {
+  profile: UserProfileUpdateRequest;
+  preferences: UserPreferenceUpdateRequest;
+  consents: ConsentType[];
+  guardianConsentAccepted: boolean;
 };
 
 export type SignupCompleteParams = {

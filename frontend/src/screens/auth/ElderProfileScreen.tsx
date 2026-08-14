@@ -4,7 +4,7 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, apiErrorMessage, guardian, users } from "@/api";
+import { apiErrorMessage, auth, users } from "@/api";
 import type {
   ConsentType,
   UserPreferenceUpdateRequest,
@@ -14,9 +14,9 @@ import type {
 import { Button, Card, ScreenHeader } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
+import { persistElderSetup } from "@/screens/auth/elderSetup";
+import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
-
-const CONSENT_VERSION = "elder-profile-v1";
 
 const REQUIRED_CONSENTS: Array<{ type: ConsentType; title: string; body: string }> = [
   {
@@ -80,8 +80,10 @@ type CommunicationChoice = boolean | "unknown" | null;
 export default function ElderProfileScreen() {
   const navigation = useNavigation<RootNav>();
   const route = useRoute<RouteProp<RootStackParamList, "ElderProfile">>();
-  const { userId, role } = useApp();
+  const { userId, role, signIn } = useApp();
+  const pendingSignup = route.params?.signup;
   const inviteCode = route.params?.inviteCode;
+  const isPreRegistration = Boolean(pendingSignup && !userId);
 
   const [gender, setGender] = React.useState<string | null>(null);
   const [birthYear, setBirthYear] = React.useState("");
@@ -103,11 +105,11 @@ export default function ElderProfileScreen() {
     (!inviteCode || guardianConsentAccepted);
 
   React.useEffect(() => {
-    if (role === "guardian") {
+    if (!pendingSignup && role === "guardian") {
       navigation.reset({ index: 0, routes: [{ name: "Guardian" }] });
       return;
     }
-    if (!userId) {
+    if (!userId && !pendingSignup) {
       navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       return;
     }
@@ -122,7 +124,7 @@ export default function ElderProfileScreen() {
     return () => {
       cancelled = true;
     };
-  }, [navigation, role, userId]);
+  }, [navigation, pendingSignup, role, userId]);
 
   const toggleConsent = (type: ConsentType) => {
     setSelectedConsents((current) => {
@@ -141,23 +143,8 @@ export default function ElderProfileScreen() {
     return "unknown";
   };
 
-  const saveConsent = async (consentType: ConsentType, agreedAt: string) => {
-    try {
-      await users.saveConsent(userId!, {
-        consent_type: consentType,
-        agreed: true,
-        agreed_at: agreedAt,
-        version: CONSENT_VERSION,
-      });
-    } catch (cause) {
-      // A retry after a network interruption should not prevent the user from
-      // continuing when this exact document version is already stored.
-      if (!(cause instanceof ApiError) || cause.status !== 409) throw cause;
-    }
-  };
-
   const submit = async () => {
-    if (!userId || busy) return;
+    if ((!userId && !pendingSignup) || busy) return;
     setMessage(null);
     if (!requiredAccepted) {
       setMessage(inviteCode
@@ -199,22 +186,41 @@ export default function ElderProfileScreen() {
       if (hearingStatus) profile.hearing_status = hearingStatus;
       if (typeof communicationDifficulty === "boolean") profile.communication_difficulty = communicationDifficulty;
       if (smartphoneSkill) profile.smartphone_skill = smartphoneSkill;
-      if (Object.keys(profile).length > 0) await users.updateProfile(userId, profile);
 
       const preferences: UserPreferenceUpdateRequest = {};
       if (hearingSide) preferences.preferred_hearing_side = hearingSide;
       if (voiceProfileId) preferences.voice_profile_id = voiceProfileId;
-      if (Object.keys(preferences).length > 0) await users.updatePreferences(userId, preferences);
 
-      const agreedAt = new Date().toISOString();
-      for (const consent of REQUIRED_CONSENTS) await saveConsent(consent.type, agreedAt);
-      for (const consent of OPTIONAL_CONSENTS) {
-        if (selectedConsents.has(consent.type)) await saveConsent(consent.type, agreedAt);
-      }
-      if (inviteCode) {
-        await saveConsent("guardian_access", agreedAt);
-        await saveConsent("report_sharing", agreedAt);
-        await guardian.acceptInvitation(inviteCode, true);
+      const elderSetup = {
+        profile,
+        preferences,
+        consents: Array.from(selectedConsents),
+        guardianConsentAccepted,
+      };
+
+      if (pendingSignup) {
+        const registration = await auth.register({
+          email: pendingSignup.email,
+          password: pendingSignup.password,
+          name: pendingSignup.name,
+          role: "elder",
+        });
+        const signup = { ...pendingSignup, elderSetup };
+
+        if (!registration.email_verified) {
+          navigation.replace("EmailVerification", { signup });
+          return;
+        }
+
+        const tokens = await auth.login({
+          email: pendingSignup.email,
+          password: pendingSignup.password,
+        });
+        await signIn(tokens);
+        await saveRequiredSignupConsents(tokens.user_id);
+        await persistElderSetup(tokens.user_id, elderSetup, inviteCode);
+      } else if (userId) {
+        await persistElderSetup(userId, elderSetup, inviteCode);
       }
 
       navigation.reset({ index: 0, routes: [{ name: "Onboarding" }] });
@@ -225,13 +231,15 @@ export default function ElderProfileScreen() {
     }
   };
 
-  if (role === "guardian" || !userId) return null;
+  if ((!pendingSignup && role === "guardian") || (!userId && !pendingSignup)) return null;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <ScreenHeader
         title="고령자 기본정보"
         subtitle="더 편안하게 이용할 수 있도록 선택해서 알려 주세요."
+        onBack={isPreRegistration ? () => navigation.goBack() : undefined}
+        backLabel={isPreRegistration ? "역할 선택" : undefined}
       />
       <ScrollView
         contentContainerStyle={styles.body}
