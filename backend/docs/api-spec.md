@@ -1294,6 +1294,24 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `error_message` | string/null | 실패 시 오류 내용 |
 | `updated_at` | string | 최종 처리 일시 |
 
+### 7.2.1 `POST /recordings/{recording_id}/transcribe` - 고령자 답변 STT 요청
+
+업로드가 완료된 문항 답변 음성을 로그인한 고령자가 전사 요청한다. 서버는 녹음 소유권과 `purpose=answer`를 확인한 뒤 선택된 STT provider를 실행하고, 화면에 표시할 전사 문장을 반환한다. 서버 작업 큐에서 사용하는 `POST /voice/transcribe`와 달리 사용자 JWT로 호출한다.
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `transcript_id` | string | 저장된 전사 ID |
+| `recording_id` | string | 원본 녹음 ID |
+| `transcript` | string | 음성 인식 결과 문장 |
+| `duration_sec` | number/null | 발화 길이(초) |
+| `confidence` | number/null | 인식 신뢰도 |
+| `language` | string | 인식 언어 |
+| `model` | string/null | 사용한 STT 모델 |
+
+사용자 JWT는 본인 녹음에만 사용할 수 있으며, 일기 녹음이나 다른 사용자의 녹음은 거부한다.
+
 ### 7.3 `POST /voice/transcribe` - 선택한 STT provider
 
 서버 작업 큐에서 `recording_id`를 기준으로 호출하는 것을 권장한다. 기존 클라이언트 직접 호출이 필요한 경우에도 동일한 메타데이터를 전송한다.

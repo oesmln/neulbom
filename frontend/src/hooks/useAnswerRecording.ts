@@ -37,6 +37,7 @@ type CapturedAudio = {
 export function useAnswerRecording(
   target: AnswerRecordingTarget,
   onUploaded?: (recordingId: Uuid) => void,
+  onTranscribed?: (transcript: string, transcriptId?: Uuid) => void,
 ) {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
@@ -44,12 +45,14 @@ export function useAnswerRecording(
   const queuedClientIdRef = React.useRef<Uuid | null>(null);
   const reportedRecordingIdRef = React.useRef<Uuid | null>(null);
   const onUploadedRef = React.useRef(onUploaded);
+  const onTranscribedRef = React.useRef(onTranscribed);
   const activeRef = React.useRef(false);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [syncStatus, setSyncStatus] = React.useState<RecordingQueueStatus | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   onUploadedRef.current = onUploaded;
+  onTranscribedRef.current = onTranscribed;
 
   const complete = React.useCallback((id: Uuid) => {
     if (reportedRecordingIdRef.current === id) return;
@@ -78,7 +81,10 @@ export function useAnswerRecording(
       );
       if (cancelled) return;
       if (uploaded) {
-        complete(uploaded);
+        complete(uploaded.recordingId);
+        if (uploaded.transcript) {
+          onTranscribedRef.current?.(uploaded.transcript, uploaded.transcriptId);
+        }
         return;
       }
       const item = await findQueuedRecording(
@@ -115,6 +121,9 @@ export function useAnswerRecording(
         if (event.type === "uploaded" && event.clientRecordingId === queuedClientIdRef.current) {
           queuedClientIdRef.current = null;
           complete(event.recordingId);
+          if (event.transcript) {
+            onTranscribedRef.current?.(event.transcript, event.transcriptId);
+          }
           void consumeUploadedRecording(
             target.userId as Uuid,
             target.sessionId as Uuid,

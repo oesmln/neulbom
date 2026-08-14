@@ -178,6 +178,26 @@ public class AnalysisService {
         return toTranscribeResponse(transcript);
     }
 
+    /** Start STT for an answer recording owned by the authenticated elder. */
+    @Transactional
+    public TranscribeResponse transcribeForUser(UUID authenticatedUserId, UUID recordingId) {
+        RecordingEntity recording = ownedRecording(authenticatedUserId, recordingId);
+        if (!RecordingEntity.ANSWER.equals(recording.getPurpose())
+                || recording.getSessionId() == null
+                || recording.getQuestionId() == null) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "답변 녹음만 전사할 수 있습니다.",
+                    "recording_id를 확인하세요.");
+        }
+        return transcribe(
+                recordingId,
+                authenticatedUserId,
+                recording.getSessionId(),
+                recording.getQuestionId(),
+                null);
+    }
+
     @Transactional
     public AcousticAnalysisResponse analyzeAcoustic(AcousticAnalysisRequest request) {
         RecordingEntity recording = ownedRecording(request.userId(), request.recordingId());
