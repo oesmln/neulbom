@@ -62,7 +62,7 @@ app:
     read-timeout: ${EXTERNAL_API_READ_TIMEOUT:30s}
     retry-count: ${EXTERNAL_API_RETRY_COUNT:2}
     allow-fallback: ${EXTERNAL_API_ALLOW_FALLBACK:true}
-    stt-provider: ${STT_PROVIDER:auto}
+    stt-provider: ${STT_PROVIDER:google}
     whisper-api-key: ${WHISPER_API_KEY:}
     whisper-base-url: ${WHISPER_API_BASE_URL:https://api.openai.com}
     whisper-model: ${WHISPER_MODEL:whisper-1}
@@ -74,6 +74,11 @@ app:
     google-stt-location: ${GOOGLE_STT_LOCATION:asia-northeast1}
     google-stt-model: ${GOOGLE_STT_MODEL:chirp_3}
     google-stt-language-code: ${GOOGLE_STT_LANGUAGE_CODE:ko-KR}
+    google-tts-base-url: ${GOOGLE_TTS_BASE_URL:https://texttospeech.googleapis.com}
+    google-tts-project-id: ${GOOGLE_TTS_PROJECT_ID:}
+    google-tts-language-code: ${GOOGLE_TTS_LANGUAGE_CODE:ko-KR}
+    google-tts-default-voice: ${GOOGLE_TTS_DEFAULT_VOICE:ko-KR-Neural2-A}
+    google-tts-clear-voice: ${GOOGLE_TTS_CLEAR_VOICE:ko-KR-Neural2-C}
     ast-api-url: ${AST_API_URL:}
     ast-api-key: ${AST_API_KEY:}
     ast-model: ${AST_MODEL:v1}
