@@ -751,6 +751,15 @@
 - [ ] STT 실패·빈 전사·낮은 confidence 처리 정책을 정한다.
 - [ ] 원본 전사문을 수정하지 않고 전처리본을 별도 저장한다.
 
+### 8.3.1 Google TTS
+
+- [x] `POST /speech/synthesize` 인증 API를 구현한다. (#91)
+- [x] Google Cloud Text-to-Speech v1과 ADC 인증을 연결한다. (#91)
+- [x] 한국어 음성 프로필과 사용자 말하기 속도를 합성 요청에 반영한다. (#91)
+- [x] MP3 base64 응답을 프론트 실제 음성 재생에 연결한다. (#91)
+- [x] provider 실패를 `503`으로 반환하고 텍스트 화면 진행은 유지한다. (#91)
+- [x] Google TTS 요청·응답 매핑과 고령자 권한을 테스트한다. (#91)
+
 ### 8.4 AST 음향 분석
 
 - [x] `POST /analysis/acoustic`를 구현한다.

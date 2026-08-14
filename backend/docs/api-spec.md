@@ -1316,7 +1316,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 서버 작업 큐에서 `recording_id`를 기준으로 호출하는 것을 권장한다. 기존 클라이언트 직접 호출이 필요한 경우에도 동일한 메타데이터를 전송한다.
 
-STT provider는 `STT_PROVIDER`로 선택한다. `openai`는 OpenAI 호스팅 Whisper, `local`은 OpenAI 호환 로컬 Whisper 서버, `google`은 Google Cloud Speech-to-Text V2를 사용한다. `auto`는 설정된 OpenAI → 로컬 Whisper → Google Cloud STT 순서로 선택하고, `none`은 외부 STT를 사용하지 않는다.
+STT provider는 `STT_PROVIDER`로 선택하며 앱 기본값은 `google`이다. `google`은 Google Cloud Speech-to-Text V2를 사용한다. `openai`, `local`, `auto`는 로컬 진단·이전 환경 호환을 위해 유지하고 `none`은 외부 STT를 사용하지 않는다.
 
 로컬 Whisper 서버는 `POST /v1/audio/transcriptions` multipart 계약(`file`, `model`, `language`, `response_format`)을 제공해야 한다. Google Cloud STT는 서버의 Application Default Credentials(로컬 `gcloud auth application-default login`, 운영 서비스 계정 또는 workload identity)를 사용하며 앱에 provider credential을 노출하지 않는다.
 
@@ -1341,6 +1341,33 @@ STT provider는 `STT_PROVIDER`로 선택한다. `openai`는 OpenAI 호스팅 Whi
 | `confidence` | float | 인식 신뢰도, `0.0~1.0` |
 | `language` | string | 감지 언어, 기본 `ko` |
 | `model` | string | 사용한 STT 모델명 |
+
+### 7.3.1 `POST /speech/synthesize` - Google TTS 안내 음성 합성
+
+인증된 고령자 앱이 캐릭터의 짧은 안내·질문 문장을 실제 음성으로 재생할 때 호출한다. Google Cloud Text-to-Speech v1과 Application Default Credentials를 사용하며 provider credential은 앱에 전달하지 않는다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `text` | string | Y | 합성할 문장, 공백 제외 최대 2,000자 |
+| `voice_profile_id` | string | N | 미지정 시 사용자 설정 또는 `voice_ko_01` |
+| `speech_rate` | float | N | 미지정 시 사용자 설정, 허용 범위 `0.75~1.25` |
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `audio_content_base64` | string | MP3 음성의 base64 데이터 |
+| `content_type` | string | 기본 `audio/mpeg` |
+| `voice_profile_id` | string | 적용한 앱 음성 프로필 |
+| `voice_name` | string | 적용한 Google TTS 음성 이름 |
+| `speech_rate` | float | 적용한 말하기 속도 |
+
+- `voice_ko_01`은 기본 한국어 음성, `voice_ko_02`는 또렷한 한국어 음성에 매핑한다.
+- Google TTS 또는 ADC가 준비되지 않았거나 provider가 실패하면 `503`을 반환한다.
+- 프론트는 TTS 실패 시 텍스트를 유지하고 화면 진행을 막지 않는다.
+- 음성 끄기 버튼을 누르면 현재 재생을 중단하고 이후 문장의 자동 재생을 요청하지 않는다.
 
 ### 7.4 `POST /analysis/acoustic` - AST 음향 분석
 
@@ -1626,6 +1653,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | STT | OpenAI 호스팅 Whisper | `STT_PROVIDER=openai`, `WHISPER_API_KEY`, `WHISPER_API_BASE_URL`, `WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
 | STT | 로컬 Whisper | `STT_PROVIDER=local`, `LOCAL_WHISPER_API_BASE_URL`, `LOCAL_WHISPER_API_KEY`(선택), `LOCAL_WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
 | STT | Google Cloud Speech-to-Text V2 | `STT_PROVIDER=google`, `GOOGLE_STT_PROJECT_ID`, `GOOGLE_STT_LOCATION`, `GOOGLE_STT_MODEL`, `GOOGLE_STT_LANGUAGE_CODE`, ADC credential | `POST /v2/projects/{project}/locations/{location}/recognizers/_:recognize` JSON `config.autoDecodingConfig`, `languageCodes`, `model`, base64 `content` |
+| TTS | Google Cloud Text-to-Speech v1 | `GOOGLE_TTS_PROJECT_ID`(미지정 시 STT project), `GOOGLE_TTS_LANGUAGE_CODE`, `GOOGLE_TTS_DEFAULT_VOICE`, `GOOGLE_TTS_CLEAR_VOICE`, ADC credential | `POST /v1/text:synthesize` JSON `input.text`, `voice`, `audioConfig`; MP3 base64 응답 |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
 | 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `transcript`, `question_type`, `model_version` |
 | 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |

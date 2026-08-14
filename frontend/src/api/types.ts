@@ -182,6 +182,20 @@ export interface VoiceProfilesResponse {
   voice_profiles: VoiceProfileResponse[];
 }
 
+export interface SpeechSynthesizeRequest {
+  text: string;
+  voice_profile_id?: string;
+  speech_rate?: number;
+}
+
+export interface SpeechSynthesizeResponse {
+  audio_content_base64: string;
+  content_type: string;
+  voice_profile_id: string;
+  voice_name: string;
+  speech_rate: number;
+}
+
 export type ConsentType =
   | "terms_of_service"
   | "privacy_collection"

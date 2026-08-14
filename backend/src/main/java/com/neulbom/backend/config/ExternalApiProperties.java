@@ -22,6 +22,11 @@ public record ExternalApiProperties(
         String googleSttLocation,
         String googleSttModel,
         String googleSttLanguageCode,
+        String googleTtsBaseUrl,
+        String googleTtsProjectId,
+        String googleTtsLanguageCode,
+        String googleTtsDefaultVoice,
+        String googleTtsClearVoice,
         String astApiUrl,
         String astApiKey,
         String astModel,
@@ -46,7 +51,15 @@ public record ExternalApiProperties(
     }
 
     public String normalizedSttProvider() {
-        return hasText(sttProvider) ? sttProvider.trim().toLowerCase(java.util.Locale.ROOT) : "auto";
+        return hasText(sttProvider) ? sttProvider.trim().toLowerCase(java.util.Locale.ROOT) : "google";
+    }
+
+    public boolean googleTtsConfigured() {
+        return hasText(resolvedGoogleTtsProjectId());
+    }
+
+    public String resolvedGoogleTtsProjectId() {
+        return hasText(googleTtsProjectId) ? googleTtsProjectId.trim() : googleSttProjectId;
     }
 
     public boolean astConfigured() {
