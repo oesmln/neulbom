@@ -35,6 +35,7 @@ function latestByType(items: ConsentResponse[]) {
 
 export default function ConsentManagementView({ userId }: { userId: Uuid | null }) {
   const request = useApi(() => users.consents(userId as string), [userId], { enabled: !!userId });
+  const [expanded, setExpanded] = React.useState(false);
   const [busyType, setBusyType] = React.useState<ConsentType | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const latest = latestByType(request.data?.consents ?? []);
@@ -61,41 +62,61 @@ export default function ConsentManagementView({ userId }: { userId: Uuid | null 
 
   return (
     <View style={styles.group}>
-      <Text style={styles.groupTitle}>동의 내역 관리</Text>
-      <Text style={styles.note}>필수 동의는 서비스 이용을 위해 유지되며, 선택 동의는 언제든 바꿀 수 있어요.</Text>
-      {request.loading && !request.data ? <Text style={styles.note}>동의 내역을 불러오는 중이에요.</Text> : null}
-      {message ? <Text style={styles.error}>{message}</Text> : null}
-      {CONSENTS.map((item) => {
-        const agreed = latest.get(item.type)?.agreed ?? false;
-        return (
-          <View key={item.type} style={styles.row}>
-            <View style={styles.copy}>
-              <Text style={styles.title}>{item.title}{item.required ? " (필수)" : ""}</Text>
-              <Text style={styles.description}>{item.description}</Text>
-            </View>
-            {item.editable ? (
-              <Pressable
-                onPress={() => void toggle(item.type)}
-                disabled={busyType !== null}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: agreed, disabled: busyType !== null }}
-                style={[styles.switch, agreed && styles.switchOn]}
-              >
-                <View style={[styles.knob, agreed && styles.knobOn]} />
-              </Pressable>
-            ) : (
-              <Ionicons name={agreed ? "checkmark-circle" : "ellipse-outline"} size={22} color={agreed ? colors.primary : colors.mutedForeground} />
-            )}
-          </View>
-        );
-      })}
+      <Pressable
+        onPress={() => setExpanded((current) => !current)}
+        accessibilityRole="button"
+        accessibilityLabel="동의 내역 관리"
+        accessibilityState={{ expanded }}
+        style={styles.header}
+      >
+        <Text style={styles.groupTitle}>동의 내역 관리</Text>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={22}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.details}>
+          <Text style={styles.note}>필수 동의는 서비스 이용을 위해 유지되며, 선택 동의는 언제든 바꿀 수 있어요.</Text>
+          {request.loading && !request.data ? <Text style={styles.note}>동의 내역을 불러오는 중이에요.</Text> : null}
+          {message ? <Text style={styles.error}>{message}</Text> : null}
+          {CONSENTS.map((item) => {
+            const agreed = latest.get(item.type)?.agreed ?? false;
+            return (
+              <View key={item.type} style={styles.row}>
+                <View style={styles.copy}>
+                  <Text style={styles.title}>{item.title}{item.required ? " (필수)" : ""}</Text>
+                  <Text style={styles.description}>{item.description}</Text>
+                </View>
+                {item.editable ? (
+                  <Pressable
+                    onPress={() => void toggle(item.type)}
+                    disabled={busyType !== null}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: agreed, disabled: busyType !== null }}
+                    style={[styles.switch, agreed && styles.switchOn]}
+                  >
+                    <View style={[styles.knob, agreed && styles.knobOn]} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name={agreed ? "checkmark-circle" : "ellipse-outline"} size={22} color={agreed ? colors.primary : colors.mutedForeground} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.lg },
-  groupTitle: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold, color: colors.mutedForeground, letterSpacing: 0.7, marginBottom: spacing.sm },
+  group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg, overflow: "hidden" },
+  header: { minHeight: 72, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  groupTitle: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.semibold, color: colors.foreground },
+  details: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   note: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.sm },
   error: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 19, marginBottom: spacing.sm },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },

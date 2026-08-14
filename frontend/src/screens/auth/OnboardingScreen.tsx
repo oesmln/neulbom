@@ -24,11 +24,12 @@ const STEP_META: Array<{ key: Step; label: string }> = [
   { key: "baseline", label: "검사" },
 ];
 
-const STEP_LINES: Record<Step, string> = {
-  intro: "안녕하세요! 저는 메모이예요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요.",
-  character: "제가 어떤 이름으로 불리면 좋을까요?",
-  baseline: "좋아요. 이제 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요.",
-};
+function stepLine(step: Step, characterName: string) {
+  if (step === "intro") return "안녕하세요! 저는 메모이예요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요.";
+  if (step === "character") return "제가 어떤 이름으로 불리면 좋을까요?";
+  const name = characterName.trim() || "메모이";
+  return `좋아요. 이제 ${name}와 함께 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요.`;
+}
 
 function apiStep(step: Step): OnboardingStep {
   if (step === "character") return "character_name";
@@ -53,7 +54,8 @@ export default function OnboardingScreen() {
   const [message, setMessage] = React.useState<string | null>(null);
 
   const index = STEP_META.findIndex((item) => item.key === step);
-  const voice = useSpeechPlayback(STEP_LINES[step]);
+  const line = stepLine(step, name);
+  const voice = useSpeechPlayback(line);
 
   const persistStep = async (next: Step, extra?: { completed?: boolean }) => {
     if (!userId) return;
@@ -117,7 +119,7 @@ export default function OnboardingScreen() {
 
       {step === "intro" ? (
         <ConversationStep
-          line={STEP_LINES.intro}
+          line={line}
           guide="이 초기 설정은 한 번만 진행해요. 중간에 닫아도 다음에 이어서 할 수 있어요."
           buttonLabel="다음"
           busy={busy}
@@ -128,7 +130,7 @@ export default function OnboardingScreen() {
 
       {step === "character" ? (
         <View style={styles.stepBody}>
-          <ConversationHeader line={STEP_LINES.character} voice={voice} />
+          <ConversationHeader line={line} voice={voice} />
           <Card style={styles.nameCard}>
             <Text style={styles.fieldLabel}>캐릭터 이름</Text>
             <TextInput
@@ -151,8 +153,8 @@ export default function OnboardingScreen() {
 
       {step === "baseline" ? (
         <ConversationStep
-          line={STEP_LINES.baseline}
-          guide="마이크를 누르고 메모이의 질문에 천천히 답해 주세요."
+          line={line}
+          guide={`${name.trim() || "메모이"}의 질문을 듣고 마이크를 눌러 천천히 답해 주세요.`}
           buttonLabel="검사 시작하기"
           busy={busy}
           onPress={() => navigation.reset({ index: 0, routes: [{ name: "Elder" }] })}

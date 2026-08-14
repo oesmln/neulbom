@@ -4,8 +4,9 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { apiErrorMessage, auth, users } from "@/api";
+import { ApiError, apiErrorMessage, auth, users } from "@/api";
 import type {
+  AuthTokenResponse,
   ConsentType,
   UserPreferenceUpdateRequest,
   UserProfileUpdateRequest,
@@ -99,6 +100,7 @@ export default function ElderProfileScreen() {
   const [guardianConsentAccepted, setGuardianConsentAccepted] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const [showLoginLink, setShowLoginLink] = React.useState(false);
 
   const requiredAccepted =
     REQUIRED_CONSENTS.every((consent) => selectedConsents.has(consent.type)) &&
@@ -146,6 +148,7 @@ export default function ElderProfileScreen() {
   const submit = async () => {
     if ((!userId && !pendingSignup) || busy) return;
     setMessage(null);
+    setShowLoginLink(false);
     if (!requiredAccepted) {
       setMessage(inviteCode
         ? "필수 동의와 보호자 공유 동의를 모두 확인해 주세요."
@@ -169,6 +172,7 @@ export default function ElderProfileScreen() {
     }
 
     setBusy(true);
+    let elderSetup: Parameters<typeof persistElderSetup>[1] | null = null;
     try {
       const profile: UserProfileUpdateRequest = {};
       if (gender) profile.gender = gender;
@@ -191,7 +195,7 @@ export default function ElderProfileScreen() {
       if (hearingSide) preferences.preferred_hearing_side = hearingSide;
       if (voiceProfileId) preferences.voice_profile_id = voiceProfileId;
 
-      const elderSetup = {
+      elderSetup = {
         profile,
         preferences,
         consents: Array.from(selectedConsents),
@@ -225,6 +229,41 @@ export default function ElderProfileScreen() {
 
       navigation.reset({ index: 0, routes: [{ name: "Onboarding" }] });
     } catch (cause) {
+      if (pendingSignup && elderSetup && cause instanceof ApiError && cause.status === 409) {
+        const signup = { ...pendingSignup, elderSetup };
+        let tokens: AuthTokenResponse;
+        try {
+          tokens = await auth.login({
+            email: pendingSignup.email,
+            password: pendingSignup.password,
+          });
+        } catch (resumeCause) {
+          if (resumeCause instanceof ApiError && resumeCause.status === 403) {
+            navigation.replace("EmailVerification", { signup });
+            return;
+          }
+          setMessage("이미 가입된 이메일입니다. 로그인해 주세요.");
+          setShowLoginLink(true);
+          return;
+        }
+
+        if (tokens.role !== "elder") {
+          setMessage("이미 가입된 이메일입니다. 보호자 계정은 로그인 화면에서 로그인해 주세요.");
+          setShowLoginLink(true);
+          return;
+        }
+
+        try {
+          await signIn(tokens);
+          await saveRequiredSignupConsents(tokens.user_id);
+          await persistElderSetup(tokens.user_id, elderSetup, inviteCode);
+          navigation.reset({ index: 0, routes: [{ name: "Onboarding" }] });
+          return;
+        } catch (resumeCause) {
+          setMessage(apiErrorMessage(resumeCause));
+          return;
+        }
+      }
       setMessage(apiErrorMessage(cause));
     } finally {
       setBusy(false);
@@ -359,6 +398,15 @@ export default function ElderProfileScreen() {
         </Card>
 
         {message ? <Text style={styles.error}>{message}</Text> : null}
+        {showLoginLink ? (
+          <Pressable
+            onPress={() => navigation.reset({ index: 0, routes: [{ name: "Login", params: { mode: "login" } }] })}
+            accessibilityRole="button"
+            accessibilityLabel="로그인 화면으로 이동"
+          >
+            <Text style={styles.loginLink}>로그인 화면으로 이동</Text>
+          </Pressable>
+        ) : null}
         <Button
           label={busy ? "저장하고 있어요" : "저장하고 계속하기"}
           disabled={busy || !requiredAccepted}
@@ -474,4 +522,5 @@ const styles = StyleSheet.create({
   consentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   consentBody: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19 },
   error: { color: colors.destructive, fontSize: fontSize.caption, lineHeight: 20 },
+  loginLink: { color: colors.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
 });
