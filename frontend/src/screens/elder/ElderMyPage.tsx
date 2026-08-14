@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,7 @@ import { useApi } from "@/hooks/useApi";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Card, ErrorState, LoadingState, ProgressBar, ScreenHeader } from "@/components/ui";
+import { Button, Card, ErrorState, LoadingState, ProgressBar, ScreenHeader } from "@/components/ui";
 
 /**
  * Character growth, month-to-date activity and account settings.
@@ -43,9 +43,13 @@ export default function ElderMyPageScreen() {
   // Same navigator object, typed for the elder stack — 비밀번호 변경 and 앱 설정
   // are pushed there while 로그아웃 resets the root stack.
   const elderNavigation = useNavigation<ElderNav>();
-  const { userId, userName, signOut } = useApp();
+  const { userId, characterName, signOut, updateOnboardingState } = useApp();
   const [xpOpen, setXpOpen] = React.useState(false);
   const [notificationsOn, setNotificationsOn] = React.useState(true);
+  const [nameModalOpen, setNameModalOpen] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState("");
+  const [nameSaving, setNameSaving] = React.useState(false);
+  const [nameError, setNameError] = React.useState<string | null>(null);
 
   const character = useApi(() => game.character(userId as string), [userId], { enabled: !!userId });
   const xpHistory = useApi(() => game.xpHistory(userId as string), [userId], { enabled: !!userId });
@@ -99,10 +103,33 @@ export default function ElderMyPageScreen() {
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
+  const openNameEditor = () => {
+    setNameDraft(character.data?.display_name || characterName || "메모이");
+    setNameError(null);
+    setNameModalOpen(true);
+  };
+
+  const saveCharacterName = async () => {
+    const normalized = nameDraft.trim();
+    if (!userId || !normalized || nameSaving) return;
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      await users.updateProfile(userId, { character_name: normalized });
+      await updateOnboardingState({ characterName: normalized });
+      await character.reload();
+      setNameModalOpen(false);
+    } catch (cause) {
+      setNameError(apiErrorMessage(cause));
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
   if (!character.data) {
     return (
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <ScreenHeader title="마이페이지" subtitle={userName ? `${userName} 어르신의 성장 기록` : ""} />
+        <ScreenHeader title="마이페이지" subtitle="나의 성장 기록" />
         {character.error ? (
           <ErrorState message={apiErrorMessage(character.error)} onRetry={character.reload} />
         ) : (
@@ -114,6 +141,7 @@ export default function ElderMyPageScreen() {
 
   const { level: levelNumber, xp_current, xp_goal, xp_remaining } = character.data;
   const meta = levelMeta(levelNumber);
+  const displayName = character.data.display_name || characterName || "메모이";
   const span = Math.max(1, xp_goal - meta.min);
   const level = {
     ...meta,
@@ -140,7 +168,7 @@ export default function ElderMyPageScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScreenHeader
         title="마이페이지"
-        subtitle={userName ? `${userName} 어르신의 성장 기록` : "성장 기록"}
+        subtitle="나의 성장 기록"
       />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -153,18 +181,21 @@ export default function ElderMyPageScreen() {
 
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
-                {/* The name is read-only: `display_name` comes from
-                    `GET /character/{user_id}` and the spec has no rename
-                    endpoint, so an edit control here would silently lose the
-                    input on the next visit. */}
-                <Text style={styles.characterName}>
-                  {character.data.display_name || level.name}
-                </Text>
+                <Text style={styles.characterName}>{displayName}</Text>
+                <Pressable
+                  onPress={openNameEditor}
+                  accessibilityRole="button"
+                  accessibilityLabel="캐릭터 이름 변경"
+                  hitSlop={8}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                >
+                  <Ionicons name="pencil-outline" size={17} color={colors.mutedForeground} />
+                </Pressable>
                 <View style={styles.levelPill}>
                   <Text style={styles.levelPillLabel}>Lv.{level.level}</Text>
                 </View>
               </View>
-              <Text style={styles.characterDesc}>{level.desc}</Text>
+              <Text style={styles.characterDesc}>{level.desc.replace(/메모이/g, displayName)}</Text>
             </View>
           </View>
 
@@ -277,6 +308,12 @@ export default function ElderMyPageScreen() {
         <Card style={styles.listCard}>
           <Text style={[styles.kicker, styles.listKicker]}>설정</Text>
 
+          <SettingsRow
+            icon="settings-outline"
+            label="앱 설정"
+            onPress={() => elderNavigation.navigate("ElderAppSettings")}
+          />
+
           <View style={[styles.listRow, styles.listRowDivided]}>
             <View style={styles.listLeft}>
               <Ionicons name="notifications-outline" size={16} color={colors.mutedForeground} />
@@ -302,11 +339,6 @@ export default function ElderMyPageScreen() {
             onPress={() => elderNavigation.navigate("ElderPasswordChange")}
           />
           <SettingsRow
-            icon="settings-outline"
-            label="앱 설정"
-            onPress={() => elderNavigation.navigate("ElderAppSettings")}
-          />
-          <SettingsRow
             icon="log-out-outline"
             label="로그아웃"
             onPress={() => void logout()}
@@ -319,6 +351,48 @@ export default function ElderMyPageScreen() {
           />
         </Card>
       </ScrollView>
+
+      <Modal
+        visible={nameModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!nameSaving) setNameModalOpen(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>캐릭터 이름 변경</Text>
+            <Text style={styles.modalDescription}>AI가 앞으로 이 이름으로 인사할게요.</Text>
+            <TextInput
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              maxLength={20}
+              autoFocus
+              placeholder="캐릭터 이름"
+              placeholderTextColor={colors.mutedForeground}
+              style={styles.modalInput}
+              accessibilityLabel="새 캐릭터 이름"
+            />
+            {nameError ? <Text style={styles.modalError}>{nameError}</Text> : null}
+            <View style={styles.modalActions}>
+              <Button
+                label="취소"
+                variant="ghost"
+                disabled={nameSaving}
+                onPress={() => setNameModalOpen(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                label={nameSaving ? "저장 중" : "저장"}
+                disabled={nameSaving || !nameDraft.trim()}
+                onPress={() => void saveCharacterName()}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -439,4 +513,34 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     backgroundColor: colors.white,
   },
+
+  modalBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: colors.background,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  modalTitle: { fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, color: colors.foreground },
+  modalDescription: { fontSize: fontSize.body, color: colors.mutedForeground },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    fontSize: fontSize.bodyLg,
+    color: colors.foreground,
+    backgroundColor: colors.white,
+  },
+  modalError: { fontSize: fontSize.caption, color: colors.destructive },
+  modalActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
 });

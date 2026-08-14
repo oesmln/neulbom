@@ -85,6 +85,11 @@ public class CharacterEntity {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
+    public void rename(String displayName, Instant updatedAt) {
+        this.displayName = displayName;
+        this.updatedAt = updatedAt;
+    }
+
     public int awardXp(int amount, Instant updatedAt) {
         int previousLevel = level;
         xpCurrent += amount;

@@ -119,7 +119,6 @@ export default function GuardianDashboardScreen() {
       }
       right={
         <View style={styles.headerActions}>
-          <GuardianNotificationButton />
           <Pressable
             onPress={() => navigation.navigate("GuardianConnections")}
             accessibilityRole="button"
@@ -130,15 +129,6 @@ export default function GuardianDashboardScreen() {
             <Ionicons name="people-outline" size={18} color={colors.white} />
           </Pressable>
           <GuardianNotificationButton />
-          <Pressable
-            onPress={() => navigation.navigate("GuardianAppSettings")}
-            accessibilityRole="button"
-            accessibilityLabel="앱 설정"
-            hitSlop={8}
-            style={styles.gear}
-          >
-            <Ionicons name="settings-outline" size={18} color={colors.white} />
-          </Pressable>
         </View>
       }
     />

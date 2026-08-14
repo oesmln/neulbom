@@ -118,7 +118,13 @@ public class GameService {
     @Transactional(readOnly = true)
     public CharacterResponse character(UUID authenticatedUserId, UUID userId) {
         authorizeRead(authenticatedUserId, userId);
-        return toCharacterResponse(characterRepository.findById(userId).orElse(defaultCharacter(userId)));
+        CharacterEntity character = characterRepository.findById(userId).orElseGet(() -> defaultCharacter(userId));
+        String userCharacterName = userRepository.findById(userId)
+                .map(UserEntity::getCharacterName)
+                .map(String::trim)
+                .filter(name -> !name.isBlank())
+                .orElse(null);
+        return toCharacterResponse(character, userCharacterName == null ? character.getDisplayName() : userCharacterName);
     }
 
     @Transactional(readOnly = true)
@@ -153,12 +159,27 @@ public class GameService {
     }
 
     private CharacterEntity ensureCharacter(UUID userId) {
-        return characterRepository.findById(userId).orElseGet(() -> characterRepository.save(defaultCharacter(userId)));
+        CharacterEntity character = characterRepository.findById(userId).orElseGet(() -> characterRepository.save(defaultCharacter(userId)));
+        String userCharacterName = userRepository.findById(userId)
+                .map(UserEntity::getCharacterName)
+                .map(String::trim)
+                .filter(name -> !name.isBlank())
+                .orElse(null);
+        if (userCharacterName != null && !userCharacterName.equals(character.getDisplayName())) {
+            character.rename(userCharacterName, clock.instant());
+            characterRepository.save(character);
+        }
+        return character;
     }
 
     private CharacterEntity defaultCharacter(UUID userId) {
         Instant now = clock.instant();
-        return new CharacterEntity(userId, 1, "꼬마 메모이", "egg", 0, 100, null, "[]", now, now);
+        String displayName = userRepository.findById(userId)
+                .map(UserEntity::getCharacterName)
+                .map(String::trim)
+                .filter(name -> !name.isBlank())
+                .orElse("꼬마 메모이");
+        return new CharacterEntity(userId, 1, displayName, "egg", 0, 100, null, "[]", now, now);
     }
 
     private GameHistoryItem toHistoryItem(GameResultEntity result) {
@@ -168,11 +189,15 @@ public class GameService {
     }
 
     private CharacterResponse toCharacterResponse(CharacterEntity character) {
+        return toCharacterResponse(character, character.getDisplayName());
+    }
+
+    private CharacterResponse toCharacterResponse(CharacterEntity character, String displayName) {
         List<String> unlocked;
         try { unlocked = objectMapper.readValue(character.getUnlocked() == null ? "[]" : character.getUnlocked(), new TypeReference<>() { }); }
         catch (JsonProcessingException exception) { unlocked = List.of(); }
         int stageIndex = switch (character.getStage()) { case "egg" -> 1; case "puppy" -> 2; case "sprout" -> 3; case "flower" -> 4; default -> 5; };
-        return new CharacterResponse(character.getUserId(), character.getDisplayName(), character.getLevel(), character.getStage(), stageIndex, 5,
+        return new CharacterResponse(character.getUserId(), displayName, character.getLevel(), character.getStage(), stageIndex, 5,
                 character.getXpCurrent(), character.getXpGoal(), Math.max(0, character.getXpGoal() - character.getXpCurrent()), character.getSkinId(), unlocked);
     }
 

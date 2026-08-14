@@ -146,7 +146,7 @@ export default function GuardianConnectionsScreen() {
           </View>
         ) : (
           <Button
-            label={creating ? "코드 만드는 중" : "10분 초대 코드 만들기"}
+            label={creating ? "코드 만드는 중" : "초대 코드 만들기"}
             disabled={creating || scopes.length === 0}
             onPress={() => void createInvitation()}
             style={{ backgroundColor: guardian.blue }}

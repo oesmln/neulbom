@@ -242,15 +242,18 @@ public class ReportService {
         Instant monthStart = today.withDayOfMonth(1).atStartOfDay(BUSINESS_ZONE).toInstant();
         Instant monthEnd = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
         long emotionalCount = sessions.stream().filter(session -> "emotional_qa".equals(session.getSessionType()))
+                .filter(session -> SessionEntity.ENDED.equals(session.getStatus()))
                 .filter(session -> between(session.getStartedAt(), monthStart, monthEnd)).count();
         long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(userId, monthStart, monthEnd);
         int attendanceDays = (int) sessions.stream().filter(session -> between(session.getStartedAt(), monthStart, monthEnd))
                 .map(session -> session.getStartedAt().atZone(BUSINESS_ZONE).toLocalDate()).distinct().count();
         int streak = attendanceStreak(sessions, today);
         CharacterEntity character = characterRepository.findById(userId).orElse(null);
+        String characterDisplayName = target.getCharacterName() == null || target.getCharacterName().isBlank()
+                ? character == null ? "꼬마 메모이" : character.getDisplayName() : target.getCharacterName();
         DashboardResponse.CharacterSummary characterSummary = character == null
-                ? new DashboardResponse.CharacterSummary(1, "꼬마 메모이", "egg", 0, 100, 100, null)
-                : new DashboardResponse.CharacterSummary(character.getLevel(), character.getDisplayName(), character.getStage(),
+                ? new DashboardResponse.CharacterSummary(1, characterDisplayName, "egg", 0, 100, 100, null)
+                : new DashboardResponse.CharacterSummary(character.getLevel(), characterDisplayName, character.getStage(),
                 character.getXpCurrent(), character.getXpGoal(), Math.max(0, character.getXpGoal() - character.getXpCurrent()), character.getSkinId());
         long unread = notificationRepository.countByRecipientUserIdAndReadFalse(userId);
         List<DashboardResponse.NotificationSummary> alerts = notificationRepository.findTop5ByRecipientUserIdOrderByCreatedAtDesc(userId).stream()

@@ -61,6 +61,10 @@ class ReportIntegrationTest {
         UserEntity elder = saveUser("report-elder", "elder");
         Instant analyzedAt = Instant.now().minusSeconds(60);
         SessionEntity session = sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "cist", 5, "{}", false, analyzedAt));
+        SessionEntity completedEmotional = new SessionEntity(uuidGenerator.generate(), elder.getId(), "emotional_qa", 5, "{}", false, analyzedAt);
+        completedEmotional.end(analyzedAt.plusSeconds(30));
+        sessionRepository.save(completedEmotional);
+        sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "emotional_qa", 5, "{}", false, analyzedAt));
         RecordingEntity recording = recordingRepository.save(new RecordingEntity(uuidGenerator.generate(), uuidGenerator.generate(), elder.getId(),
                 RecordingEntity.ANSWER, session.getId(), QUESTION_ID, "recordings/report.wav", "report.wav", "{}", "audio/wav", 4, analyzedAt, analyzedAt));
         TranscriptEntity transcript = transcriptRepository.save(new TranscriptEntity(uuidGenerator.generate(), recording.getId(), "오늘은 좋은 하루입니다.",
@@ -97,7 +101,8 @@ class ReportIntegrationTest {
                 .andExpect(jsonPath("$.regional_series[0].suppressed").value(true));
         mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.cognitive_activity.status").value("stable"));
+                .andExpect(jsonPath("$.cognitive_activity.status").value("stable"))
+                .andExpect(jsonPath("$.monthly_activity.emotional_qa_completed_count").value(1));
         mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId()).with(jwtFor(guardian))
                         .param("elder_id", elder.getId().toString()).param("date", LocalDate.now().toString()))
                 .andExpect(status().isOk())

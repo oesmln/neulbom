@@ -48,7 +48,8 @@ const SAMPLE_ANSWERS = [
 
 export default function ElderAiChatScreen() {
   const navigation = useNavigation<ElderNav>();
-  const { userId } = useApp();
+  const { userId, characterName } = useApp();
+  const companionName = characterName?.trim() || "메모이";
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
@@ -149,13 +150,15 @@ export default function ElderAiChatScreen() {
             style={{ width: 220 }}
           />
           <SpeechBubble text={INTRO_LINE} side="below" />
-          <VoicePlaybackButton
-            enabled={voice.enabled}
-            loading={voice.loading}
-            speaking={voice.speaking}
-            onPress={voice.toggle}
-            onReplay={voice.replay}
-          />
+          <View style={styles.introVoiceToggle}>
+            <VoicePlaybackButton
+              enabled={voice.enabled}
+              loading={voice.loading}
+              speaking={voice.speaking}
+              onPress={voice.toggle}
+              onReplay={voice.replay}
+            />
+          </View>
           {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
         </View>
 
@@ -193,15 +196,17 @@ export default function ElderAiChatScreen() {
           spinnerColor={colors.primary}
           style={{ width: 170 }}
         />
-        <Text style={styles.stageStatus}>{voice.speaking ? "메모이가 말하고 있어요" : "메모이"}</Text>
-        <VoicePlaybackButton
-          enabled={voice.enabled}
-          loading={voice.loading}
-          speaking={voice.speaking}
-          onPress={voice.toggle}
-          onReplay={voice.replay}
-          compact
-        />
+        <Text style={styles.stageStatus}>{voice.speaking ? `${companionName}가 말하고 있어요` : companionName}</Text>
+        <View style={styles.stageVoiceToggle}>
+          <VoicePlaybackButton
+            enabled={voice.enabled}
+            loading={voice.loading}
+            speaking={voice.speaking}
+            onPress={voice.toggle}
+            onReplay={voice.replay}
+            compact
+          />
+        </View>
         {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
       </View>
 
@@ -255,6 +260,7 @@ export default function ElderAiChatScreen() {
           ) : question ? (
             <ChatRecorder
               key={question.question_id}
+              companionName={companionName}
               userId={userId}
               sessionId={session.data?.session_id ?? null}
               questionId={question.question_id}
@@ -282,6 +288,7 @@ export default function ElderAiChatScreen() {
 }
 
 function ChatRecorder({
+  companionName,
   userId,
   sessionId,
   questionId,
@@ -289,6 +296,7 @@ function ChatRecorder({
   onAnswer,
   onTranscript,
 }: {
+  companionName: string;
   userId: Uuid | null;
   sessionId: Uuid | null;
   questionId: Uuid;
@@ -307,7 +315,7 @@ function ChatRecorder({
     <View style={styles.recorderRow}>
       <Text style={styles.recorderHint}>
         {disabled
-          ? "메모이의 질문을 들은 뒤 답변해 주세요"
+          ? `${companionName}의 질문을 들은 뒤 답변해 주세요`
           : recording.syncStatus === "pending"
           ? "기기에 저장됨 · 연결되면 자동 전송"
           : recording.syncStatus === "failed"
@@ -342,6 +350,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
   introCharacter: { alignItems: "center", paddingHorizontal: spacing.xl, paddingTop: spacing.xxl, paddingBottom: spacing.xl },
+  introVoiceToggle: { marginTop: spacing.md },
   introFooter: { flex: 1, justifyContent: "flex-end", paddingHorizontal: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
   introGuide: { fontSize: fontSize.body, color: colors.mutedForeground, textAlign: "center", lineHeight: 24 },
 
@@ -357,6 +366,7 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     marginTop: spacing.xs,
   },
+  stageVoiceToggle: { marginTop: spacing.md },
   voiceError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
 
   thread: { padding: spacing.xl, gap: spacing.md },

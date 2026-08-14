@@ -138,7 +138,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void users
       .profile(userId, role)
       .then((profile) => {
-        if (!cancelled) setUserName(profile.name);
+        if (!cancelled) {
+          setUserName(profile.name);
+          if (profile.character_name) setCharacterName(profile.character_name);
+        }
       })
       .catch(() => undefined);
     return () => {
