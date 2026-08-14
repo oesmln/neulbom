@@ -122,7 +122,7 @@ export function ScreenHeader({
         <View style={{ flex: 1 }}>
           {eyebrow ? <Text style={styles.headerEyebrow}>{eyebrow}</Text> : null}
           {title ? <Text style={styles.headerTitle}>{title}</Text> : null}
-          {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+          {subtitle ? <SentenceText style={styles.headerSubtitle}>{subtitle}</SentenceText> : null}
         </View>
 
         {right}
@@ -316,19 +316,44 @@ export function SpeechBubble({
   return (
     <View style={[styles.bubble, style]}>
       <View style={[styles.bubbleTail, tail]} />
-      <Text style={styles.bubbleText}>{text}</Text>
+      <SentenceText style={styles.bubbleText}>{text}</SentenceText>
     </View>
   );
 }
 
 /* -------------------------------------------------------------- Typography */
 
+/**
+ * Add a visual line break after each sentence in user-facing copy.
+ *
+ * Korean guidance is easier to scan when every sentence starts on its own
+ * line. Only whitespace after sentence punctuation is replaced, so decimal
+ * values, URLs, and existing explicit line breaks stay intact.
+ */
+export function formatSentenceBreaks(text: string): string {
+  return text.replace(/([.!?。！？]["'”’」』)]?)[ \t]+/g, "$1\n");
+}
+
+function formatTextChildren(children: React.ReactNode): React.ReactNode {
+  return React.Children.map(children, (child) =>
+    typeof child === "string" ? formatSentenceBreaks(child) : child,
+  );
+}
+
+/** Text primitive that keeps multi-sentence copy readable on every screen. */
+export function SentenceText({
+  children,
+  ...props
+}: React.ComponentProps<typeof Text>) {
+  return <Text {...props}>{formatTextChildren(children)}</Text>;
+}
+
 export function Title({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.title, style]}>{children}</Text>;
+  return <SentenceText style={[styles.title, style]}>{children}</SentenceText>;
 }
 
 export function Subtitle({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.subtitle, style]}>{children}</Text>;
+  return <SentenceText style={[styles.subtitle, style]}>{children}</SentenceText>;
 }
 
 export function Body({
@@ -342,18 +367,18 @@ export function Body({
   numberOfLines?: number;
 }) {
   return (
-    <Text style={[styles.body, style]} numberOfLines={numberOfLines}>
+    <SentenceText style={[styles.body, style]} numberOfLines={numberOfLines}>
       {children}
-    </Text>
+    </SentenceText>
   );
 }
 
 export function Caption({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.caption, style]}>{children}</Text>;
+  return <SentenceText style={[styles.caption, style]}>{children}</SentenceText>;
 }
 
 export function SectionTitle({ children, style }: { children: React.ReactNode; style?: StyleProp<TextStyle> }) {
-  return <Text style={[styles.sectionTitle, style]}>{children}</Text>;
+  return <SentenceText style={[styles.sectionTitle, style]}>{children}</SentenceText>;
 }
 
 /* -------------------------------------------------------------------- Pill */
@@ -443,7 +468,7 @@ export function LoadingState({ label = "불러오는 중이에요" }: { label?: 
   return (
     <View style={styles.stateBox} accessibilityRole="progressbar" accessibilityLabel={label}>
       <ActivityIndicator size="large" color={colors.primary} />
-      <Text style={styles.stateLabel}>{label}</Text>
+      <SentenceText style={styles.stateLabel}>{label}</SentenceText>
     </View>
   );
 }
@@ -452,7 +477,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   return (
     <View style={styles.stateBox}>
       <Ionicons name="cloud-offline-outline" size={40} color={colors.mutedForeground} />
-      <Text style={styles.stateLabel}>{message}</Text>
+      <SentenceText style={styles.stateLabel}>{message}</SentenceText>
       {onRetry ? (
         <Button label="다시 시도" variant="outline" onPress={onRetry} style={styles.stateAction} />
       ) : null}
@@ -470,7 +495,7 @@ export function EmptyState({
   return (
     <View style={styles.stateBox}>
       <Ionicons name={icon} size={40} color={colors.muted} />
-      <Text style={styles.stateLabel}>{message}</Text>
+      <SentenceText style={styles.stateLabel}>{message}</SentenceText>
     </View>
   );
 }

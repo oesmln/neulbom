@@ -1,10 +1,10 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import type { ElderNav } from "@/navigation/types";
 import { colors, onHeader, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Screen, ScreenHeader } from "@/components/ui";
+import { Screen, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import { useGameSubmit, Stars, SubmitStatus, DoneButtons } from "./shared";
 
 /**

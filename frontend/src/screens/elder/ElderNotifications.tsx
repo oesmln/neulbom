@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import { ElderNav } from "@/navigation/types";
@@ -10,7 +10,7 @@ import { apiErrorMessage } from "@/api/errors";
 import { notificationTime } from "@/utils/format";
 import type { NotificationResponse, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { EmptyState, ErrorState, LoadingState, Screen, ScreenHeader } from "@/components/ui";
+import { EmptyState, ErrorState, LoadingState, Screen, ScreenHeader, SentenceText as Text } from "@/components/ui";
 
 /**
  * `GET /notifications/{user_id}`, with `PATCH /{id}/read` and

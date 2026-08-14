@@ -1,11 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderNav } from "@/navigation/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Screen, ScreenHeader, Card, Button, Body, Caption, Pill } from "@/components/ui";
+import { Screen, ScreenHeader, Card, Button, Body, Caption, Pill, SentenceText as Text } from "@/components/ui";
 
 const GAMES = [
   { icon: "grid", title: "카드 짝 맞추기", desc: "같은 그림을 찾아요", points: 50 },

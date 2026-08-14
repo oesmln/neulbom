@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,7 @@ import { useApi } from "@/hooks/useApi";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Button, Card, ErrorState, LoadingState, ProgressBar, ScreenHeader } from "@/components/ui";
+import { Button, Card, ErrorState, LoadingState, ProgressBar, ScreenHeader, SentenceText as Text } from "@/components/ui";
 
 /**
  * Character growth, month-to-date activity and account settings.

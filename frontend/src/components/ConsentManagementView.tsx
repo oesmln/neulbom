@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+import { SentenceText as Text } from "@/components/ui";
 
 import { users } from "@/api";
 import { ApiError, apiErrorMessage } from "@/api/errors";

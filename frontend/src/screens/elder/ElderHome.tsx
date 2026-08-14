@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,7 +15,7 @@ import type {
   DashboardTask,
 } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, cognitiveStages } from "@/theme";
-import { Badge, Card, ErrorState, LoadingState } from "@/components/ui";
+import { Badge, Card, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
 

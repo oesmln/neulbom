@@ -1,12 +1,12 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
-import { Button, ScreenHeader } from "@/components/ui";
+import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
 
 const CODE_LENGTH = 6;

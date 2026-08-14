@@ -1,12 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
+import { View, StyleSheet, Pressable, TextInput } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { auth } from "@/api";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
-import { Screen, ScreenHeader, Body, Caption } from "@/components/ui";
+import { Screen, ScreenHeader, Body, Caption, SentenceText as Text } from "@/components/ui";
 
 /**
  * 비밀번호 변경 — `PATCH /users/me/password`.

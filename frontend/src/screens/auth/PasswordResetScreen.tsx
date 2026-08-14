@@ -1,12 +1,12 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { auth } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
-import { Button, Card, ScreenHeader } from "@/components/ui";
+import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { colors, fontSize, fontWeight, radius, spacing, sizes } from "@/theme";
 

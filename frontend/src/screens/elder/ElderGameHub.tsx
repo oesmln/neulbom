@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,7 @@ import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
-import { Badge, Card, EmptyState, ErrorState, LoadingState, ScreenHeader } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, LoadingState, ScreenHeader, SentenceText as Text } from "@/components/ui";
 
 /**
  * The three cognitive mini-games, wired to their screens (Issue #53).

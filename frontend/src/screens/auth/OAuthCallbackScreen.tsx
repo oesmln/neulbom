@@ -1,11 +1,11 @@
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { auth } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
-import { Button, ScreenHeader } from "@/components/ui";
+import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { AuthTokenResponse } from "@/api/types";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";

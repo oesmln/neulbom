@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, View, Text, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
+import { Platform, View, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,7 +11,7 @@ import { auth } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
-import { Button, ScreenHeader } from "@/components/ui";
+import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
 
 /**

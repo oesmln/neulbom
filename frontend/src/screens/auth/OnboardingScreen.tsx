@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { users } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { OnboardingStep } from "@/api/types";
-import { Button, Card, ScreenHeader, SpeechBubble } from "@/components/ui";
+import { Button, Card, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";

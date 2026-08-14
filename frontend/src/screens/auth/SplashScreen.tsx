@@ -1,12 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Button } from "@/components/ui";
+import { Button, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI, MEMOI_MOUTH_SHAPES } from "@/components/memoiCharacters";
 

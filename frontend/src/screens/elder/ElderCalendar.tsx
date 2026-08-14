@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi } from "@/api";
@@ -8,7 +8,7 @@ import { apiErrorMessage } from "@/api/errors";
 import { diaryDateLabel, isoDateOf, moodEmoji } from "@/utils/format";
 import type { DiaryListItem } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Screen, ScreenHeader, Card, Caption, Body, ErrorState, LoadingState } from "@/components/ui";
+import { Screen, ScreenHeader, Card, Caption, Body, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
 
 /**
  * Month calendar backed by `GET /calendar/{user_id}/activities` for the day

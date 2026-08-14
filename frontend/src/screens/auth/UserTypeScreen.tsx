@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -9,7 +9,7 @@ import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Badge, Button, ScreenHeader, SpeechBubble } from "@/components/ui";
+import { Badge, Button, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useApp } from "@/store/AppContext";
@@ -7,6 +7,7 @@ import { game, sessions, newClientId } from "@/api";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import type { GameResultRequest, GameResultResponse, GameType, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
+import { SentenceText as Text } from "@/components/ui";
 
 /**
  * The pieces the three mini-games share: result submission and the finish UI.

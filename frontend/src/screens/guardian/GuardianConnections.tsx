@@ -4,7 +4,6 @@ import {
   Pressable,
   Share,
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
@@ -31,6 +30,7 @@ import {
   LoadingState,
   Screen,
   ScreenHeader,
+  SentenceText as Text,
 } from "@/components/ui";
 
 const SCOPES = [

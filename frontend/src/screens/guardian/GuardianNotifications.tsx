@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
@@ -20,6 +20,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  SentenceText as Text,
 } from "@/components/ui";
 
 /**
