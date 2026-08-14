@@ -56,6 +56,7 @@
 | 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [ ] |
 | 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [ ] |
 | 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [x] (#61) |
+| 음성 출력 | Google TTS 합성·실제 재생·켜기/끄기 | `POST /speech/synthesize` | [x] (#91) |
 | 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
 | 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
 | 일기 | 생성·목록·상세·생성 상태 | `/diaries/**` | [ ] |
@@ -137,6 +138,7 @@
 | 보호자 직접 연결 | `POST /guardian/link` | 프론트 구현 누락 | 운영 방식 확정 후 연결 UI 구현 |
 | 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | 구현 완료 | 연결별 scope 수정·해제 확인 UI 연결 (#59) |
 | 음성 직접 변환 | `POST /voice/transcribe` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
+| 캐릭터 안내 음성 | `POST /speech/synthesize` | Google TTS MP3 base64 | 온보딩·CIST·AI 대화 연결 완료 (#91) |
 | 음향·인지 분석 요청 | `POST /analysis/acoustic`, `POST /analysis/cognitive` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |
 | 세션 요약 생성·조회 | `POST/GET /summary/session/**` | 생성은 worker 전용, 조회는 프론트 미사용 | 필요 화면에서 조회만 연결 |
 | 일일 요약 생성·조회 | `POST/GET /summary/daily/**` | 생성은 worker 전용, 조회는 프론트 미사용 | 일기·리포트 요구에 따라 조회 연결 |

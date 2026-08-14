@@ -184,7 +184,7 @@
 
 - [ ] 지역 캠페인 `GET /campaigns` 외
 - [ ] 상담 예약 `POST /counseling/appointments` 외
-- [ ] 안내 음성 TTS·립싱크
+- [x] Google TTS 안내 음성 실제 재생·음성 켜기/끄기·립싱크 (#91)
 
 ---
 
