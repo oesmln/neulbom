@@ -1,12 +1,12 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { users } from "@/api";
-import { ApiError, apiErrorMessage } from "@/api/errors";
-import type { ConsentType, OnboardingStep } from "@/api/types";
+import { apiErrorMessage } from "@/api/errors";
+import type { OnboardingStep } from "@/api/types";
 import { Button, Card, ScreenHeader, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
@@ -14,50 +14,16 @@ import type { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
 
-type Step = "intro" | "character" | "consent" | "baseline";
-
-const CONSENT_VERSION = "onboarding-v2";
-const REQUIRED_CONSENTS: Array<{ type: ConsentType; title: string; body: string }> = [
-  {
-    type: "sensitive_health",
-    title: "건강·민감정보 처리 동의",
-    body: "인지 활동을 참고 정보로 분석하기 위해 필요한 동의예요.",
-  },
-  {
-    type: "analysis",
-    title: "인지 활동 분석 동의",
-    body: "대화와 검사 결과를 진단이 아닌 변화 관찰 참고 정보로 분석해요.",
-  },
-  {
-    type: "voice_collection",
-    title: "음성 수집·분석 동의",
-    body: "음성 답변을 저장하고 음성 인식과 활동 분석에 사용해요.",
-  },
-];
-
-const OPTIONAL_CONSENTS: Array<{ type: ConsentType; title: string; body: string }> = [
-  {
-    type: "data_sharing",
-    title: "서비스 개선 데이터 활용",
-    body: "서비스를 더 편리하게 만드는 데 데이터를 활용해요. (선택)",
-  },
-  {
-    type: "research_use",
-    title: "연구 목적 활용",
-    body: "비식별 정보를 연구 목적으로 활용해요. (선택)",
-  },
-];
+type Step = "intro" | "character" | "baseline";
 
 const STEP_META: Array<{ key: Step; label: string }> = [
   { key: "intro", label: "인사" },
   { key: "character", label: "이름" },
-  { key: "consent", label: "동의" },
   { key: "baseline", label: "검사" },
 ];
 
 function apiStep(step: Step): OnboardingStep {
   if (step === "character") return "character_name";
-  if (step === "consent") return "consent";
   if (step === "baseline") return "baseline";
   return "intro";
 }
@@ -67,17 +33,18 @@ export default function OnboardingScreen() {
   const { userId, role, onboardingStep, characterName, updateOnboardingState } = useApp();
   const [step, setStep] = React.useState<Step>(() => {
     if (onboardingStep === "character_name") return "character";
-    if (onboardingStep === "consent") return "consent";
+    // Accounts that were paused on the previous consent step already finished
+    // the greeting and character setup; resume at the screening handoff now
+    // that feature consents live on the elder profile screen.
+    if (onboardingStep === "consent") return "baseline";
     if (onboardingStep === "baseline") return "baseline";
     return "intro";
   });
   const [name, setName] = React.useState(characterName ?? "늘봄");
-  const [selected, setSelected] = React.useState<Set<ConsentType>>(new Set());
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
   const index = STEP_META.findIndex((item) => item.key === step);
-  const requiredAccepted = REQUIRED_CONSENTS.every((consent) => selected.has(consent.type));
 
   const persistStep = async (next: Step, extra?: { completed?: boolean }) => {
     if (!userId) return;
@@ -108,35 +75,8 @@ export default function OnboardingScreen() {
     }
   };
 
-  const saveConsentsAndStartBaseline = async () => {
-    if (!userId || !requiredAccepted || busy) return;
-    setBusy(true);
-    setMessage(null);
-    try {
-      const agreedAt = new Date().toISOString();
-      for (const consentType of selected) {
-        try {
-          await users.saveConsent(userId, {
-            consent_type: consentType,
-            agreed: true,
-            agreed_at: agreedAt,
-            version: CONSENT_VERSION,
-          });
-        } catch (cause) {
-          if (!(cause instanceof ApiError) || cause.status !== 409) throw cause;
-        }
-      }
-      await persistStep("baseline");
-      setStep("baseline");
-    } catch (cause) {
-      setMessage(apiErrorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const finishIntro = () => void move("character");
-  const finishCharacter = () => void move("consent");
+  const finishCharacter = () => void move("baseline");
 
   React.useEffect(() => {
     if (role === "guardian") navigation.reset({ index: 0, routes: [{ name: "Guardian" }] });
@@ -195,45 +135,6 @@ export default function OnboardingScreen() {
           <View style={styles.footer}>
             {message ? <Text style={styles.error}>{message}</Text> : null}
             <Button label={busy ? "저장하고 있어요" : "이 이름으로 할게요"} disabled={!name.trim() || busy} onPress={finishCharacter} size="lg" />
-          </View>
-        </View>
-      ) : null}
-
-      {step === "consent" ? (
-        <View style={styles.stepBody}>
-          <ConversationHeader line="이제 고령자 기능에 필요한 동의를 확인할게요." />
-          <Text style={styles.signupConsentNote}>
-            이용약관과 개인정보 수집·이용 동의는 회원가입 단계에서 확인했어요.
-          </Text>
-          <View style={styles.consentList}>
-            {[...REQUIRED_CONSENTS, ...OPTIONAL_CONSENTS].map((consent) => {
-              const on = selected.has(consent.type);
-              const required = REQUIRED_CONSENTS.some((item) => item.type === consent.type);
-              return (
-                <Pressable
-                  key={consent.type}
-                  onPress={() => setSelected((current) => {
-                    const next = new Set(current);
-                    if (on) next.delete(consent.type);
-                    else next.add(consent.type);
-                    return next;
-                  })}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
-                  style={styles.consentRow}
-                >
-                  <Ionicons name={on ? "checkbox" : "square-outline"} size={24} color={on ? colors.primary : colors.mutedForeground} />
-                  <View style={styles.consentCopy}>
-                    <Text style={styles.consentTitle}>{consent.title}{required ? " (필수)" : ""}</Text>
-                    <Text style={styles.consentBody}>{consent.body}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-          <View style={styles.footer}>
-            {message ? <Text style={styles.error}>{message}</Text> : null}
-            <Button label={busy ? "저장하고 있어요" : "동의하고 다음"} disabled={!requiredAccepted || busy} onPress={() => void saveConsentsAndStartBaseline()} size="lg" />
           </View>
         </View>
       ) : null}
@@ -298,12 +199,6 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.md, fontSize: fontSize.bodyLg, color: colors.foreground, backgroundColor: colors.white },
   help: { fontSize: fontSize.caption, color: colors.mutedForeground },
-  consentList: { gap: spacing.xs },
-  signupConsentNote: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19 },
-  consentRow: { flexDirection: "row", gap: spacing.md, paddingVertical: spacing.sm, alignItems: "flex-start" },
-  consentCopy: { flex: 1, gap: 3 },
-  consentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
-  consentBody: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19 },
   footer: { marginTop: "auto", gap: spacing.sm },
   error: { color: colors.destructive, fontSize: fontSize.caption, lineHeight: 20 },
 });

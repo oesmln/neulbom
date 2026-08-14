@@ -57,9 +57,6 @@ export default function EmailVerificationScreen() {
       const tokens = await auth.login({ email: signup.email, password: signup.password });
       await signIn(tokens);
       await saveRequiredSignupConsents(tokens.user_id);
-      if (signup.inviteCode && tokens.role === "elder") {
-        await guardian.acceptInvitation(signup.inviteCode, true);
-      }
 
       let inviteCode: string | undefined;
       let invitationError: string | undefined;
@@ -78,7 +75,16 @@ export default function EmailVerificationScreen() {
 
       navigation.reset({
         index: 0,
-        routes: [{ name: "SignupComplete", params: { role: tokens.role, inviteCode, invitationError } }],
+        routes: [
+          {
+            name: "SignupComplete",
+            params: {
+              role: tokens.role,
+              inviteCode: tokens.role === "elder" ? signup.inviteCode : inviteCode,
+              invitationError,
+            },
+          },
+        ],
       });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));

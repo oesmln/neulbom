@@ -34,7 +34,11 @@ export default function SignupCompleteScreen() {
   const continueToApp = () => {
     navigation.reset({
       index: 0,
-      routes: [{ name: isGuardian ? "Guardian" : "Onboarding" }],
+      routes: [
+        isGuardian
+          ? { name: "Guardian" }
+          : { name: "ElderProfile", params: { inviteCode } },
+      ],
     });
   };
 
@@ -54,7 +58,7 @@ export default function SignupCompleteScreen() {
           <Text style={styles.description}>
             {isGuardian
               ? "어르신을 연결하면 활동 기록과 리포트를 확인할 수 있어요."
-              : "첫 설정을 마치면 메모이와 편하게 대화를 시작할 수 있어요."}
+              : "기본정보와 고령자 기능 동의를 확인한 뒤 메모이와 첫 만남을 시작해요."}
           </Text>
         </View>
 
@@ -85,14 +89,14 @@ export default function SignupCompleteScreen() {
           <Card style={styles.infoCard}>
             <Text style={styles.cardEyebrow}>다음 단계</Text>
             <Text style={styles.cardText}>
-              캐릭터 인사와 기본 동의, 초기 인지 활동 확인을 차례대로 진행해요.
+              기본정보를 입력하고 고령자 기능에 필요한 동의를 확인한 뒤, 캐릭터 인사와 초기 인지 활동 확인을 차례대로 진행해요.
             </Text>
           </Card>
         )}
 
         <View style={styles.footer}>
           <Button
-            label={isGuardian ? "보호자 화면으로 이동" : "초기 설정 시작하기"}
+            label={isGuardian ? "보호자 화면으로 이동" : "기본정보 입력하기"}
             onPress={continueToApp}
             size="lg"
           />

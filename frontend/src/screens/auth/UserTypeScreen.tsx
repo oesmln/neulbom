@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -36,33 +35,27 @@ const OPTIONS: {
   },
 ];
 
-const REQUIRED_CONSENT_ITEMS = [
-  { key: "terms", title: "이용약관 동의" },
-  { key: "privacy", title: "개인정보 수집·이용 동의" },
-] as const;
-
 export default function UserTypeScreen() {
   const navigation = useNavigation<RootNav>();
   const route = useRoute<RouteProp<RootStackParamList, "UserType">>();
   const signup = route.params?.signup ?? null;
   const { setRole, signIn } = useApp();
   const [selected, setSelected] = React.useState<Choice | null>(null);
-  const [acceptedConsents, setAcceptedConsents] = React.useState<Record<"terms" | "privacy", boolean>>({
-    terms: false,
-    privacy: false,
-  });
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
-  const allRequiredConsentsAccepted = acceptedConsents.terms && acceptedConsents.privacy;
 
   /**
    * The role is the last piece registration was waiting for: api-spec 3.1 wants
    * one `POST /auth/register` carrying it, not an account created earlier and
-   * patched afterwards. The invite code, if one was entered, is redeemed once
-   * the account exists and is signed in.
+   * patched afterwards. The invite code, if one was entered, is redeemed after
+   * the elder has explicitly accepted the guardian-sharing consent.
    */
   const start = async () => {
-    if (!selected || !allRequiredConsentsAccepted || busy) return;
+    if (!selected || busy) return;
+    if (signup && signup.requiredConsentsAccepted !== true) {
+      setMessage("회원가입 화면에서 필수 동의를 먼저 완료해 주세요.");
+      return;
+    }
     if (signup?.inviteCode && selected !== "elder") {
       setMessage("보호자 초대 코드는 본인(고령자) 계정에서만 사용할 수 있어요.");
       return;
@@ -94,10 +87,6 @@ export default function UserTypeScreen() {
       await signIn(tokens);
       await saveRequiredSignupConsents(tokens.user_id);
 
-      if (signup.inviteCode && selected === "elder") {
-        await guardian.acceptInvitation(signup.inviteCode, true);
-      }
-
       let inviteCode: string | undefined;
       let invitationError: string | undefined;
       if (selected === "guardian") {
@@ -120,7 +109,11 @@ export default function UserTypeScreen() {
         routes: [
           {
             name: "SignupComplete",
-            params: { role: selected, inviteCode, invitationError },
+            params: {
+              role: selected,
+              inviteCode: selected === "elder" ? signup.inviteCode : inviteCode,
+              invitationError,
+            },
           },
         ],
       });
@@ -189,36 +182,12 @@ export default function UserTypeScreen() {
           );
         })}
 
-        <View style={styles.consentCard}>
-          <Text style={styles.consentHeading}>가입에 필요한 동의</Text>
-          <Text style={styles.consentDescription}>
-            서비스를 시작하려면 아래 두 항목에 동의해 주세요.
-          </Text>
-          {REQUIRED_CONSENT_ITEMS.map((item) => (
-            <Pressable
-              key={item.key}
-              onPress={() => setAcceptedConsents((current) => ({ ...current, [item.key]: !current[item.key] }))}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: acceptedConsents[item.key] }}
-              accessibilityLabel={item.title}
-              style={styles.consentRow}
-            >
-              <Ionicons
-                name={acceptedConsents[item.key] ? "checkbox" : "square-outline"}
-                size={23}
-                color={acceptedConsents[item.key] ? colors.primary : colors.mutedForeground}
-              />
-              <Text style={styles.consentTitle}>{item.title} (필수)</Text>
-            </Pressable>
-          ))}
-        </View>
-
         {message ? <Text style={styles.errorText}>{message}</Text> : null}
 
         <Button
           label="시작하기"
           icon={selected ? "chevron-forward" : undefined}
-          disabled={!selected || !allRequiredConsentsAccepted || busy}
+          disabled={!selected || busy}
           onPress={() => void start()}
           style={{ marginTop: spacing.xs }}
         />
@@ -246,10 +215,5 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
   tagLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold },
-  consentCard: { borderRadius: radius.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.xs },
-  consentHeading: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
-  consentDescription: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.xs },
-  consentRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.xs },
-  consentTitle: { fontSize: fontSize.body, color: colors.foreground },
   errorText: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 20 },
 });

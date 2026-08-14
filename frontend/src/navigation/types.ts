@@ -13,6 +13,7 @@ export type RootStackParamList = {
   UserType: { signup?: PendingSignup } | undefined;
   EmailVerification: { signup: PendingSignup };
   SignupComplete: SignupCompleteParams;
+  ElderProfile: { inviteCode?: string } | undefined;
   Onboarding: undefined;
   Elder: undefined;
   Guardian: undefined;
