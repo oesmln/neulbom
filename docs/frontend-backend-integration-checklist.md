@@ -34,6 +34,8 @@
 ### 1.2 인증과 세션
 
 - [ ] 회원가입 후 반환된 `user_id`, `role`, `profile_completed`가 프론트 타입과 일치한다.
+- [x] 회원가입 화면에서 이메일 중복확인을 먼저 수행하고, 이미 가입된 이메일은 `이미 가입된 이메일입니다. 로그인해 주세요.` 안내와 로그인 이동을 제공한다. (`2026-08-15`, Issue #93)
+- [x] 비밀번호 재설정 요청 후 SMTP 메일 링크를 열어 새 비밀번호를 저장하는 흐름을 연결했다. (`MAIL_ENABLED=true` + SMTP credential 필요)
 - [x] `profile_completed=false`인 신규·기존 사용자를 프로필·동의 온보딩으로 분기한다. (`2026-08-13`, Issue #58)
 - [x] 프로필과 필수 동의를 저장한 뒤 완료 상태를 세션에 반영하고 재로그인 시 온보딩을 건너뛴다. (`2026-08-13`, Expo Web 실 API)
 - [ ] 이메일 로그인 후 access token과 refresh token을 SecureStore에 저장한다.
@@ -42,12 +44,13 @@
 - [ ] refresh 실패 시 저장된 세션을 제거하고 로그인 화면으로 이동한다.
 - [ ] 로그아웃 시 서버 refresh token과 프론트 저장 세션을 모두 무효화한다.
 - [ ] 비밀번호 변경과 회원 탈퇴가 현재 로그인 사용자 기준으로 동작한다.
-- [ ] 카카오·네이버 OAuth의 redirect URI와 앱 scheme이 실제 환경 설정과 일치한다.
+- [x] 카카오·네이버 OAuth의 redirect URI와 앱 scheme이 실제 환경 설정과 일치한다. (`localhost:3000/auth/callback/{provider}`; provider 콘솔에도 동일 URI 등록 필요)
 
 ### 1.3 기능별 API 연결
 
 | 영역 | 프론트 동작 | 백엔드 API | 확인 |
 | --- | --- | --- | --- |
+| 인증 | 회원가입 전 이메일 중복확인·기존 계정 로그인 안내 | `GET /auth/email/availability`, `POST /auth/register` | [x] (#93) |
 | 사용자 | 프로필 조회·수정 | `GET/PATCH /users/{userId}` | [x] |
 | 사용자 | 환경설정 조회·수정 | `GET/PATCH /users/{userId}/preferences` | [ ] |
 | 사용자 | 음성 프로필 조회 | `GET /voice-profiles` | [ ] |
@@ -111,7 +114,7 @@
 | 앱 다크 모드·글씨 크기 | `SecureStore` 기반 기기 로컬 설정으로 명시되어 있음 | 의도적인 로컬 기능 | 서버 동기화 요구가 생길 때 별도 검토 |
 | 캐릭터 표시·상호작용 | 서버 캐릭터 상태와 화면의 로컬 상태가 일치하는지 | [ ] | |
 | 녹음 UI·재전송 | Native 파일·Web IndexedDB에 음성과 동일 ID를 보존하고 세션 복원·재연결·앱 활성화 시 순차 재전송 | 연결 완료 | #61 |
-| 소셜 로그인 화면 | 서버 OAuth API는 있으나 버튼이 authorization code를 얻지 않고 회원가입 흐름으로 이동 | 프론트 구현 누락 | Kakao·Naver 브라우저 인증 연결 Issue 필요 |
+| 소셜 로그인 화면 | provider 인증 후 기존 계정은 저장된 역할로 즉시 진입하고 신규 계정만 역할 선택 | 연결 완료 | `POST /auth/oauth/{provider}/prepare`, `/complete` |
 | 차트·리포트 UI | 실제 history/report 응답과 서버 허용 aggregation 사용 | 실 API 연결 | #59 |
 
 ### 2.3 발견 항목 기록
@@ -120,7 +123,7 @@
 | --- | --- | --- | --- | --- |
 | 캠페인 목록·참여 | `frontend/src/screens/elder/ElderCampaign.tsx` | `GET /campaigns`, `POST /campaigns/{id}/participations` 등 | 범위 제외 | - |
 | 표시 설정 | `frontend/src/store/settings.ts` | 없음 | 의도적인 로컬 기능 | #56 |
-| 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}` | 프론트 부분 구현 | #56 |
+| 소셜 로그인 authorization code 획득 | `frontend/src/screens/auth/LoginScreen.tsx` | `POST /auth/oauth/{provider}/prepare`, `/complete` | 연결 완료 | #56 |
 | 녹음 영속 재전송 queue | `frontend/src/recording/recordingQueue.ts`, `frontend/src/hooks/useAnswerRecording.ts` | 기존 `client_recording_id` 멱등 계약 사용 | 연결 완료 | #61 |
 
 ## 3. 백엔드에는 있지만 프론트엔드에는 구현되지 않은 기능

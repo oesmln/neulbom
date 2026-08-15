@@ -1,36 +1,36 @@
 import React from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
+import { Platform, View, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 
 import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { auth, guardian } from "@/api";
+import { auth } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
-import { Button, ScreenHeader } from "@/components/ui";
+import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
+import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
 
 /**
- * Sign-in, sign-up, invite code and password reset.
+ * Sign-in, sign-up and password reset.
  *
- * These are four states of one flow rather than four routes: the invite step
- * has to hand its code to the account that sign-up is about to create, and
- * api-spec 3.1 requires the app to hold the form values until the user type is
- * picked and only then POST /auth/register once.
+ * The sign-up values stay in memory while the user moves through the role and
+ * elder invite screens. api-spec 3.1 requires the app to hold the form values
+ * until the user type is picked and only then POST /auth/register once.
  *
  * Signing in is a different path on purpose. `POST /auth/login` already returns
  * `role`, so an existing user goes straight to their own area — the invite code
  * and the role picker belong to registration and must not reappear at every
  * sign-in.
  */
-type Step = "form" | "invite" | "socialRole" | "forgot" | "forgotSent";
+type Step = "form" | "socialRole" | "forgot" | "forgotSent";
 type Tab = "login" | "signup";
 type SocialProvider = "kakao" | "naver";
 type SignupConsentKey = "terms" | "privacy";
+type EmailCheckState = "idle" | "checking" | "available" | "taken";
 
 const SIGNUP_CONSENT_ITEMS: Array<{ key: SignupConsentKey; title: string; body: string }> = [
   {
@@ -44,8 +44,6 @@ const SIGNUP_CONSENT_ITEMS: Array<{ key: SignupConsentKey; title: string; body: 
     body: "회원가입과 서비스 제공에 필요한 개인정보를 처리해요.",
   },
 ];
-
-WebBrowser.maybeCompleteAuthSession();
 
 const KAKAO_CLIENT_ID = process.env.EXPO_PUBLIC_KAKAO_CLIENT_ID?.trim() ?? "";
 const NAVER_CLIENT_ID = process.env.EXPO_PUBLIC_NAVER_CLIENT_ID?.trim() ?? "";
@@ -79,9 +77,6 @@ const SOCIAL_CONFIG = {
   },
 } as const;
 
-const CODE_LENGTH = 6;
-const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"] as const;
-
 export default function LoginScreen() {
   const navigation = useNavigation<RootNav>();
   const route = useRoute<RouteProp<RootStackParamList, "Login">>();
@@ -90,48 +85,58 @@ export default function LoginScreen() {
   const [step, setStep] = React.useState<Step>("form");
   const [tab, setTab] = React.useState<Tab>(route.params?.mode ?? "login");
   const [showPassword, setShowPassword] = React.useState(false);
-  const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [passwordConfirmation, setPasswordConfirmation] = React.useState("");
   const [showPasswordConfirmation, setShowPasswordConfirmation] = React.useState(false);
+  const [emailCheckState, setEmailCheckState] = React.useState<EmailCheckState>("idle");
+  const [checkedEmail, setCheckedEmail] = React.useState("");
+  const [emailCheckMessage, setEmailCheckMessage] = React.useState<string | null>(null);
   const [signupConsents, setSignupConsents] = React.useState<Record<SignupConsentKey, boolean>>({
     terms: false,
     privacy: false,
   });
   const [busy, setBusy] = React.useState(false);
   const [socialProvider, setSocialProvider] = React.useState<SocialProvider | null>(null);
+  const [socialPendingToken, setSocialPendingToken] = React.useState<string | null>(null);
+  const [socialDisplayName, setSocialDisplayName] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
-  const [codeError, setCodeError] = React.useState<string | null>(null);
 
   // Splash has two intentional entry points. Keep the selected tab tied to
   // that route mode so a previously mounted Login screen cannot leak its old
   // signup/login tab into the next entry.
   React.useEffect(() => {
-    const mode = route.params?.mode;
-    if (!mode) return;
-    setStep("form");
-    setTab(mode);
+    const params = route.params;
+    if (!params) return;
+    setStep(params.socialPendingToken ? "socialRole" : "form");
+    setTab(params.mode ?? "login");
     setMessage(null);
-    setCode("");
-    setCodeError(null);
-    setSocialProvider(null);
-  }, [route.params?.mode]);
+    setSocialProvider(params.socialProvider ?? null);
+    setSocialPendingToken(params.socialPendingToken ?? null);
+    setSocialDisplayName(params.socialDisplayName ?? null);
+    setEmailCheckState("idle");
+    setCheckedEmail("");
+    setEmailCheckMessage(null);
+  }, [route.params]);
 
   const routeAfterAuth = (tokens: AuthTokenResponse) => {
     if (tokens.role === "guardian") return "Guardian" as const;
-    return (tokens.onboarding_completed ?? tokens.profile_completed) ? "Elder" as const : "Onboarding" as const;
+    if (!tokens.profile_completed) return "ElderProfile" as const;
+    return tokens.onboarding_completed ? "Elder" as const : "Onboarding" as const;
   };
 
   const emailLooksValid = email.includes("@") && email.includes(".");
   const passwordMatches = tab === "login" || password === passwordConfirmation;
   const signupConsentsAccepted = signupConsents.terms && signupConsents.privacy;
+  const normalizedEmail = email.trim().toLowerCase();
+  const emailCheckedForSignup =
+    tab === "login" || (emailCheckState === "available" && checkedEmail === normalizedEmail);
   const canSubmitForm =
     emailLooksValid &&
     password.length >= 8 &&
     passwordMatches &&
-    (tab === "login" || (name.trim().length > 0 && signupConsentsAccepted));
+    (tab === "login" || (name.trim().length > 0 && signupConsentsAccepted && emailCheckedForSignup));
 
   const [kakaoRequest, , promptKakao] = AuthSession.useAuthRequest(
     {
@@ -175,11 +180,38 @@ export default function LoginScreen() {
   };
 
   /** New account: hold the form and let the role choice create it. */
-  const continueToInvite = () => {
+  const continueToUserType = () => {
+    if (tab === "signup" && !emailCheckedForSignup) {
+      setEmailCheckMessage("이메일 중복확인을 먼저 해 주세요.");
+      return;
+    }
     setMessage(null);
-    setCode("");
-    setCodeError(null);
-    setStep("invite");
+    goToUserType();
+  };
+
+  const checkEmailAvailability = async () => {
+    if (!emailLooksValid) {
+      setEmailCheckMessage("이메일 주소를 먼저 입력해 주세요.");
+      return;
+    }
+    setEmailCheckState("checking");
+    setEmailCheckMessage(null);
+    setMessage(null);
+    try {
+      const result = await auth.checkEmailAvailability(normalizedEmail);
+      setCheckedEmail(result.email);
+      if (result.available) {
+        setEmailCheckState("available");
+        setEmailCheckMessage("사용할 수 있는 이메일이에요.");
+      } else {
+        setEmailCheckState("taken");
+        setEmailCheckMessage("이미 가입된 이메일입니다. 로그인해 주세요.");
+      }
+    } catch (cause) {
+      setEmailCheckState("idle");
+      setCheckedEmail("");
+      setEmailCheckMessage(apiErrorMessage(cause));
+    }
   };
 
   const goToUserType = (inviteCode?: string) => {
@@ -192,19 +224,6 @@ export default function LoginScreen() {
         requiredConsentsAccepted: signupConsentsAccepted,
       },
     });
-  };
-
-  const submitInviteCode = async () => {
-    setBusy(true);
-    setCodeError(null);
-    try {
-      await guardian.verifyInvitation(code);
-      goToUserType(code);
-    } catch (cause) {
-      setCodeError(apiErrorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
   };
 
   const sendResetLink = async () => {
@@ -220,7 +239,8 @@ export default function LoginScreen() {
     }
   };
 
-  const chooseSocialRole = (provider: SocialProvider) => {
+  /** Authenticate with the provider first. Only a new app account reaches the role picker. */
+  const startSocialLogin = async (provider: SocialProvider) => {
     const config = SOCIAL_CONFIG[provider];
     setMessage(null);
     if (!config.clientId || !config.redirectUri) {
@@ -232,14 +252,10 @@ export default function LoginScreen() {
       return;
     }
     setSocialProvider(provider);
-    setStep("socialRole");
-  };
-
-  const submitSocialLogin = async (role: "elder" | "guardian") => {
-    if (!socialProvider || busy) return;
-    const config = SOCIAL_CONFIG[socialProvider];
-    const request = socialProvider === "kakao" ? kakaoRequest : naverRequest;
-    const prompt = socialProvider === "kakao" ? promptKakao : promptNaver;
+    setSocialPendingToken(null);
+    setSocialDisplayName(null);
+    const request = provider === "kakao" ? kakaoRequest : naverRequest;
+    const prompt = provider === "kakao" ? promptKakao : promptNaver;
     if (!request) {
       setMessage("소셜 로그인을 준비하고 있어요. 잠시 후 다시 시도해 주세요.");
       return;
@@ -248,6 +264,15 @@ export default function LoginScreen() {
     setBusy(true);
     setMessage(null);
     try {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const authorizationUrl = request.url ?? await request.makeAuthUrlAsync(config.discovery);
+        window.sessionStorage.setItem(
+          OAUTH_WEB_PENDING_KEY,
+          JSON.stringify({ provider, state: request.state, redirectUri: config.redirectUri }),
+        );
+        window.location.assign(authorizationUrl);
+        return;
+      }
       const result = await prompt();
       if (result.type === "cancel" || result.type === "dismiss") {
         setMessage(`${config.label} 로그인을 취소했어요.`);
@@ -267,11 +292,46 @@ export default function LoginScreen() {
         return;
       }
 
-      const tokens = await auth.oauthLogin(socialProvider, {
+      const prepared = await auth.prepareOAuthLogin(provider, {
         authorization_code: authorizationCode,
         redirect_uri: config.redirectUri,
-        role,
         state: request.state,
+      });
+      if (prepared.status === "role_required") {
+        if (!prepared.pending_token) {
+          setMessage("소셜 가입 정보를 이어갈 수 없어요. 처음부터 다시 시도해 주세요.");
+          return;
+        }
+        setSocialProvider(provider);
+        setSocialPendingToken(prepared.pending_token);
+        setSocialDisplayName(prepared.display_name);
+        setStep("socialRole");
+        return;
+      }
+      if (!prepared.tokens) {
+        setMessage("소셜 로그인 응답을 확인할 수 없어요. 다시 시도해 주세요.");
+        return;
+      }
+      await signIn(prepared.tokens);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: routeAfterAuth(prepared.tokens) }],
+      });
+    } catch (cause) {
+      setMessage(apiErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitSocialRole = async (role: "elder" | "guardian") => {
+    if (!socialProvider || !socialPendingToken || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const tokens = await auth.completeOAuthLogin(socialProvider, {
+        pending_token: socialPendingToken,
+        role,
       });
       await signIn(tokens);
       navigation.reset({
@@ -285,93 +345,22 @@ export default function LoginScreen() {
     }
   };
 
-  if (step === "invite") {
-    return (
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        <ScreenHeader
-          title="초대 코드 입력"
-          subtitle="보호자 또는 기관에서 받은 6자리 코드를 입력해 주세요."
-          onBack={() => setStep("form")}
-          backLabel="뒤로"
-        />
-
-        <View style={styles.body}>
-          <View style={styles.codeRow}>
-            {Array.from({ length: CODE_LENGTH }).map((_, i) => {
-              const filled = code.length > i;
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.codeCell,
-                    {
-                      borderColor: filled ? colors.primary : colors.border,
-                      backgroundColor: filled ? colors.secondary : colors.muted,
-                    },
-                  ]}
-                >
-                  <Text style={styles.codeText}>{code[i] ?? ""}</Text>
-                </View>
-              );
-            })}
-          </View>
-
-          <View style={styles.keypad}>
-            {KEYPAD.map((key, i) => (
-              <Pressable
-                key={i}
-                disabled={key === ""}
-                accessibilityRole="button"
-                accessibilityLabel={key === "←" ? "한 자리 지우기" : key}
-                onPress={() => {
-                  if (key === "←") setCode((c) => c.slice(0, -1));
-                  else if (key !== "" && code.length < CODE_LENGTH) setCode((c) => c + key);
-                }}
-                style={({ pressed }) => [
-                  styles.key,
-                  {
-                    backgroundColor: key === "" ? "transparent" : colors.muted,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Text style={styles.keyText}>{key}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.bottomStack}>
-            {codeError ? <Text style={styles.errorText}>{codeError}</Text> : null}
-            <Button
-              label="확인"
-              disabled={code.length < CODE_LENGTH || busy}
-              onPress={() => void submitInviteCode()}
-            />
-            <Pressable
-              onPress={() => goToUserType()}
-              accessibilityRole="button"
-              accessibilityLabel="초대 코드 없이 계속하기"
-              style={styles.textLink}
-            >
-              <Text style={styles.textLinkLabel}>초대 코드 없이 계속하기</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   if (step === "socialRole" && socialProvider) {
     const provider = SOCIAL_CONFIG[socialProvider];
-    const requestReady = socialProvider === "kakao" ? !!kakaoRequest : !!naverRequest;
     return (
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <ScreenHeader
           title={`${provider.label} 로그인`}
-          subtitle="처음 이용할 때 사용할 역할을 선택해 주세요. 기존 계정은 저장된 역할로 로그인돼요."
+          subtitle={
+            socialDisplayName
+              ? `${socialDisplayName}님, 처음 이용할 역할을 선택해 주세요.`
+              : "처음 이용할 역할을 선택해 주세요."
+          }
           onBack={() => {
             setStep("form");
             setSocialProvider(null);
+            setSocialPendingToken(null);
+            setSocialDisplayName(null);
             setMessage(null);
           }}
           backLabel="로그인"
@@ -383,19 +372,19 @@ export default function LoginScreen() {
               title="어르신으로 이용"
               description="인지 검사, AI 문답, 일기와 두뇌 게임을 이용해요."
               icon="heart-outline"
-              onPress={() => void submitSocialLogin("elder")}
-              disabled={busy || !requestReady}
+              onPress={() => void submitSocialRole("elder")}
+              disabled={busy || !socialPendingToken}
             />
             <SocialRoleCard
               title="보호자로 이용"
               description="연결된 어르신의 활동과 인지 상태를 확인해요."
               icon="people-outline"
-              onPress={() => void submitSocialLogin("guardian")}
-              disabled={busy || !requestReady}
+              onPress={() => void submitSocialRole("guardian")}
+              disabled={busy || !socialPendingToken}
             />
           </View>
           {message ? <Text style={styles.errorText}>{message}</Text> : null}
-          {!requestReady ? <Text style={styles.hint}>인증 화면을 준비하고 있어요.</Text> : null}
+          {!socialPendingToken ? <Text style={styles.hint}>가입 정보를 준비하고 있어요.</Text> : null}
         </View>
       </SafeAreaView>
     );
@@ -518,16 +507,63 @@ export default function LoginScreen() {
         ) : null}
 
         <Field label="이메일">
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="example@email.com"
-            placeholderTextColor={colors.mutedForeground}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            accessibilityLabel="이메일 입력"
-            style={styles.input}
-          />
+          <View style={tab === "signup" ? styles.emailSignupRow : styles.loginEmailRow}>
+            <TextInput
+              value={email}
+              onChangeText={(value) => {
+                setEmail(value);
+                if (tab === "signup") {
+                  setEmailCheckState("idle");
+                  setCheckedEmail("");
+                  setEmailCheckMessage(null);
+                }
+              }}
+              placeholder="example@email.com"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              accessibilityLabel="이메일 입력"
+              style={tab === "signup" ? styles.emailSignupInput : styles.loginEmailInput}
+            />
+            {tab === "signup" ? (
+              <Pressable
+                onPress={() => void checkEmailAvailability()}
+                disabled={!emailLooksValid || emailCheckState === "checking"}
+                accessibilityRole="button"
+                accessibilityLabel="이메일 중복확인"
+                style={({ pressed }) => [
+                  styles.emailCheckButton,
+                  (!emailLooksValid || emailCheckState === "checking") && styles.emailCheckButtonDisabled,
+                  pressed && { opacity: 0.8 },
+                ]}
+              >
+                <Text style={styles.emailCheckButtonText}>
+                  {emailCheckState === "checking" ? "확인 중" : "중복확인"}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {tab === "signup" && emailCheckMessage ? (
+            <View style={styles.emailCheckMessageRow}>
+              <Text style={emailCheckState === "available" ? styles.successText : styles.errorText}>
+                {emailCheckMessage}
+              </Text>
+              {emailCheckState === "taken" ? (
+                <Pressable
+                  onPress={() => {
+                    setTab("login");
+                    setEmailCheckState("idle");
+                    setCheckedEmail("");
+                    setEmailCheckMessage(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="로그인 화면으로 이동"
+                >
+                  <Text style={styles.loginLink}>로그인으로 이동</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </Field>
 
         <Field label="비밀번호">
@@ -650,7 +686,7 @@ export default function LoginScreen() {
         <Button
           label={tab === "login" ? "로그인" : "다음"}
           disabled={!canSubmitForm || busy}
-          onPress={() => (tab === "login" ? void submitLogin() : continueToInvite())}
+          onPress={() => (tab === "login" ? void submitLogin() : continueToUserType())}
         />
 
         <View style={styles.dividerRow}>
@@ -666,13 +702,13 @@ export default function LoginScreen() {
           label="카카오로 계속하기"
           background="#FEE500"
           color={colors.foreground}
-          onPress={() => chooseSocialRole("kakao")}
+          onPress={() => void startSocialLogin("kakao")}
         />
         <SocialButton
           label="네이버로 계속하기"
           background="#03C75A"
           color={colors.white}
-          onPress={() => chooseSocialRole("naver")}
+          onPress={() => void startSocialLogin("naver")}
         />
       </ScrollView>
     </SafeAreaView>
@@ -775,6 +811,45 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   inputField: { flex: 1, fontSize: fontSize.bodyLg, color: colors.foreground },
+  emailSignupRow: {
+    height: sizes.inputHeight,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  emailSignupInput: { flex: 1, height: "100%", fontSize: fontSize.bodyLg, color: colors.foreground },
+  loginEmailRow: {
+    height: sizes.inputHeight,
+    borderRadius: radius.lg,
+    backgroundColor: colors.muted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  loginEmailInput: {
+    height: "100%",
+    paddingHorizontal: spacing.lg,
+    fontSize: fontSize.bodyLg,
+    color: colors.foreground,
+  },
+  emailCheckButton: {
+    minHeight: sizes.buttonHeightSm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+  },
+  emailCheckButtonDisabled: { backgroundColor: colors.mutedForeground, opacity: 0.5 },
+  emailCheckButtonText: { color: colors.white, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+  emailCheckMessageRow: { gap: spacing.xs },
+  successText: { fontSize: fontSize.caption, color: colors.primaryDark, lineHeight: 20 },
+  loginLink: { fontSize: fontSize.caption, color: colors.primary, fontWeight: fontWeight.semibold },
   hint: { fontSize: fontSize.micro, color: colors.mutedForeground },
   errorText: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 20 },
   eye: { position: "absolute", right: spacing.lg, top: 0, bottom: 0, justifyContent: "center" },
@@ -785,15 +860,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.xs,
+    padding: spacing.xl,
+    gap: spacing.md,
   },
-  signupConsentHeading: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
-  signupConsentDescription: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.xs },
-  signupConsentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: spacing.xs },
-  signupConsentCopy: { flex: 1, gap: 2 },
-  signupConsentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
-  signupConsentBody: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 18 },
+  signupConsentHeading: { fontSize: fontSize.bodyLg, lineHeight: 23, fontWeight: fontWeight.bold, color: colors.foreground },
+  signupConsentDescription: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22, marginBottom: spacing.sm },
+  signupConsentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md },
+  signupConsentCopy: { flex: 1, gap: spacing.xs },
+  signupConsentTitle: { fontSize: fontSize.bodyLg, lineHeight: 23, fontWeight: fontWeight.semibold, color: colors.foreground },
+  signupConsentBody: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
 
   dividerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },

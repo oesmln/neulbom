@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -9,7 +9,7 @@ import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Button, ErrorState, LoadingState, SpeechBubble } from "@/components/ui";
+import { Button, ErrorState, LoadingState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
 
@@ -37,7 +37,8 @@ export default function ElderResultScreen() {
   const route = useRoute<RouteProp<ElderStackParamList, "ElderResult">>();
   const sessionId = route.params?.sessionId ?? null;
   const mode = route.params?.mode ?? "daily";
-  const { userName, completeBaseline } = useApp();
+  const { userName, characterName, completeBaseline } = useApp();
+  const companionName = characterName?.trim() || "메모이";
 
   // Polling stops the moment the pipeline settles: `pending` feeds `intervalMs`,
   // and dropping it clears the interval inside the hook.
@@ -100,7 +101,7 @@ export default function ElderResultScreen() {
           ) : (
               <SpeechBubble
                 text={mode === "baseline"
-                  ? "이제 메모이와 매일 편하게 이야기할 수 있어요. 함께 천천히 시작해 볼까요?"
+                  ? `이제 ${companionName}와 매일 편하게 이야기할 수 있어요. 함께 천천히 시작해 볼까요?`
                   : `${userName ? `${userName}님, ` : ""}${message}`}
                 side="below"
               />
@@ -124,7 +125,7 @@ export default function ElderResultScreen() {
 
       <View style={styles.footer}>
         <Button
-          label={mode === "baseline" ? "늘봄 시작하기" : "홈으로 돌아가기"}
+          label={mode === "baseline" ? `${companionName} 시작하기` : "홈으로 돌아가기"}
           onPress={() => navigation.navigate("ElderTabs", { screen: "ElderHome" })}
         />
       </View>

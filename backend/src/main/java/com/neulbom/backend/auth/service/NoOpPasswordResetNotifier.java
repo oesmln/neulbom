@@ -2,6 +2,7 @@ package com.neulbom.backend.auth.service;
 
 import java.time.Instant;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
  * reset token 원문은 로그나 응답에 남기지 않는다.
  */
 @Component
+@ConditionalOnProperty(name = "app.mail.enabled", havingValue = "false", matchIfMissing = true)
 public class NoOpPasswordResetNotifier implements PasswordResetNotifier {
 
     @Override

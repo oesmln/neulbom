@@ -1,10 +1,10 @@
 import React from "react";
-import { Share, StyleSheet, Text, View } from "react-native";
+import { Share, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button, Card, ScreenHeader } from "@/components/ui";
+import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { colors, fontSize, fontWeight, spacing } from "@/theme";
 

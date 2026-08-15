@@ -468,6 +468,7 @@
 
 - [x] `POST /auth/register`를 구현한다.
 - [x] 이메일 형식과 중복 이메일을 검증한다.
+- [x] `GET /auth/email/availability` 공개 API로 회원가입 전 이메일 중복을 확인하고, 최종 가입 시에도 중복을 재검증한다. (`2026-08-15`, Issue #93)
 - [x] 비밀번호 8자 이상 및 정책을 검증한다.
 - [x] 비밀번호를 BCrypt 등 단방향 해시로 저장한다.
 - [x] `role`을 허용 목록으로 제한한다.
@@ -477,14 +478,18 @@
 - [x] 로그인 성공 시 access token과 refresh token을 발급한다.
 - [x] 로그인 실패 시 이메일 존재 여부를 노출하지 않는다.
 - [x] `POST /auth/oauth/{provider}`를 구현하고 `kakao`, `naver` provider만 허용한다.
+- [x] provider 인증을 먼저 완료하고 기존 계정은 저장된 역할로 바로 로그인한다.
+- [x] 신규 provider 계정에만 일회성 pending token을 발급해 역할 선택 후 계정을 생성한다.
 - [x] provider authorization code를 서버에서 교환하고 code·provider token을 로그에 남기지 않는다.
 - [x] provider별 허용 `redirect_uri`를 환경변수 allowlist로 검증한다.
 - [x] `POST /auth/password/reset/request`를 구현하고 등록 이메일 여부를 동일한 응답으로 처리한다.
 - [x] `POST /auth/password/reset/confirm`를 구현하고 reset token을 일회성으로 폐기한다.
+- [x] `MAIL_ENABLED=true`일 때 SMTP로 비밀번호 재설정 링크와 이메일 인증 링크를 발송한다.
 - [x] 비밀번호 재설정 성공 시 기존 refresh token을 폐기한다.
 - [x] `PATCH /users/me/password`를 구현하고 현재 비밀번호·새 비밀번호 정책을 검증한다.
 - [x] 비밀번호 변경 성공 시 정책에 따라 refresh token을 폐기하고 보안 이벤트를 기록한다.
 - [x] `PasswordResetNotifier` adapter를 통해 provider 연결 지점을 분리한다.
+- [x] SMTP adapter가 비밀번호 재설정·이메일 인증 링크를 발송하도록 연결한다. (`MAIL_ENABLED=true`에서 활성화)
 - [ ] 운영 이메일 provider credential과 발신 주소를 secret manager로 연결한다.
 - [ ] 인증된 전화번호를 보유한 사용자에 대한 SMS provider와 발송 채널 정책을 연결한다.
 - [x] 동일 이메일·IP 기준 rate limit을 구현하고 환경변수로 조정 가능하게 한다.

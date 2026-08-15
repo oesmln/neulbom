@@ -51,6 +51,11 @@ export interface RegisterResponse {
   created_at: IsoInstant;
 }
 
+export interface EmailAvailabilityResponse {
+  email: string;
+  available: boolean;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;
@@ -61,6 +66,19 @@ export interface OAuthLoginRequest {
   redirect_uri: string;
   role?: Role;
   state?: string;
+}
+
+export interface OAuthCompleteRequest {
+  pending_token: string;
+  role: Role;
+}
+
+export interface OAuthPrepareResponse {
+  status: "authenticated" | "role_required";
+  tokens: AuthTokenResponse | null;
+  pending_token: string | null;
+  email: string | null;
+  display_name: string | null;
 }
 
 export interface AuthTokenResponse {

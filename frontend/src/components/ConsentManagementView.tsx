@@ -1,6 +1,8 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+import { SentenceText as Text } from "@/components/ui";
 
 import { users } from "@/api";
 import { ApiError, apiErrorMessage } from "@/api/errors";
@@ -35,6 +37,7 @@ function latestByType(items: ConsentResponse[]) {
 
 export default function ConsentManagementView({ userId }: { userId: Uuid | null }) {
   const request = useApi(() => users.consents(userId as string), [userId], { enabled: !!userId });
+  const [expanded, setExpanded] = React.useState(false);
   const [busyType, setBusyType] = React.useState<ConsentType | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const latest = latestByType(request.data?.consents ?? []);
@@ -61,47 +64,67 @@ export default function ConsentManagementView({ userId }: { userId: Uuid | null 
 
   return (
     <View style={styles.group}>
-      <Text style={styles.groupTitle}>동의 내역 관리</Text>
-      <Text style={styles.note}>필수 동의는 서비스 이용을 위해 유지되며, 선택 동의는 언제든 바꿀 수 있어요.</Text>
-      {request.loading && !request.data ? <Text style={styles.note}>동의 내역을 불러오는 중이에요.</Text> : null}
-      {message ? <Text style={styles.error}>{message}</Text> : null}
-      {CONSENTS.map((item) => {
-        const agreed = latest.get(item.type)?.agreed ?? false;
-        return (
-          <View key={item.type} style={styles.row}>
-            <View style={styles.copy}>
-              <Text style={styles.title}>{item.title}{item.required ? " (필수)" : ""}</Text>
-              <Text style={styles.description}>{item.description}</Text>
-            </View>
-            {item.editable ? (
-              <Pressable
-                onPress={() => void toggle(item.type)}
-                disabled={busyType !== null}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: agreed, disabled: busyType !== null }}
-                style={[styles.switch, agreed && styles.switchOn]}
-              >
-                <View style={[styles.knob, agreed && styles.knobOn]} />
-              </Pressable>
-            ) : (
-              <Ionicons name={agreed ? "checkmark-circle" : "ellipse-outline"} size={22} color={agreed ? colors.primary : colors.mutedForeground} />
-            )}
-          </View>
-        );
-      })}
+      <Pressable
+        onPress={() => setExpanded((current) => !current)}
+        accessibilityRole="button"
+        accessibilityLabel="동의 내역 관리"
+        accessibilityState={{ expanded }}
+        style={styles.header}
+      >
+        <Text style={styles.groupTitle}>동의 내역 관리</Text>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={22}
+          color={colors.mutedForeground}
+        />
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.details}>
+          <Text style={styles.note}>필수 동의는 서비스 이용을 위해 유지되며, 선택 동의는 언제든 바꿀 수 있어요.</Text>
+          {request.loading && !request.data ? <Text style={styles.note}>동의 내역을 불러오는 중이에요.</Text> : null}
+          {message ? <Text style={styles.error}>{message}</Text> : null}
+          {CONSENTS.map((item) => {
+            const agreed = latest.get(item.type)?.agreed ?? false;
+            return (
+              <View key={item.type} style={styles.row}>
+                <View style={styles.copy}>
+                  <Text style={styles.title}>{item.title}{item.required ? " (필수)" : ""}</Text>
+                  <Text style={styles.description}>{item.description}</Text>
+                </View>
+                {item.editable ? (
+                  <Pressable
+                    onPress={() => void toggle(item.type)}
+                    disabled={busyType !== null}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: agreed, disabled: busyType !== null }}
+                    style={[styles.switch, agreed && styles.switchOn]}
+                  >
+                    <View style={[styles.knob, agreed && styles.knobOn]} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name={agreed ? "checkmark-circle" : "ellipse-outline"} size={22} color={agreed ? colors.primary : colors.mutedForeground} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.lg },
-  groupTitle: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold, color: colors.mutedForeground, letterSpacing: 0.7, marginBottom: spacing.sm },
-  note: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19, marginBottom: spacing.sm },
-  error: { fontSize: fontSize.caption, color: colors.destructive, lineHeight: 19, marginBottom: spacing.sm },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
-  copy: { flex: 1, gap: 2 },
-  title: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
-  description: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 18 },
+  group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg, overflow: "hidden" },
+  header: { minHeight: 72, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  groupTitle: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.semibold, color: colors.foreground },
+  details: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
+  note: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22, marginBottom: spacing.md },
+  error: { fontSize: fontSize.body, color: colors.destructive, lineHeight: 22, marginBottom: spacing.md },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  copy: { flex: 1, gap: spacing.xs },
+  title: { fontSize: fontSize.bodyLg, lineHeight: 23, fontWeight: fontWeight.semibold, color: colors.foreground },
+  description: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
   switch: { width: 44, height: 26, borderRadius: 13, justifyContent: "center", backgroundColor: colors.switchBackground },
   switchOn: { backgroundColor: colors.primary },
   knob: { position: "absolute", left: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.white },

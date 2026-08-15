@@ -1,8 +1,9 @@
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
+import { SentenceText as Text } from "@/components/ui";
 
 export default function VoicePlaybackButton({
   enabled,

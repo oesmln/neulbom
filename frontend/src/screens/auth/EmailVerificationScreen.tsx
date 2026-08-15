@@ -1,11 +1,11 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { auth, guardian } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
-import { Button, Card, ScreenHeader } from "@/components/ui";
+import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { saveRequiredSignupConsents } from "@/screens/auth/signupConsents";

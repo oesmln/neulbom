@@ -16,6 +16,18 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
     clean-disabled: true
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: ${MAIL_SMTP_CONNECTION_TIMEOUT:5000}
+      mail.smtp.timeout: ${MAIL_SMTP_TIMEOUT:5000}
+      mail.smtp.writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -100,6 +112,11 @@ app:
       email-window: ${PASSWORD_RESET_EMAIL_RATE_LIMIT_WINDOW:15m}
       ip-max-attempts: ${PASSWORD_RESET_IP_RATE_LIMIT_MAX_ATTEMPTS:10}
       ip-window: ${PASSWORD_RESET_IP_RATE_LIMIT_WINDOW:1h}
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:}
+    password-reset-url: ${PASSWORD_RESET_URL:http://localhost:3000/reset-password}
+    email-verification-url: ${EMAIL_VERIFICATION_URL:http://localhost:3000/email-verification}
   oauth:
     kakao:
       client-id: ${KAKAO_CLIENT_ID:}
@@ -113,7 +130,6 @@ app:
       token-uri: ${NAVER_TOKEN_URI:https://nid.naver.com/oauth2.0/token}
       user-info-uri: ${NAVER_USER_INFO_URI:https://openapi.naver.com/v1/nid/me}
       allowed-redirect-uris: ${NAVER_ALLOWED_REDIRECT_URIS:}
-
 logging:
   level:
     root: INFO

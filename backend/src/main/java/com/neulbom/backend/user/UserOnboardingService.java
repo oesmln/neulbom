@@ -15,6 +15,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.game.CharacterEntity;
+import com.neulbom.backend.game.CharacterRepository;
 import com.neulbom.backend.user.api.ConsentRequest;
 import com.neulbom.backend.user.api.ConsentResponse;
 import com.neulbom.backend.user.api.ConsentsResponse;
@@ -52,6 +54,7 @@ public class UserOnboardingService {
     private final UserPreferenceRepository userPreferenceRepository;
     private final VoiceProfileRepository voiceProfileRepository;
     private final ConsentRepository consentRepository;
+    private final CharacterRepository characterRepository;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final UuidGenerator uuidGenerator;
@@ -62,6 +65,7 @@ public class UserOnboardingService {
             UserPreferenceRepository userPreferenceRepository,
             VoiceProfileRepository voiceProfileRepository,
             ConsentRepository consentRepository,
+            CharacterRepository characterRepository,
             ObjectMapper objectMapper,
             Clock clock,
             UuidGenerator uuidGenerator
@@ -71,6 +75,7 @@ public class UserOnboardingService {
         this.userPreferenceRepository = userPreferenceRepository;
         this.voiceProfileRepository = voiceProfileRepository;
         this.consentRepository = consentRepository;
+        this.characterRepository = characterRepository;
         this.objectMapper = objectMapper;
         this.clock = clock;
         this.uuidGenerator = uuidGenerator;
@@ -132,6 +137,7 @@ public class UserOnboardingService {
                 request.characterName(),
                 now);
         userRepository.save(user);
+        syncCharacterName(user, request.characterName(), now);
         return new UserProfileUpdateResponse(
                 user.getId(),
                 user.isProfileCompleted(),
@@ -140,6 +146,16 @@ public class UserOnboardingService {
                 user.isBaselineCompleted(),
                 user.getCharacterName(),
                 user.getUpdatedAt());
+    }
+
+    private void syncCharacterName(UserEntity user, String requestedName, Instant now) {
+        if (requestedName == null) return;
+        String normalized = normalizeOptional(requestedName);
+        if (normalized == null) return;
+        CharacterEntity character = characterRepository.findById(user.getId()).orElseGet(() ->
+                new CharacterEntity(user.getId(), 1, normalized, "egg", 0, 100, null, "[]", now, now));
+        character.rename(normalized, now);
+        characterRepository.save(character);
     }
 
     @Transactional

@@ -50,10 +50,11 @@
 - [ ] `401` → `POST /auth/refresh` 자동 재시도 (동시 요청 큐잉, 무한 루프 차단)
 - [ ] refresh 실패 시 전역 로그아웃 → Splash 복귀
 - [ ] `POST /auth/register` — **회원가입 3단계 순서 준수**
-      이름·이메일·비밀번호 입력 → 초대 코드 입력/건너뛰기 → 유형 선택 → 그때 `role`과 함께 1회 호출
+      이름·이메일·비밀번호 입력 → 유형 선택 → 고령자라면 초대 코드 입력/건너뛰기 → 그때 `role`과 함께 1회 호출
       (첫 화면 입력만으로 계정을 만들지 않는다. 중간 값은 메모리에만 임시 보관)
 - [ ] `POST /auth/login`
-- [x] `POST /auth/oauth/{kakao|naver}` — AuthSession authorization code 교환, state 검증, `redirect_uri` 사전 등록값과 정확히 일치 (#60)
+- [x] `POST /auth/oauth/{kakao|naver}/prepare`·`/complete` — provider 인증 후 기존 계정은 저장된 역할로 진입하고 신규 계정만 역할 선택 (#56)
+      Expo Web은 `auth/callback/:provider` 같은 탭 콜백 화면에서 code/state를 검증하고, Native는 AuthSession 콜백을 사용한다.
 - [ ] `POST /auth/password/reset/request` / `confirm`
 - [ ] `POST /auth/logout`, `PATCH /users/me/password`, `DELETE /users/me`
 - [ ] `profile_completed` 값으로 초기 정보 입력 화면 분기

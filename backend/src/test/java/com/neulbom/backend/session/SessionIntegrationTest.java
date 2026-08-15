@@ -263,6 +263,38 @@ class SessionIntegrationTest {
     }
 
     @Test
+    void emotionalQaSessionUsesFiveQuestions() throws Exception {
+        UserEntity elder = saveUser("emotional-qa-five", "elder");
+        Instant now = Instant.now();
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "analysis", true, now, "test-v1", now));
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "voice_collection", true, now, "test-v1", now));
+
+        String sessionBody = mockMvc.perform(post("/api/v1/sessions")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.total_questions").value(5))
+                .andReturn().getResponse().getContentAsString();
+        UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(sessionBody).get("session_id").asText());
+
+        mockMvc.perform(get("/api/v1/questions/daily")
+                        .with(jwtFor(elder))
+                        .param("user_id", elder.getId().toString())
+                        .param("session_type", "emotional_qa"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions.length()").value(5))
+                .andExpect(jsonPath("$.questions[4].order").value(5));
+
+        mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void baselineSessionRequiresAnalysisAndVoiceConsents() throws Exception {
         UserEntity elder = saveUser("baseline-consent-required", "elder");
 

@@ -112,6 +112,11 @@ class UserOnboardingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.onboarding_step").value("character_name"))
                 .andExpect(jsonPath("$.character_name").value("봄이"));
+
+        mockMvc.perform(get("/api/v1/character/{userId}", user.getId())
+                        .with(jwtFor(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.display_name").value("봄이"));
     }
 
     @Test

@@ -1,5 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { notifications as notificationsApi } from "@/api";
@@ -7,6 +8,7 @@ import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { notificationTime } from "@/utils/format";
 import type { NotificationResponse, Uuid } from "@/api/types";
+import type { GuardianNav } from "@/navigation/types";
 import { colors, guardian, onHeader, spacing, fontSize, fontWeight } from "@/theme";
 import {
   Screen,
@@ -18,6 +20,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  SentenceText as Text,
 } from "@/components/ui";
 
 /**
@@ -37,6 +40,7 @@ function badgeFor(item: NotificationResponse) {
 }
 
 export default function GuardianNotificationsScreen() {
+  const navigation = useNavigation<GuardianNav>();
   const { userId, role } = useApp();
   const [items, setItems] = React.useState<NotificationResponse[]>([]);
   const [actionError, setActionError] = React.useState<string | null>(null);
@@ -82,6 +86,7 @@ export default function GuardianNotificationsScreen() {
     <ScreenHeader
       color={guardian.blue}
       title="알림"
+      onBack={() => navigation.goBack()}
       right={
         hasUnread ? (
           <Pressable

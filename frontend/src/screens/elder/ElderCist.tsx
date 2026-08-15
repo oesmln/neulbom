@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,7 +13,7 @@ import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
 import type { QuestionResponse, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Badge, Button, ErrorState, LoadingState, ProgressBar } from "@/components/ui";
+import { Badge, Button, ErrorState, LoadingState, ProgressBar, SentenceText as Text } from "@/components/ui";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 
 /**

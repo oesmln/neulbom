@@ -53,7 +53,7 @@ class DatabaseMigrationTest {
 
         assertThat(migrationCount).isGreaterThanOrEqualTo(10);
         assertThat(voiceProfileCount).isEqualTo(2);
-        assertThat(questionCount).isEqualTo(8);
+        assertThat(questionCount).isEqualTo(10);
         assertThat(coreTableCount).isEqualTo(34);
     }
 

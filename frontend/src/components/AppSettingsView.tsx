@@ -1,12 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { useApp } from "@/store/AppContext";
 import ConsentManagementView from "@/components/ConsentManagementView";
-import { Screen, ScreenHeader, Caption } from "@/components/ui";
+import { Screen, ScreenHeader, Caption, SentenceText as Text } from "@/components/ui";
 import {
   currentDisplaySettings,
   saveDisplaySettings,

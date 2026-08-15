@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,7 +15,7 @@ import type {
   DashboardTask,
 } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, cognitiveStages } from "@/theme";
-import { Badge, Card, ErrorState, LoadingState } from "@/components/ui";
+import { Badge, Card, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
 
@@ -23,8 +23,8 @@ import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
  * Elder home — everything on this screen comes from `GET /dashboard/{user_id}`.
  *
  * Nothing here is derived locally: the greeting card reads
- * `conversation_streak_days`, the two feature cards are `today_tasks`, and the
- * status card renders `cognitive_activity` exactly as the server wrote it.
+ * `conversation_streak_days`, the activity cards are the eligible `today_tasks`,
+ * and the status card renders `cognitive_activity` exactly as the server wrote it.
  */
 function greetingFor(hour: number) {
   if (hour < 12) return "좋은 아침이에요";
@@ -54,9 +54,13 @@ function taskBadge(task: DashboardTask): { label: string; color: string; backgro
   return { label: "3가지 게임", color: colors.success, background: colors.successLight };
 }
 
+/** The diary status is shown in its own card, so do not duplicate today's diary task. */
+function isTodayDiaryTask(task: DashboardTask): boolean {
+  return task.task_type === "diary" || task.title === "오늘의 일기";
+}
+
 /**
- * Yesterday's diary, rendered as one more feature card alongside 정서 문답 and
- * 두뇌 게임 — same `Card`, same row layout, same badge treatment.
+ * Latest diary status, rendered separately from today's activity cards.
  *
  * The status wording is the server's — `display_label` and `message` come from
  * `latest_diary`, and only the badge colour is decided here. The prototype
@@ -132,7 +136,7 @@ export default function ElderHomeScreen() {
           ) : null}
 
           {data
-            ? data.today_tasks.map((task) => {
+            ? data.today_tasks.filter((task) => !isTodayDiaryTask(task)).map((task) => {
                 const badge = taskBadge(task);
                 const route = tabRoute(task.target_route);
                 return (

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Pressable, Linking } from "react-native";
+import { View, StyleSheet, Pressable, Linking } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -28,6 +28,7 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  SentenceText as Text,
 } from "@/components/ui";
 import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 
