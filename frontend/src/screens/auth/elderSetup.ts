@@ -40,4 +40,9 @@ export async function persistElderSetup(
     await saveConsent(userId, "report_sharing", agreedAt);
     await guardian.acceptInvitation(inviteCode, true);
   }
+
+  // Profile fields are optional in the UI. Mark the profile/setup handoff only
+  // after all required consents and invitation sharing have been persisted so
+  // a later login resumes at onboarding instead of asking for consent again.
+  await users.updateProfile(userId, { onboarding_step: "intro" });
 }

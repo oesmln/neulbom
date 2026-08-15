@@ -25,7 +25,7 @@ const REDIRECT_URIS: Record<Provider, string> = {
 
 function routeAfterAuth(tokens: AuthTokenResponse) {
   if (tokens.role === "guardian") return "Guardian" as const;
-  if (!tokens.profile_completed) return "ElderProfile" as const;
+  if (!tokens.profile_completed && tokens.onboarding_step === "not_started") return "ElderProfile" as const;
   return tokens.onboarding_completed ? "Elder" as const : "Onboarding" as const;
 }
 
