@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderStackParamList, ElderTabParamList } from "@/navigation/types";
-import { useApp } from "@/store/AppContext";
 import { colors, fontWeight, sizes } from "@/theme";
 
 import ElderHomeScreen from "@/screens/elder/ElderHome";
@@ -112,12 +111,10 @@ function ElderTabs() {
 }
 
 export default function ElderNavigator() {
-  const { baselineCompleted } = useApp();
   return (
-    // Baseline screening is shown only until the server/session state says it
-    // has been completed. Returning elders therefore land on the tabs instead
-    // of being asked to choose a role or repeat the initial test.
-    <Stack.Navigator initialRouteName={baselineCompleted ? "ElderTabs" : "ElderCist"} screenOptions={{ headerShown: false }}>
+    // Entering the elder area means an authenticated login and must always
+    // land on home. New sign-ups enter CIST explicitly from Onboarding.
+    <Stack.Navigator initialRouteName="ElderTabs" screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ElderCist" component={ElderCistScreen} />
       <Stack.Screen name="ElderTabs" component={ElderTabs} />
       <Stack.Screen name="ElderResult" component={ElderResultScreen} />

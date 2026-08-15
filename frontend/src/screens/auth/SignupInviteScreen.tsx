@@ -16,14 +16,14 @@ const KEYPAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"] as 
 export default function SignupInviteScreen() {
   const navigation = useNavigation<RootNav>();
   const route = useRoute<RouteProp<RootStackParamList, "SignupInvite">>();
-  const signup = route.params.signup;
+  const signup = route.params?.signup;
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const goToProfile = (inviteCode?: string) => {
     navigation.navigate("ElderProfile", {
-      signup: inviteCode ? { ...signup, inviteCode } : signup,
+      signup: signup ? (inviteCode ? { ...signup, inviteCode } : signup) : undefined,
       inviteCode,
     });
   };
@@ -47,8 +47,8 @@ export default function SignupInviteScreen() {
       <ScreenHeader
         title="초대 코드 입력"
         subtitle="보호자에게 받은 코드가 있다면 입력해 주세요."
-        onBack={() => navigation.goBack()}
-        backLabel="사용자 유형"
+        onBack={signup ? () => navigation.goBack() : undefined}
+        backLabel={signup ? "사용자 유형" : undefined}
       />
 
       <View style={styles.body}>

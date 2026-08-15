@@ -13,6 +13,7 @@ import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
 import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
+import { saveRequiredSignupConsents } from "./signupConsents";
 
 /**
  * Sign-in, sign-up and password reset.
@@ -26,7 +27,7 @@ import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
  * and the role picker belong to registration and must not reappear at every
  * sign-in.
  */
-type Step = "form" | "socialRole" | "forgot" | "forgotSent";
+type Step = "form" | "socialConsent" | "socialRole" | "forgot" | "forgotSent";
 type Tab = "login" | "signup";
 type SocialProvider = "kakao" | "naver";
 type SignupConsentKey = "terms" | "privacy";
@@ -109,7 +110,7 @@ export default function LoginScreen() {
   React.useEffect(() => {
     const params = route.params;
     if (!params) return;
-    setStep(params.socialPendingToken ? "socialRole" : "form");
+    setStep(params.socialPendingToken ? "socialConsent" : "form");
     setTab(params.mode ?? "login");
     setMessage(null);
     setSocialProvider(params.socialProvider ?? null);
@@ -118,13 +119,13 @@ export default function LoginScreen() {
     setEmailCheckState("idle");
     setCheckedEmail("");
     setEmailCheckMessage(null);
+    if (params.socialPendingToken) {
+      setSignupConsents({ terms: false, privacy: false });
+    }
   }, [route.params]);
 
-  const routeAfterAuth = (tokens: AuthTokenResponse) => {
-    if (tokens.role === "guardian") return "Guardian" as const;
-    if (!tokens.profile_completed && tokens.onboarding_step === "not_started") return "ElderProfile" as const;
-    return tokens.onboarding_completed ? "Elder" as const : "Onboarding" as const;
-  };
+  const routeAfterLogin = (tokens: AuthTokenResponse) =>
+    tokens.role === "guardian" ? "Guardian" as const : "Elder" as const;
 
   const emailLooksValid = email.includes("@") && email.includes(".");
   const passwordMatches = tab === "login" || password === passwordConfirmation;
@@ -171,7 +172,7 @@ export default function LoginScreen() {
         index: 0,
         routes: [
           {
-            name: routeAfterAuth(tokens),
+            name: routeAfterLogin(tokens),
           },
         ],
       });
@@ -318,7 +319,7 @@ export default function LoginScreen() {
       await signIn(prepared.tokens);
       navigation.reset({
         index: 0,
-        routes: [{ name: routeAfterAuth(prepared.tokens) }],
+        routes: [{ name: routeAfterLogin(prepared.tokens) }],
       });
     } catch (cause) {
       setMessage(oauthErrorMessage(cause, config.label));
@@ -337,9 +338,14 @@ export default function LoginScreen() {
         role,
       });
       await signIn(tokens);
+      if (!tokens.is_new_user) {
+        navigation.reset({ index: 0, routes: [{ name: routeAfterLogin(tokens) }] });
+        return;
+      }
+      await saveRequiredSignupConsents(tokens.user_id);
       navigation.reset({
         index: 0,
-        routes: [{ name: routeAfterAuth(tokens) }],
+        routes: [{ name: role === "elder" ? "SignupInvite" : "Guardian" }],
       });
     } catch (cause) {
       setMessage(oauthErrorMessage(cause, socialProvider === "naver" ? "네이버" : "카카오"));
@@ -347,6 +353,64 @@ export default function LoginScreen() {
       setBusy(false);
     }
   };
+
+  if (step === "socialConsent" && socialProvider) {
+    const provider = SOCIAL_CONFIG[socialProvider];
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <ScreenHeader
+          title={`${provider.label} 회원가입 동의`}
+          subtitle="처음 가입할 때 한 번만 확인해요."
+          onBack={() => {
+            setStep("form");
+            setSocialProvider(null);
+            setSocialPendingToken(null);
+            setSocialDisplayName(null);
+            setMessage(null);
+          }}
+          backLabel="로그인"
+        />
+        <ScrollView contentContainerStyle={styles.socialConsentBody}>
+          <View style={styles.signupConsentCard}>
+            <Text style={styles.signupConsentHeading}>가입에 필요한 동의</Text>
+            <Text style={styles.signupConsentDescription}>
+              SNS 인증을 완료했더라도 늘봄의 필수 약관 동의는 최초 가입 시 한 번 필요해요. 동의 내역은 저장되며 다음 SNS 로그인부터 다시 묻지 않아요.
+            </Text>
+            {SIGNUP_CONSENT_ITEMS.map((item) => {
+              const checked = signupConsents[item.key];
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setSignupConsents((current) => ({ ...current, [item.key]: !current[item.key] }))}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={`${item.title} (필수)`}
+                  style={styles.signupConsentRow}
+                >
+                  <Ionicons
+                    name={checked ? "checkbox" : "square-outline"}
+                    size={24}
+                    color={checked ? colors.primary : colors.mutedForeground}
+                  />
+                  <View style={styles.signupConsentCopy}>
+                    <Text style={styles.signupConsentTitle}>{item.title} (필수)</Text>
+                    <Text style={styles.signupConsentBody}>{item.body}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+          {message ? <Text style={styles.errorText}>{message}</Text> : null}
+          <Button
+            label="동의하고 사용자 유형 선택"
+            disabled={!signupConsentsAccepted || !socialPendingToken}
+            onPress={() => setStep("socialRole")}
+            size="lg"
+          />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   if (step === "socialRole" && socialProvider) {
     const provider = SOCIAL_CONFIG[socialProvider];
@@ -360,13 +424,10 @@ export default function LoginScreen() {
               : "처음 이용할 역할을 선택해 주세요."
           }
           onBack={() => {
-            setStep("form");
-            setSocialProvider(null);
-            setSocialPendingToken(null);
-            setSocialDisplayName(null);
+            setStep("socialConsent");
             setMessage(null);
           }}
-          backLabel="로그인"
+          backLabel="필수 동의"
         />
 
         <View style={[styles.body, styles.socialRoleBody]}>
@@ -645,7 +706,7 @@ export default function LoginScreen() {
           <View style={styles.signupConsentCard}>
             <Text style={styles.signupConsentHeading}>가입에 필요한 동의</Text>
             <Text style={styles.signupConsentDescription}>
-              계정을 만들려면 아래 필수 항목에 동의해 주세요. 고령자 기능에 필요한 동의는 역할 선택 후 별도로 안내해요.
+              계정을 만들려면 아래 필수 항목에 동의해 주세요. SNS 회원가입도 같은 필수 약관을 최초 1회 확인하며, 고령자 기능 동의는 역할 선택 후 별도로 안내해요.
             </Text>
             {SIGNUP_CONSENT_ITEMS.map((item) => {
               const checked = signupConsents[item.key];
@@ -893,6 +954,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   socialRoleBody: { justifyContent: "center" },
+  socialConsentBody: { flexGrow: 1, padding: spacing.xl, gap: spacing.lg, justifyContent: "center" },
   socialRoleCard: {
     minHeight: 96,
     flexDirection: "row",
