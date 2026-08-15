@@ -4,13 +4,12 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, apiErrorMessage, auth, users } from "@/api";
+import { ApiError, apiErrorMessage, auth } from "@/api";
 import type {
   AuthTokenResponse,
   ConsentType,
   UserPreferenceUpdateRequest,
   UserProfileUpdateRequest,
-  VoiceProfileResponse,
 } from "@/api/types";
 import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
@@ -94,8 +93,6 @@ export default function ElderProfileScreen() {
   const [hearingStatus, setHearingStatus] = React.useState<string | null>(null);
   const [communicationDifficulty, setCommunicationDifficulty] = React.useState<CommunicationChoice>(null);
   const [smartphoneSkill, setSmartphoneSkill] = React.useState<string | null>(null);
-  const [voiceProfileId, setVoiceProfileId] = React.useState<string | null>(null);
-  const [voiceProfiles, setVoiceProfiles] = React.useState<VoiceProfileResponse[]>([]);
   const [selectedConsents, setSelectedConsents] = React.useState<Set<ConsentType>>(new Set());
   const [guardianConsentAccepted, setGuardianConsentAccepted] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -115,17 +112,6 @@ export default function ElderProfileScreen() {
       navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       return;
     }
-
-    let cancelled = false;
-    void users
-      .voiceProfiles()
-      .then((response) => {
-        if (!cancelled) setVoiceProfiles(response.voice_profiles);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
   }, [navigation, pendingSignup, role, userId]);
 
   const toggleConsent = (type: ConsentType) => {
@@ -193,7 +179,6 @@ export default function ElderProfileScreen() {
 
       const preferences: UserPreferenceUpdateRequest = {};
       if (hearingSide) preferences.preferred_hearing_side = hearingSide;
-      if (voiceProfileId) preferences.voice_profile_id = voiceProfileId;
 
       elderSetup = {
         profile,
@@ -354,16 +339,6 @@ export default function ElderProfileScreen() {
           <ChoiceGrid options={SMARTPHONE_OPTIONS} value={smartphoneSkill} onChange={setSmartphoneSkill} />
         </Section>
 
-        {voiceProfiles.length > 0 ? (
-          <Section title="AI 안내 음성">
-            <ChoiceGrid
-              options={voiceProfiles.map((profile) => ({ value: profile.voice_profile_id, label: profile.name }))}
-              value={voiceProfileId}
-              onChange={setVoiceProfileId}
-            />
-          </Section>
-        ) : null}
-
         <Card style={styles.consentCard}>
           <Text style={styles.sectionTitle}>고령자 기능에 필요한 동의</Text>
           <Text style={styles.sectionDescription}>
@@ -516,11 +491,11 @@ const styles = StyleSheet.create({
   choiceSelected: { borderColor: colors.primary, backgroundColor: colors.secondary },
   choiceLabel: { fontSize: fontSize.body, color: colors.foreground },
   choiceLabelSelected: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
-  consentCard: { gap: spacing.xs, padding: spacing.lg },
-  consentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: spacing.sm },
-  consentCopy: { flex: 1, gap: 2 },
-  consentTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
-  consentBody: { fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 19 },
+  consentCard: { gap: spacing.md, padding: spacing.xl },
+  consentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md },
+  consentCopy: { flex: 1, gap: spacing.xs },
+  consentTitle: { fontSize: fontSize.bodyLg, lineHeight: 23, fontWeight: fontWeight.semibold, color: colors.foreground },
+  consentBody: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
   error: { color: colors.destructive, fontSize: fontSize.caption, lineHeight: 20 },
   loginLink: { color: colors.primary, fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
 });
