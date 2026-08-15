@@ -4,14 +4,16 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, apiErrorMessage, auth } from "@/api";
+import { ApiError, apiErrorMessage, auth, users } from "@/api";
 import type {
   AuthTokenResponse,
+  ConsentResponse,
   ConsentType,
   UserPreferenceUpdateRequest,
   UserProfileUpdateRequest,
 } from "@/api/types";
 import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
+import { useApi } from "@/hooks/useApi";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { persistElderSetup } from "@/screens/auth/elderSetup";
@@ -48,6 +50,21 @@ const OPTIONAL_CONSENTS: Array<{ type: ConsentType; title: string; body: string 
     body: "비식별 정보를 연구 목적으로 활용해요. (선택)",
   },
 ];
+
+const PROFILE_CONSENT_ITEMS = [...REQUIRED_CONSENTS, ...OPTIONAL_CONSENTS];
+
+function latestAgreedConsentTypes(items: ConsentResponse[]): Set<ConsentType> {
+  const latest = new Map<ConsentType, ConsentResponse>();
+  for (const item of items) {
+    if (!latest.has(item.consent_type)) latest.set(item.consent_type, item);
+  }
+
+  return new Set(
+    PROFILE_CONSENT_ITEMS
+      .filter((consent) => latest.get(consent.type)?.agreed === true)
+      .map((consent) => consent.type),
+  );
+}
 
 const GENDER_OPTIONS = [
   { value: "female", label: "여성" },
@@ -99,8 +116,23 @@ export default function ElderProfileScreen() {
   const [message, setMessage] = React.useState<string | null>(null);
   const [showLoginLink, setShowLoginLink] = React.useState(false);
 
+  const existingUser = Boolean(userId && !pendingSignup);
+  const consentRequest = useApi(
+    () => users.consents(userId as string),
+    [userId],
+    { enabled: existingUser },
+  );
+  const savedConsentTypes = React.useMemo(
+    () => latestAgreedConsentTypes(consentRequest.data?.consents ?? []),
+    [consentRequest.data],
+  );
+  const consentDataReady = !existingUser || consentRequest.data !== null;
+  const consentLoadFailed = existingUser && Boolean(consentRequest.error) && !consentRequest.data;
+
+  const hasConsent = (type: ConsentType) => selectedConsents.has(type) || savedConsentTypes.has(type);
   const requiredAccepted =
-    REQUIRED_CONSENTS.every((consent) => selectedConsents.has(consent.type)) &&
+    consentDataReady &&
+    REQUIRED_CONSENTS.every((consent) => hasConsent(consent.type)) &&
     (!inviteCode || guardianConsentAccepted);
 
   React.useEffect(() => {
@@ -115,6 +147,9 @@ export default function ElderProfileScreen() {
   }, [navigation, pendingSignup, role, userId]);
 
   const toggleConsent = (type: ConsentType) => {
+    // Existing consent is already valid for this setup. It can be managed
+    // later from settings; do not turn it back into a required checkbox here.
+    if (savedConsentTypes.has(type)) return;
     setSelectedConsents((current) => {
       const next = new Set(current);
       if (next.has(type)) next.delete(type);
@@ -135,6 +170,12 @@ export default function ElderProfileScreen() {
     if ((!userId && !pendingSignup) || busy) return;
     setMessage(null);
     setShowLoginLink(false);
+    if (!consentDataReady) {
+      setMessage(consentLoadFailed
+        ? "기존 동의 내역을 확인하지 못했어요. 잠시 후 다시 시도해 주세요."
+        : "기존 동의 내역을 확인하고 있어요. 잠시만 기다려 주세요.");
+      return;
+    }
     if (!requiredAccepted) {
       setMessage(inviteCode
         ? "필수 동의와 보호자 공유 동의를 모두 확인해 주세요."
@@ -344,12 +385,19 @@ export default function ElderProfileScreen() {
           <Text style={styles.sectionDescription}>
             아래 동의는 고령자 기능을 사용하기 위해 필요한 항목이에요. 회원가입 때 동의한 약관과는 별도로 확인해요.
           </Text>
+          {existingUser && consentRequest.loading && !consentRequest.data ? (
+            <Text style={styles.sectionDescription}>기존 동의 내역을 확인하고 있어요.</Text>
+          ) : null}
+          {consentLoadFailed ? (
+            <Text style={styles.error}>기존 동의 내역을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</Text>
+          ) : null}
           {REQUIRED_CONSENTS.map((consent) => (
             <ConsentRow
               key={consent.type}
               title={`${consent.title} (필수)`}
               body={consent.body}
-              checked={selectedConsents.has(consent.type)}
+              checked={hasConsent(consent.type)}
+              disabled={savedConsentTypes.has(consent.type) || !consentDataReady}
               onPress={() => toggleConsent(consent.type)}
             />
           ))}
@@ -358,7 +406,8 @@ export default function ElderProfileScreen() {
               key={consent.type}
               title={consent.title}
               body={consent.body}
-              checked={selectedConsents.has(consent.type)}
+              checked={hasConsent(consent.type)}
+              disabled={savedConsentTypes.has(consent.type) || !consentDataReady}
               onPress={() => toggleConsent(consent.type)}
             />
           ))}
@@ -384,7 +433,7 @@ export default function ElderProfileScreen() {
         ) : null}
         <Button
           label={busy ? "저장하고 있어요" : "저장하고 계속하기"}
-          disabled={busy || !requiredAccepted}
+          disabled={busy || !requiredAccepted || !consentDataReady}
           onPress={() => void submit()}
           size="lg"
         />
@@ -436,20 +485,23 @@ function ConsentRow({
   title,
   body,
   checked,
+  disabled = false,
   onPress,
 }: {
   title: string;
   body: string;
   checked: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
+      accessibilityState={{ checked, disabled }}
       accessibilityLabel={title}
-      style={styles.consentRow}
+      style={[styles.consentRow, disabled && styles.consentRowDisabled]}
     >
       <Ionicons name={checked ? "checkbox" : "square-outline"} size={24} color={checked ? colors.primary : colors.mutedForeground} />
       <View style={styles.consentCopy}>
@@ -493,6 +545,7 @@ const styles = StyleSheet.create({
   choiceLabelSelected: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
   consentCard: { gap: spacing.md, padding: spacing.xl },
   consentRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.md },
+  consentRowDisabled: { opacity: 0.75 },
   consentCopy: { flex: 1, gap: spacing.xs },
   consentTitle: { fontSize: fontSize.bodyLg, lineHeight: 23, fontWeight: fontWeight.semibold, color: colors.foreground },
   consentBody: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
