@@ -84,8 +84,15 @@ public class OAuthAccountEntity {
     }
 
     public void updateProfile(String providerEmail, String providerDisplayName, Instant updatedAt) {
-        this.providerEmail = providerEmail;
-        this.providerDisplayName = providerDisplayName;
+        // Naver can omit a previously granted/available email when the user
+        // declines that profile field on a later consent screen. Do not erase
+        // the last known value while refreshing an already linked account.
+        if (providerEmail != null && !providerEmail.isBlank()) {
+            this.providerEmail = providerEmail;
+        }
+        if (providerDisplayName != null && !providerDisplayName.isBlank()) {
+            this.providerDisplayName = providerDisplayName;
+        }
         this.updatedAt = updatedAt;
     }
 }

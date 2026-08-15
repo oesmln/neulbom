@@ -215,6 +215,7 @@ public class AuthService {
             oauthAccountRepository.save(existing.oauthAccount());
             return issueTokens(existing.user(), false);
         }
+        requireEmailForNewOAuthAccount(profile);
         if (request.role() == null || request.role().isBlank()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "가입 역할이 필요합니다.", "신규 소셜 계정은 role을 함께 보내야 합니다.");
         }
@@ -236,6 +237,7 @@ public class AuthService {
             oauthAccountRepository.save(existing.oauthAccount());
             return OAuthPrepareResponse.authenticated(issueTokens(existing.user(), false));
         }
+        requireEmailForNewOAuthAccount(profile);
 
         String pendingToken = tokenGenerator.generate();
         oauthPendingLoginRepository.save(new OAuthPendingLoginEntity(
@@ -409,10 +411,23 @@ public class AuthService {
         if (!normalizedProvider.equals(profile.provider())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "소셜 provider 정보가 일치하지 않습니다.");
         }
+        if (profile.providerUserId() == null || profile.providerUserId().isBlank()) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "소셜 provider 사용자 식별자를 확인할 수 없습니다.");
+        }
+        return profile;
+    }
+
+    /**
+     * A provider may omit the optional/declined email field even when the
+     * provider account is already linked. Existing OAuth accounts are keyed
+     * by the provider user id, so they can still sign in without re-linking or
+     * losing the email stored on our user record. Only a new social account
+     * needs a provider email because users.email is required and unique.
+     */
+    private void requireEmailForNewOAuthAccount(OAuthProfile profile) {
         if (!profile.emailVerified() || profile.email() == null || profile.email().isBlank()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "소셜 인증에 실패했습니다.", "검증된 이메일을 제공하는 계정만 사용할 수 있습니다.");
         }
-        return profile;
     }
 
     private ExistingOAuthAccount findExistingOAuthAccount(OAuthProfile profile, Instant now) {
@@ -426,6 +441,10 @@ public class AuthService {
             }
             oauthAccount.updateProfile(profile.email(), profile.displayName(), now);
             return new ExistingOAuthAccount(user, oauthAccount);
+        }
+
+        if (profile.email() == null || profile.email().isBlank()) {
+            return null;
         }
 
         UserEntity user = userRepository.findByEmailIgnoreCase(normalizeEmail(profile.email())).orElse(null);
