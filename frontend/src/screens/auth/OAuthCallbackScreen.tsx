@@ -4,7 +4,7 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { auth } from "@/api";
-import { apiErrorMessage } from "@/api/errors";
+import { oauthErrorMessage } from "@/api/errors";
 import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { AuthTokenResponse } from "@/api/types";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
@@ -100,7 +100,7 @@ export default function OAuthCallbackScreen() {
         navigation.reset({ index: 0, routes: [{ name: routeAfterAuth(prepared.tokens) }] });
       } catch (cause) {
         setBusy(false);
-        setMessage(apiErrorMessage(cause));
+        setMessage(oauthErrorMessage(cause, provider === "naver" ? "네이버" : "카카오"));
       }
     })();
   }, [navigation, route.params, signIn]);

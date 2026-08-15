@@ -8,7 +8,7 @@ import * as AuthSession from "expo-auth-session";
 import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth } from "@/api";
-import { apiErrorMessage } from "@/api/errors";
+import { apiErrorMessage, oauthErrorMessage } from "@/api/errors";
 import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
 import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
@@ -153,6 +153,9 @@ export default function LoginScreen() {
       redirectUri: NAVER_REQUEST_REDIRECT_URI,
       responseType: AuthSession.ResponseType.Code,
       usePKCE: false,
+      // Naver can keep an earlier login/consent session. Ask it to show the
+      // authentication and profile-consent step again for this login flow.
+      extraParams: { auth_type: "reprompt" },
     },
     SOCIAL_CONFIG.naver.discovery,
   );
@@ -318,7 +321,7 @@ export default function LoginScreen() {
         routes: [{ name: routeAfterAuth(prepared.tokens) }],
       });
     } catch (cause) {
-      setMessage(apiErrorMessage(cause));
+      setMessage(oauthErrorMessage(cause, config.label));
     } finally {
       setBusy(false);
     }
@@ -339,7 +342,7 @@ export default function LoginScreen() {
         routes: [{ name: routeAfterAuth(tokens) }],
       });
     } catch (cause) {
-      setMessage(apiErrorMessage(cause));
+      setMessage(oauthErrorMessage(cause, socialProvider === "naver" ? "네이버" : "카카오"));
     } finally {
       setBusy(false);
     }
@@ -702,12 +705,14 @@ export default function LoginScreen() {
           label="카카오로 계속하기"
           background="#FEE500"
           color={colors.foreground}
+          disabled={busy}
           onPress={() => void startSocialLogin("kakao")}
         />
         <SocialButton
           label="네이버로 계속하기"
           background="#03C75A"
           color={colors.white}
+          disabled={busy}
           onPress={() => void startSocialLogin("naver")}
         />
       </ScrollView>
@@ -728,19 +733,26 @@ function SocialButton({
   label,
   background,
   color,
+  disabled,
   onPress,
 }: {
   label: string;
   background: string;
   color: string;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.social, { backgroundColor: background, opacity: pressed ? 0.85 : 1 }]}
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        styles.social,
+        { backgroundColor: background, opacity: disabled ? 0.55 : pressed ? 0.85 : 1 },
+      ]}
     >
       <Text style={{ color, fontSize: fontSize.body, fontWeight: fontWeight.semibold }}>{label}</Text>
     </Pressable>

@@ -88,6 +88,31 @@ export function apiErrorMessage(error: unknown): string {
   }
 }
 
+/**
+ * OAuth callbacks do not have an existing app session yet, so a 401 here
+ * must not be shown as if the user's normal login session expired.
+ */
+export function oauthErrorMessage(error: unknown, provider: string): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) {
+      if (error.detail?.includes("검증된 이메일") || error.detail?.includes("이메일")) {
+        return `${provider} 로그인에 필요한 이메일 제공 동의가 필요해요. 다시 시도해 주세요.`;
+      }
+      if (error.detail?.includes("authorization code") || error.detail?.includes("인증 코드")) {
+        return `${provider} 인증 코드가 만료되었어요. 로그인 화면에서 다시 시도해 주세요.`;
+      }
+      return `${provider} 인증에 실패했어요. 로그인 화면에서 다시 시도해 주세요.`;
+    }
+    if (error.status === 503) {
+      if (error.detail?.includes("필수 사용자 정보") || error.detail?.includes("이메일")) {
+        return `${provider}에서 이메일 제공 동의가 필요해요. 동의 후 다시 시도해 주세요.`;
+      }
+      return `${provider} 로그인 연결이 잠시 불안정해요. 잠시 후 다시 시도해 주세요.`;
+    }
+  }
+  return apiErrorMessage(error);
+}
+
 /** Guardian screens need to distinguish consent, link state and scope failures. */
 export function guardianAccessErrorMessage(error: ApiError, resource: string): string {
   if (!error.isForbidden) return apiErrorMessage(error);
