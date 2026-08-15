@@ -392,6 +392,71 @@ class AuthIntegrationTest {
     }
 
     @Test
+    void linkedOAuthAccountCanSignInWhenProviderOmitsEmailOnLaterProfileResponse() throws Exception {
+        OAuthProviderClient client = org.mockito.Mockito.mock(OAuthProviderClient.class);
+        String providerUserId = "naver-user-" + UUID.randomUUID();
+        String providerEmail = uniqueEmail("oauth-email-preserved");
+        OAuthProfile firstProfile = new OAuthProfile(
+                "naver", providerUserId, providerEmail, "네이버 사용자", true);
+        OAuthProfile laterProfileWithoutEmail = new OAuthProfile(
+                "naver", providerUserId, null, null, false);
+        when(oauthProviderClientRegistry.clientFor("naver")).thenReturn(client);
+        when(client.fetchProfile(any())).thenReturn(firstProfile, laterProfileWithoutEmail);
+
+        String body = "{\"authorization_code\":\"one-time-code\",\"redirect_uri\":\"http://localhost/callback\","
+                + "\"role\":\"elder\"}";
+        mockMvc.perform(post("/api/v1/auth/oauth/naver")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.is_new_user").value(true));
+
+        mockMvc.perform(post("/api/v1/auth/oauth/naver")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.is_new_user").value(false));
+
+        mockMvc.perform(post("/api/v1/auth/oauth/naver/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authorization_code": "another-one-time-code",
+                                  "redirect_uri": "http://localhost/callback"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("authenticated"))
+                .andExpect(jsonPath("$.tokens.is_new_user").value(false));
+
+        org.assertj.core.api.Assertions.assertThat(
+                        oauthAccountRepository.findByProviderAndProviderUserId("naver", providerUserId)
+                                .orElseThrow()
+                                .getProviderEmail())
+                .isEqualTo(providerEmail);
+    }
+
+    @Test
+    void newOAuthAccountStillRequiresAnEmailWhenProviderOmitsIt() throws Exception {
+        OAuthProviderClient client = org.mockito.Mockito.mock(OAuthProviderClient.class);
+        OAuthProfile profileWithoutEmail = new OAuthProfile(
+                "naver", "naver-new-without-email-" + UUID.randomUUID(), null, "네이버 사용자", false);
+        when(oauthProviderClientRegistry.clientFor("naver")).thenReturn(client);
+        when(client.fetchProfile(any())).thenReturn(profileWithoutEmail);
+
+        mockMvc.perform(post("/api/v1/auth/oauth/naver/prepare")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "authorization_code": "one-time-code",
+                                  "redirect_uri": "http://localhost/callback"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").value("검증된 이메일을 제공하는 계정만 사용할 수 있습니다."));
+    }
+
+    @Test
     void oauthPrepareAuthenticatesExistingAccountAndAsksRoleOnlyForNewAccount() throws Exception {
         OAuthProviderClient client = org.mockito.Mockito.mock(OAuthProviderClient.class);
         OAuthProfile profile = new OAuthProfile("kakao", "kakao-pending-" + UUID.randomUUID(),
