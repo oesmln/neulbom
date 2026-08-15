@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { auth, guardian } from "@/api";
+import { auth } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import { Button, Card, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
@@ -72,33 +72,9 @@ export default function EmailVerificationScreen() {
         return;
       }
 
-      let inviteCode: string | undefined;
-      let invitationError: string | undefined;
-      if (tokens.role === "guardian") {
-        try {
-          const invitation = await guardian.createInvitation({
-            relation: "보호자",
-            access_scope: ["screening", "summary", "diary", "activity"],
-            expires_in: 600,
-          });
-          inviteCode = invitation.invite_code;
-        } catch (invitationCause) {
-          invitationError = apiErrorMessage(invitationCause);
-        }
-      }
-
       navigation.reset({
         index: 0,
-        routes: [
-          {
-            name: "SignupComplete",
-            params: {
-              role: tokens.role,
-              inviteCode,
-              invitationError,
-            },
-          },
-        ],
+        routes: [{ name: "Guardian" }],
       });
     } catch (cause) {
       setMessage(apiErrorMessage(cause));

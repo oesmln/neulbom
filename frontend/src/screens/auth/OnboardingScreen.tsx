@@ -157,7 +157,10 @@ export default function OnboardingScreen() {
           guide={`${name.trim() || "메모이"}의 질문을 듣고 마이크를 눌러 천천히 답해 주세요.`}
           buttonLabel="검사 시작하기"
           busy={busy}
-          onPress={() => navigation.reset({ index: 0, routes: [{ name: "Elder" }] })}
+          onPress={() => navigation.reset({
+            index: 0,
+            routes: [{ name: "Elder", params: { screen: "ElderCist" } }],
+          })}
           voice={voice}
         />
       ) : null}

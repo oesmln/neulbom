@@ -30,14 +30,14 @@ export type RootStackParamList = {
    * values travel here in memory and `POST /auth/register` is sent with the chosen role.
    */
   UserType: { signup?: PendingSignup } | undefined;
-  SignupInvite: { signup: PendingSignup };
+  SignupInvite: { signup?: PendingSignup } | undefined;
   EmailVerification: { signup: PendingSignup };
   EmailVerificationLink: { token?: string } | undefined;
   SignupComplete: SignupCompleteParams;
   PasswordReset: { token?: string } | undefined;
   ElderProfile: { inviteCode?: string; signup?: PendingSignup } | undefined;
   Onboarding: undefined;
-  Elder: undefined;
+  Elder: NavigatorScreenParams<ElderStackParamList> | undefined;
   Guardian: undefined;
 };
 

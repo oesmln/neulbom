@@ -17,7 +17,7 @@ import { DEFAULT_MEMOI, MEMOI_MOUTH_SHAPES } from "@/components/memoiCharacters"
  */
 export default function SplashScreen() {
   const navigation = useNavigation<RootNav>();
-  const { ready, role, onboardingCompleted } = useApp();
+  const { ready, role } = useApp();
 
   React.useEffect(() => {
     if (!ready || !role) return;
@@ -25,11 +25,11 @@ export default function SplashScreen() {
       index: 0,
       routes: [
         {
-          name: role === "guardian" ? "Guardian" : onboardingCompleted ? "Elder" : "Onboarding",
+          name: role === "guardian" ? "Guardian" : "Elder",
         },
       ],
     });
-  }, [navigation, onboardingCompleted, ready, role]);
+  }, [navigation, ready, role]);
 
   // Dev-only viewer for the mouth-shape models. They exist for the Phase 2
   // TTS/viseme work and nothing drives them yet, so this is the one place they
