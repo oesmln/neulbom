@@ -9,11 +9,11 @@ import { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth } from "@/api";
 import { apiErrorMessage, oauthErrorMessage } from "@/api/errors";
-import type { AuthTokenResponse } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, sizes } from "@/theme";
 import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
 import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
 import { saveRequiredSignupConsents } from "./signupConsents";
+import { destinationForTokens } from "./authRouting";
 
 /**
  * Sign-in, sign-up and password reset.
@@ -23,9 +23,9 @@ import { saveRequiredSignupConsents } from "./signupConsents";
  * until the user type is picked and only then POST /auth/register once.
  *
  * Signing in is a different path on purpose. `POST /auth/login` already returns
- * `role`, so an existing user goes straight to their own area — the invite code
- * and the role picker belong to registration and must not reappear at every
- * sign-in.
+ * `role` and onboarding progress, so an existing user either resumes the first
+ * unfinished setup stage or goes straight to their own home. The role picker
+ * itself belongs to registration and never reappears at sign-in.
  */
 type Step = "form" | "socialConsent" | "socialRole" | "forgot" | "forgotSent";
 type Tab = "login" | "signup";
@@ -124,9 +124,6 @@ export default function LoginScreen() {
     }
   }, [route.params]);
 
-  const routeAfterLogin = (tokens: AuthTokenResponse) =>
-    tokens.role === "guardian" ? "Guardian" as const : "Elder" as const;
-
   const emailLooksValid = email.includes("@") && email.includes(".");
   const passwordMatches = tab === "login" || password === passwordConfirmation;
   const signupConsentsAccepted = signupConsents.terms && signupConsents.privacy;
@@ -154,9 +151,9 @@ export default function LoginScreen() {
       redirectUri: NAVER_REQUEST_REDIRECT_URI,
       responseType: AuthSession.ResponseType.Code,
       usePKCE: false,
-      // Naver can keep an earlier login/consent session. Ask it to show the
-      // authentication and profile-consent step again for this login flow.
-      extraParams: { auth_type: "reprompt" },
+      // Ask Naver to authenticate the account again without forcing users who
+      // already shared email/profile fields through the permission screen.
+      extraParams: { auth_type: "reauthenticate" },
     },
     SOCIAL_CONFIG.naver.discovery,
   );
@@ -172,7 +169,7 @@ export default function LoginScreen() {
         index: 0,
         routes: [
           {
-            name: routeAfterLogin(tokens),
+            name: destinationForTokens(tokens),
           },
         ],
       });
@@ -319,7 +316,7 @@ export default function LoginScreen() {
       await signIn(prepared.tokens);
       navigation.reset({
         index: 0,
-        routes: [{ name: routeAfterLogin(prepared.tokens) }],
+        routes: [{ name: destinationForTokens(prepared.tokens) }],
       });
     } catch (cause) {
       setMessage(oauthErrorMessage(cause, config.label));
@@ -339,7 +336,7 @@ export default function LoginScreen() {
       });
       await signIn(tokens);
       if (!tokens.is_new_user) {
-        navigation.reset({ index: 0, routes: [{ name: routeAfterLogin(tokens) }] });
+        navigation.reset({ index: 0, routes: [{ name: destinationForTokens(tokens) }] });
         return;
       }
       await saveRequiredSignupConsents(tokens.user_id);

@@ -6,11 +6,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { auth } from "@/api";
 import { oauthErrorMessage } from "@/api/errors";
 import { Button, ScreenHeader, SentenceText as Text } from "@/components/ui";
-import type { AuthTokenResponse } from "@/api/types";
 import type { RootNav, RootStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { colors, fontSize, spacing } from "@/theme";
 import { OAUTH_WEB_PENDING_KEY } from "./oauthWeb";
+import { destinationForTokens } from "./authRouting";
 
 type Provider = "kakao" | "naver";
 
@@ -22,10 +22,6 @@ const REDIRECT_URIS: Record<Provider, string> = {
   kakao: process.env.EXPO_PUBLIC_KAKAO_REDIRECT_URI?.trim() ?? "",
   naver: process.env.EXPO_PUBLIC_NAVER_REDIRECT_URI?.trim() ?? "",
 };
-
-function routeAfterAuth(tokens: AuthTokenResponse) {
-  return tokens.role === "guardian" ? "Guardian" as const : "Elder" as const;
-}
 
 export default function OAuthCallbackScreen() {
   const navigation = useNavigation<RootNav>();
@@ -95,7 +91,7 @@ export default function OAuthCallbackScreen() {
           throw new Error("소셜 로그인 응답을 확인할 수 없어요.");
         }
         await signIn(prepared.tokens);
-        navigation.reset({ index: 0, routes: [{ name: routeAfterAuth(prepared.tokens) }] });
+        navigation.reset({ index: 0, routes: [{ name: destinationForTokens(prepared.tokens) }] });
       } catch (cause) {
         setBusy(false);
         setMessage(oauthErrorMessage(cause, provider === "naver" ? "네이버" : "카카오"));

@@ -9,6 +9,7 @@ import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_MEMOI, MEMOI_MOUTH_SHAPES } from "@/components/memoiCharacters";
+import { destinationForAuth } from "./authRouting";
 
 /**
  * The only screen that uses the dark character stage. Memoi is lit from the
@@ -17,7 +18,7 @@ import { DEFAULT_MEMOI, MEMOI_MOUTH_SHAPES } from "@/components/memoiCharacters"
  */
 export default function SplashScreen() {
   const navigation = useNavigation<RootNav>();
-  const { ready, role } = useApp();
+  const { ready, role, onboardingStep, baselineCompleted } = useApp();
 
   React.useEffect(() => {
     if (!ready || !role) return;
@@ -25,11 +26,11 @@ export default function SplashScreen() {
       index: 0,
       routes: [
         {
-          name: role === "guardian" ? "Guardian" : "Elder",
+          name: destinationForAuth({ role, onboardingStep, baselineCompleted }),
         },
       ],
     });
-  }, [navigation, ready, role]);
+  }, [baselineCompleted, navigation, onboardingStep, ready, role]);
 
   // Dev-only viewer for the mouth-shape models. They exist for the Phase 2
   // TTS/viseme work and nothing drives them yet, so this is the one place they
