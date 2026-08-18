@@ -113,6 +113,8 @@ export type GuardianStackParamList = {
   GuardianCounselingCenters: undefined;
   /** 앱 설정 — reached from the gear button in the dashboard header. */
   GuardianAppSettings: undefined;
+  /** 비밀번호 변경 — reached from 보호자 설정. */
+  GuardianPasswordChange: undefined;
   /** 보호자 초대 발급과 연결별 접근 범위 관리. */
   GuardianConnections: undefined;
 };

@@ -20,6 +20,7 @@ import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
 import GuardianSettingsScreen from "@/screens/guardian/GuardianSettings";
 import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
 import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
 const Stack = createNativeStackNavigator<GuardianStackParamList>();
@@ -113,6 +114,10 @@ function GuardianTabs() {
   );
 }
 
+function GuardianPasswordChangeScreen() {
+  return <ElderPasswordChangeScreen backLabel="설정" />;
+}
+
 export default function GuardianNavigator() {
   return (
     <Stack.Navigator initialRouteName="GuardianTabs" screenOptions={{ headerShown: false }}>
@@ -123,6 +128,7 @@ export default function GuardianNavigator() {
         component={GuardianCounselingCentersScreen}
       />
       <Stack.Screen name="GuardianAppSettings" component={GuardianAppSettingsScreen} />
+      <Stack.Screen name="GuardianPasswordChange" component={GuardianPasswordChangeScreen} />
       <Stack.Screen name="GuardianConnections" component={GuardianConnectionsScreen} />
     </Stack.Navigator>
   );

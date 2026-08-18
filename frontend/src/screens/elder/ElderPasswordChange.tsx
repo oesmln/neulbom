@@ -64,7 +64,11 @@ function Field({
   );
 }
 
-export default function ElderPasswordChangeScreen() {
+export default function ElderPasswordChangeScreen({
+  backLabel = "마이페이지",
+}: {
+  backLabel?: string;
+} = {}) {
   const navigation = useNavigation();
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
@@ -77,6 +81,8 @@ export default function ElderPasswordChangeScreen() {
   const lengthOk = next.length >= MIN_LENGTH;
   const matchOk = next.length > 0 && next === confirm;
   const canSubmit = currentOk && lengthOk && matchOk && !submitting;
+  const returnButtonLabel =
+    backLabel === "설정" ? "설정으로 돌아가기" : `${backLabel}로 돌아가기`;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -99,7 +105,7 @@ export default function ElderPasswordChangeScreen() {
   const header = (
     <ScreenHeader
       onBack={() => navigation.goBack()}
-      backLabel="마이페이지"
+      backLabel={backLabel}
       title="비밀번호 변경"
       subtitle={done ? undefined : "보안을 위해 현재 비밀번호를 먼저 확인해요"}
     />
@@ -119,10 +125,10 @@ export default function ElderPasswordChangeScreen() {
           <Pressable
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
-            accessibilityLabel="마이페이지로 돌아가기"
+            accessibilityLabel={returnButtonLabel}
             style={styles.submit}
           >
-            <Text style={styles.submitLabel}>마이페이지로 돌아가기</Text>
+            <Text style={styles.submitLabel}>{returnButtonLabel}</Text>
           </Pressable>
         </View>
       </Screen>
