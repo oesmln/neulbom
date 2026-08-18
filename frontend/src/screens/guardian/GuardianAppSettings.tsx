@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigation } from "@react-navigation/native";
 import { guardian } from "@/theme";
 import AppSettingsView from "@/components/AppSettingsView";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import GuardianAccountActions from "@/screens/guardian/GuardianAccountActions";
 import type { GuardianNav } from "@/navigation/types";
 
@@ -19,7 +19,7 @@ export default function GuardianAppSettingsScreen() {
       })}
       onBack={() => navigation.goBack()}
       backLabel="홈"
-      headerRight={<GuardianNotificationButton />}
+      headerRight={<GuardianHeaderActions />}
       footer={<GuardianAccountActions />}
     />
   );

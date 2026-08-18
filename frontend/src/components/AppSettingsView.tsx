@@ -158,15 +158,15 @@ export default function AppSettingsView({
         <Caption style={styles.note}>{applying ? "화면에 적용하고 있어요…" : "선택하면 바로 적용되고 저장돼요."}</Caption>
       </SettingsGroup>
 
+      <ConsentManagementView userId={userId} />
+      {footer}
+
       <SettingsGroup title="앱 정보">
         <View style={styles.infoRow}>
           <Text style={styles.rowLabel}>버전</Text>
           <Caption>{version}</Caption>
         </View>
       </SettingsGroup>
-
-      <ConsentManagementView userId={userId} />
-      {footer}
     </Screen>
   );
 }

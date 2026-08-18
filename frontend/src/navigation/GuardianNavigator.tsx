@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { GuardianStackParamList, GuardianTabParamList } from "@/navigation/types";
-import { colors, fontWeight, guardian, sizes } from "@/theme";
+import { colors, fontSize, fontWeight, guardian, sizes } from "@/theme";
+import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
 import GuardianDashboardScreen from "@/screens/guardian/GuardianDashboard";
 import GuardianDiaryScreen from "@/screens/guardian/GuardianDiary";
@@ -19,7 +20,6 @@ import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounseli
 import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
 import GuardianSettingsScreen from "@/screens/guardian/GuardianSettings";
 import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
 import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
@@ -44,6 +44,7 @@ const TAB_META: Record<TabKey, { label: string; icon: keyof typeof Ionicons.glyp
  */
 function GuardianTabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  useDisplaySettings();
 
   return (
     <View
@@ -143,5 +144,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   tab: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4, paddingBottom: 6 },
-  tabLabel: { fontSize: 10 },
+  tabLabel: { fontSize: fontSize.badge },
 });

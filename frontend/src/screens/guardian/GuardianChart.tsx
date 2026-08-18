@@ -20,7 +20,7 @@ import {
   LoadingState,
   SentenceText as Text,
 } from "@/components/ui";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
 /**
  * Score trend from `GET /analysis/cognitive/{user_id}/history`.
@@ -92,7 +92,7 @@ export default function GuardianChartScreen() {
       subtitle={
         report.data ? `${report.data.elder_name} · 보호자 모니터링` : "보호자 모니터링"
       }
-      right={<GuardianNotificationButton />}
+      right={<GuardianHeaderActions />}
     />
   );
 
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: "row", gap: spacing.md },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendRule: { width: 12, height: 2, borderRadius: 1 },
-  legendLabel: { fontSize: 10 },
+  legendLabel: { fontSize: fontSize.badge },
 
   summaryRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
   eyebrow: { letterSpacing: 0.5, marginBottom: spacing.sm },

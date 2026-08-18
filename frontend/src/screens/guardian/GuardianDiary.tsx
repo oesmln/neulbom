@@ -21,7 +21,7 @@ import {
   LoadingState,
   SentenceText as Text,
 } from "@/components/ui";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
 /**
  * The elder's month of diaries, with the guardian's reaction.
@@ -142,7 +142,7 @@ export default function GuardianDiaryScreen() {
       color={guardian.blue}
       title="기록"
       subtitle={`${list.data?.diaries.length ?? 0}일 일기 기록됨 · ${month + 1}월`}
-      right={<GuardianNotificationButton />}
+      right={<GuardianHeaderActions />}
     />
   );
 
@@ -277,7 +277,7 @@ export default function GuardianDiaryScreen() {
           { mark: RISK_MARK, label: "위험" },
         ].map((item) => (
           <View key={item.label} style={styles.legendItem}>
-            <Text style={{ fontSize: 13 }}>{item.mark}</Text>
+            <Text style={styles.legendMark}>{item.mark}</Text>
             <Caption>{item.label}</Caption>
           </View>
         ))}
@@ -339,7 +339,7 @@ export default function GuardianDiaryScreen() {
 
           <Card>
             <View style={styles.moodRow}>
-              <Text style={{ fontSize: 30 }}>
+              <Text style={styles.selectedMood}>
                 {moodEmoji(selectedEntry.mood, selectedEntry.mood_level)}
               </Text>
               <View style={{ flex: 1 }}>
@@ -386,7 +386,7 @@ export default function GuardianDiaryScreen() {
             ) : detail.loading && !detail.data ? (
               <LoadingState label="일기를 불러오는 중이에요" />
             ) : (
-              <Body style={{ lineHeight: 26 }}>
+              <Body style={styles.detailBody}>
                 {detail.data?.content ?? selectedEntry.preview ?? ""}
               </Body>
             )}
@@ -413,7 +413,7 @@ export default function GuardianDiaryScreen() {
                       },
                     ]}
                   >
-                    <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                    <Text style={styles.reactionEmoji}>{emoji}</Text>
                   </Pressable>
                 );
               })}
@@ -507,6 +507,7 @@ const styles = StyleSheet.create({
   dayCell: { alignItems: "center", justifyContent: "center", borderRadius: radius.md, gap: 1 },
   dayNumber: { fontSize: fontSize.micro, fontWeight: fontWeight.semibold },
   dayMark: { fontSize: 11 },
+  legendMark: { fontSize: fontSize.caption },
 
   legend: {
     flexDirection: "row",
@@ -536,6 +537,9 @@ const styles = StyleSheet.create({
   moodRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   moodMeta: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   moodScore: { fontSize: 22, fontWeight: fontWeight.bold },
+  selectedMood: { fontSize: 30 },
+  detailBody: { lineHeight: 26 },
+  reactionEmoji: { fontSize: fontSize.title },
 
   reactionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   reactionButton: {

@@ -118,7 +118,7 @@ public class GuardianService {
                 invitation.getExpiresAt());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public InvitationVerifyResponse verifyInvitation(String inviteCode, String clientIp) {
         invitationAttemptLimiter.check(clientIp);
         GuardianInvitationEntity invitation;
@@ -140,7 +140,7 @@ public class GuardianService {
                 true);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApiException.class)
     public GuardianLinkResponse acceptInvitation(UUID authenticatedUserId, InvitationAcceptRequest request, String clientIp) {
         UserEntity elder = requireRole(authenticatedUserId, "elder");
         if (!Boolean.TRUE.equals(request.consentAgreed())) {
