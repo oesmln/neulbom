@@ -1158,6 +1158,8 @@ JWT 발급을 완료한다. 기존 소셜 계정에는 역할 선택 화면을 �
 
 `session_type=emotional_qa`인 경우 세션 종료 후 캐릭터가 이 결과를 안내한다. `xp_earned`, `character_level`, `level_up`은 정서 문답 완료 이벤트가 처리된 경우에 반환하며, 동일 `session_id`로 재요청해도 경험치가 중복 적립되지 않는다. 정확한 수치와 상세 분석 결과는 이 응답에 포함하지 않는다.
 
+정서 문답을 정상 종료하면 `20 XP`를 지급한다. `cist` 또는 `baseline` 최초 완료에는 사용자당 한 번 `30 XP`를 지급한다.
+
 분석이 비동기로 진행되면 앱은 `GET /screenings/{session_id}/result`를 재조회해 결과를 확인한다.
 
 ### 6.5 `GET /sessions` - 세션 목록
@@ -1960,6 +1962,8 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 게임 결과 저장이 완료되면 서버가 `event_id=game_result_id`로 경험치를 자동 적립한다. 앱이 별도로 XP 적립 API를 호출하지 않는다.
 
+정상 완료한 게임은 참여 경험치 `3 XP`를 지급한다. `image_match`는 모든 짝을 맞추고 점수가 전체 문항 수 이상이면, 나머지 게임은 정답률이 `60%` 이상이면 성공 경험치 `10 XP`를 추가 지급한다. 일일 상한 때문에 실제 지급량은 `0~13 XP`가 될 수 있다.
+
 ### 9.3 `GET /character/{user_id}` - 캐릭터 상태
 
 #### Response `200`
@@ -1978,6 +1982,16 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | `skin_id` | string | 현재 스킨 ID |
 | `unlocked[]` | string[] | 해금 아이템 ID 목록 |
 
+레벨과 경험치는 아래 누적 기준을 사용하며 레벨은 `Lv.5`를 초과하지 않는다.
+
+| 레벨 | 누적 경험치 |
+| --- | --- |
+| Lv.1 | 0 |
+| Lv.2 | 100 |
+| Lv.3 | 300 |
+| Lv.4 | 600 |
+| Lv.5 | 1,000 |
+
 ### 9.4 `GET /character/{user_id}/xp-history` - 경험치 획득 내역
 
 마이페이지의 경험치 획득 내역 펼침 영역에 사용한다. 본인 또는 연결·동의·access scope가 확인된 보호자만 조회할 수 있다.
@@ -1991,7 +2005,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 
 #### Response `200`
 
-`records[]`에 `xp_ledger_id`, `reason`, `display_title`, `amount`, `event_id`, `earned_at`을 포함하고, 최상위에 `next_cursor`를 반환한다. `reason`은 `attendance`, `visit`, `emotional_qa`, `game`, `campaign` 중 하나다.
+`records[]`에 `xp_ledger_id`, `reason`, `display_title`, `amount`, `event_id`, `earned_at`을 포함하고, 최상위에 `next_cursor`를 반환한다. `reason`은 `attendance`, `visit`, `emotional_qa`, `game`, `campaign`, `cist`, `streak` 중 하나다. 일일 상한으로 실제 지급량이 `0`인 멱등 원장은 획득 내역에서 제외한다.
 
 ### 9.5 `POST /character/{user_id}/xp` - 경험치 적립
 
@@ -2002,7 +2016,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `amount` | integer | Y | 지급 경험치 |
-| `reason` | enum | Y | `attendance`, `visit`, `emotional_qa`, `game`, `campaign`; `campaign`은 Phase 2 |
+| `reason` | enum | Y | `attendance`, `visit`, `emotional_qa`, `game`, `campaign`, `cist`, `streak`; `campaign`은 Phase 2 |
 | `event_id` | string | Y | 원본 이벤트 ID. 동일 이벤트 재처리 시 중복 적립 방지 |
 
 #### Response `200`
@@ -2011,9 +2025,13 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 {
   "xp_current": 320,
   "level": 3,
-  "level_up": false
+  "awarded_amount": 10,
+  "level_up": false,
+  "deduplicated": false
 }
 ```
+
+하루 경험치 상한은 한국 시간 기준 `100 XP`다. 3일·7일·14일 연속 활동에는 각각 `10 XP`, `25 XP`, `50 XP`를 지급하며, 보너스도 같은 일일 상한에 포함한다. 상한에 걸리면 `awarded_amount`는 남은 한도만큼 줄어들 수 있다.
 
 #### 백엔드 구현 메모 (v1.3)
 

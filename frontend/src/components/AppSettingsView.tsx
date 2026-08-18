@@ -7,11 +7,8 @@ import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { useApp } from "@/store/AppContext";
 import ConsentManagementView from "@/components/ConsentManagementView";
 import { Screen, ScreenHeader, Caption, SentenceText as Text } from "@/components/ui";
-import {
-  currentDisplaySettings,
-  saveDisplaySettings,
-  type FontScaleKey,
-} from "@/store/settings";
+import { type FontScaleKey } from "@/store/settings";
+import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
 /**
  * 앱 설정 — shared by the elder and guardian areas.
@@ -20,11 +17,9 @@ import {
  * (sage for the elder, blue for the guardian), so it lives here once and each
  * area passes its palette in.
  *
- * Choices persist to the device (`@/store/settings`) and are applied at boot,
- * because every screen bakes the theme tokens into its `StyleSheet` at import
- * time — hence the "다시 시작하면 적용" note on both controls. The server has
- * no field for either (`PATCH /users/{id}/preferences` carries hearing, voice
- * and notification settings only), so these stay device-local.
+ * Choices persist to the device (`@/store/settings`) and the display-settings
+ * provider rebuilds registered styles in place. The current screen stays open
+ * while the whole app redraws with the new palette and type scale.
  */
 const FONT_SIZES: { key: FontScaleKey; label: string; preview: number }[] = [
   { key: "normal", label: "보통", preview: 15 },
@@ -51,32 +46,39 @@ function SettingsGroup({ title, children }: { title: string; children: React.Rea
 }
 
 export default function AppSettingsView({
-  palette,
+  palette: paletteFactory,
   onBack,
   backLabel,
   headerRight,
 }: {
-  palette: AppSettingsPalette;
+  palette: () => AppSettingsPalette;
   onBack?: () => void;
   backLabel?: string;
   headerRight?: React.ReactNode;
 }) {
   const { userId } = useApp();
-  // Boot already loaded the stored settings, so the sync read is populated.
-  const stored = currentDisplaySettings();
-  const [darkMode, setDarkMode] = React.useState(stored.darkMode);
-  const [fontSizeKey, setFontSizeKey] = React.useState<FontScaleKey>(stored.fontScale);
+  const { settings, updateSettings } = useDisplaySettings();
+  const palette = paletteFactory();
+  const { darkMode, fontScale: fontSizeKey } = settings;
+  const [applying, setApplying] = React.useState(false);
+
+  const applyImmediately = async (nextDarkMode: boolean, nextFontScale: FontScaleKey) => {
+    if (applying) return;
+    setApplying(true);
+    try {
+      await updateSettings({ darkMode: nextDarkMode, fontScale: nextFontScale });
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const toggleDarkMode = () => {
-    setDarkMode((prev) => {
-      void saveDisplaySettings({ darkMode: !prev, fontScale: fontSizeKey });
-      return !prev;
-    });
+    void applyImmediately(!darkMode, fontSizeKey).catch(() => setApplying(false));
   };
 
   const pickFontScale = (key: FontScaleKey) => {
-    setFontSizeKey(key);
-    void saveDisplaySettings({ darkMode, fontScale: key });
+    if (key === fontSizeKey) return;
+    void applyImmediately(darkMode, key).catch(() => setApplying(false));
   };
 
   const version = Constants.expoConfig?.version ?? "—";
@@ -104,6 +106,7 @@ export default function AppSettingsView({
             accessibilityRole="switch"
             accessibilityLabel="다크 모드"
             accessibilityState={{ checked: darkMode }}
+            disabled={applying}
             style={[
               styles.switch,
               { backgroundColor: darkMode ? palette.accent : colors.switchBackground },
@@ -112,7 +115,7 @@ export default function AppSettingsView({
             <View style={[styles.knob, { left: darkMode ? 22 : 4 }]} />
           </Pressable>
         </View>
-        <Caption style={styles.note}>앱을 다시 시작하면 적용돼요.</Caption>
+        <Caption style={styles.note}>{applying ? "화면에 적용하고 있어요…" : "선택하면 바로 적용되고 저장돼요."}</Caption>
       </SettingsGroup>
 
       <SettingsGroup title="글씨 크기">
@@ -126,6 +129,7 @@ export default function AppSettingsView({
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={`글씨 크기 ${size.label}`}
+                disabled={applying}
                 style={[
                   styles.fontOption,
                   {
@@ -149,7 +153,7 @@ export default function AppSettingsView({
             );
           })}
         </View>
-        <Caption style={styles.note}>앱을 다시 시작하면 적용돼요.</Caption>
+        <Caption style={styles.note}>{applying ? "화면에 적용하고 있어요…" : "선택하면 바로 적용되고 저장돼요."}</Caption>
       </SettingsGroup>
 
       <SettingsGroup title="앱 정보">

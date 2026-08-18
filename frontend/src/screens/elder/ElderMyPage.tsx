@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -29,9 +29,9 @@ import { Button, Card, ErrorState, LoadingState, ProgressBar, ScreenHeader, Sent
 const LEVELS = [
   { level: 1, name: "아기 메모이", min: 0, emoji: "🐣", desc: "막 태어난 메모이예요. 함께 시작해봐요!" },
   { level: 2, name: "꼬마 메모이", min: 100, emoji: "🐶", desc: "조금씩 자라고 있어요. 꾸준히 함께해요!" },
-  { level: 3, name: "활발한 메모이", min: 250, emoji: "🌱", desc: "에너지가 넘치는 메모이가 됐어요!" },
-  { level: 4, name: "씩씩한 메모이", min: 500, emoji: "🌸", desc: "메모이가 훌쩍 성장했어요. 대단해요!" },
-  { level: 5, name: "지혜로운 메모이", min: 800, emoji: "⭐", desc: "최고 등급! 메모이와 함께라서 행복해요." },
+  { level: 3, name: "활발한 메모이", min: 300, emoji: "🌱", desc: "에너지가 넘치는 메모이가 됐어요!" },
+  { level: 4, name: "씩씩한 메모이", min: 600, emoji: "🌸", desc: "메모이가 훌쩍 성장했어요. 대단해요!" },
+  { level: 5, name: "지혜로운 메모이", min: 1000, emoji: "⭐", desc: "최고 등급! 메모이와 함께라서 행복해요." },
 ];
 
 function levelMeta(level: number) {
@@ -43,6 +43,7 @@ export default function ElderMyPageScreen() {
   // Same navigator object, typed for the elder stack — 비밀번호 변경 and 앱 설정
   // are pushed there while 로그아웃 resets the root stack.
   const elderNavigation = useNavigation<ElderNav>();
+  const isFocused = useIsFocused();
   const { userId, characterName, signOut, updateOnboardingState } = useApp();
   const [xpOpen, setXpOpen] = React.useState(false);
   const [notificationsOn, setNotificationsOn] = React.useState(true);
@@ -51,10 +52,10 @@ export default function ElderMyPageScreen() {
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState<string | null>(null);
 
-  const character = useApi(() => game.character(userId as string), [userId], { enabled: !!userId });
-  const xpHistory = useApi(() => game.xpHistory(userId as string), [userId], { enabled: !!userId });
-  const dashboard = useApi(() => reports.dashboard(userId as string), [userId], { enabled: !!userId });
-  const preferences = useApi(() => users.preferences(userId as string), [userId], { enabled: !!userId });
+  const character = useApi(() => game.character(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
+  const xpHistory = useApi(() => game.xpHistory(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
+  const dashboard = useApi(() => reports.dashboard(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
+  const preferences = useApi(() => users.preferences(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
 
   React.useEffect(() => {
     if (preferences.data) setNotificationsOn(preferences.data.push_notification_enabled);
@@ -203,7 +204,7 @@ export default function ElderMyPageScreen() {
             <View style={styles.xpRow}>
               <Text style={styles.xpLabel}>경험치</Text>
               <Text style={styles.xpValue}>
-                {xp_current} / {xp_goal} XP
+                {levelNumber >= 5 ? `${xp_current} XP` : `${xp_current} / ${xp_goal} XP`}
               </Text>
             </View>
             <ProgressBar value={level.progress} height={10} />
@@ -211,7 +212,9 @@ export default function ElderMyPageScreen() {
               <Text style={styles.xpNote}>
                 다음 레벨까지 <Text style={styles.xpNoteStrong}>{level.toNext} XP</Text> 남았어요
               </Text>
-            ) : null}
+            ) : (
+              <Text style={styles.xpNote}>최고 레벨에 도달했어요</Text>
+            )}
           </View>
 
           <View>

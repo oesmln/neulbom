@@ -19,7 +19,10 @@ import type {
   DiariesResponse,
   DiaryDetailResponse,
   EldersResponse,
+  GameHistoryItem,
   GameHistoryResponse,
+  GameResultRequest,
+  GameResultResponse,
   GuardianReportResponse,
   HistoryResponse,
   NotificationResponse,
@@ -32,6 +35,7 @@ import type {
   SessionType,
   UserProfileResponse,
   Uuid,
+  XpHistoryItem,
   XpHistoryResponse,
 } from "./types";
 
@@ -135,17 +139,18 @@ export function mockProfile(userId: Uuid, role: Role): UserProfileResponse {
 
 export function mockDashboard(userId: Uuid): DashboardResponse {
   const today = new Date();
+  const character = mockCharacter(userId);
   return {
     user_id: userId,
     role: "elder",
     character: {
-      level: 2,
-      display_name: mockCharacterDisplayName,
-      stage: "puppy",
-      xp_current: 210,
-      xp_goal: 250,
-      xp_remaining: 40,
-      skin_id: "memoi-1",
+      level: character.level,
+      display_name: character.display_name,
+      stage: character.stage,
+      xp_current: character.xp_current,
+      xp_goal: character.xp_goal,
+      xp_remaining: character.xp_remaining,
+      skin_id: character.skin_id,
     },
     latest_screening: {
       session_id: MOCK_SESSION_ID,
@@ -203,45 +208,141 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
 
 /* ── character & xp ─────────────────────────────────────────────────────── */
 
+const MOCK_LEVEL_MINIMUMS = [0, 100, 300, 600, 1_000] as const;
+const MOCK_DAILY_XP_CAP = 100;
+let mockXpCurrent = 210;
+let mockXpAwardedToday = 33;
+let mockGameResultSequence = 1;
+let mockSessionSequence = 1;
+let mockFirstCistAwarded = false;
+const mockSessionTypes = new Map<Uuid, SessionType>();
+const mockEndedSessions = new Set<Uuid>();
+
+const mockXpRecords: XpHistoryItem[] = [
+  ["emotional_qa", "AI 정서 문답 완료", 20, 0],
+  ["game", "두뇌 게임 성공", 13, 0],
+  ["streak", "7일 연속 활동 보너스", 25, 1],
+  ["emotional_qa", "AI 정서 문답 완료", 20, 1],
+  ["game", "두뇌 게임 성공", 13, 2],
+].map(([reason, title, amount, ago], index) => ({
+  xp_ledger_id: fixedId("bbbbbbbb", index + 1),
+  reason: String(reason),
+  display_title: String(title),
+  amount: Number(amount),
+  event_id: null,
+  earned_at: daysAgo(Number(ago)).toISOString(),
+}));
+
+const mockGameRecords: GameHistoryItem[] = [];
+const mockGameResults = new Map<Uuid, GameResultResponse>();
+
+function mockLevelFor(xp: number): number {
+  for (let index = MOCK_LEVEL_MINIMUMS.length - 1; index >= 0; index -= 1) {
+    if (xp >= MOCK_LEVEL_MINIMUMS[index]) return index + 1;
+  }
+  return 1;
+}
+
+function mockGoalFor(level: number): number {
+  return level >= 5 ? MOCK_LEVEL_MINIMUMS[4] : MOCK_LEVEL_MINIMUMS[level];
+}
+
+function mockStageFor(level: number): string {
+  return ["egg", "puppy", "sprout", "flower", "star"][Math.max(0, Math.min(4, level - 1))];
+}
+
+function awardMockXp(amount: number, reason: string, title: string, eventId: string): number {
+  const available = Math.max(0, MOCK_DAILY_XP_CAP - mockXpAwardedToday);
+  const awarded = Math.min(amount, available);
+  mockXpAwardedToday += awarded;
+  mockXpCurrent += awarded;
+  if (awarded > 0) {
+    mockXpRecords.unshift({
+      xp_ledger_id: fixedId("bbbbbbbb", mockXpRecords.length + 1),
+      reason,
+      display_title: title,
+      amount: awarded,
+      event_id: eventId,
+      earned_at: new Date().toISOString(),
+    });
+  }
+  return awarded;
+}
+
+function mockGameSucceeded(body: GameResultRequest): boolean {
+  if (!body.completed) return false;
+  if (body.game_type === "image_match") {
+    return (body.matched_pairs ?? 0) >= body.total_questions && body.score >= body.total_questions;
+  }
+  return body.score / body.total_questions >= 0.6;
+}
+
+export function mockSubmitGameResult(body: GameResultRequest): GameResultResponse {
+  const existing = mockGameResults.get(body.client_game_result_id);
+  if (existing) return { ...existing, deduplicated: true };
+
+  const previousLevel = mockLevelFor(mockXpCurrent);
+  const requestedXp = 3 + (mockGameSucceeded(body) ? 10 : 0);
+  const gameResultId = fixedId("dddddddd", mockGameResultSequence++);
+  const xpEarned = awardMockXp(
+    requestedXp,
+    "game",
+    mockGameSucceeded(body) ? "두뇌 게임 성공" : "두뇌 게임 참여",
+    gameResultId,
+  );
+  const characterLevel = mockLevelFor(mockXpCurrent);
+  const response: GameResultResponse = {
+    game_result_id: gameResultId,
+    cognitive_index: Math.round((body.score / body.total_questions) * 10_000) / 100,
+    xp_earned: xpEarned,
+    character_level: characterLevel,
+    level_up: characterLevel > previousLevel,
+    deduplicated: false,
+  };
+  mockGameResults.set(body.client_game_result_id, response);
+  mockGameRecords.unshift({
+    game_result_id: gameResultId,
+    game_type: body.game_type,
+    score: body.score,
+    matched_pairs: body.matched_pairs ?? null,
+    attempt_count: body.attempt_count ?? null,
+    duration_sec: body.duration_sec,
+    restarted_count: body.restarted_count ?? 0,
+    completed: body.completed,
+    cognitive_index: response.cognitive_index,
+    xp_earned: xpEarned,
+    played_at: new Date().toISOString(),
+  });
+  return response;
+}
+
 export function mockCharacter(userId: Uuid): CharacterResponse {
+  const level = mockLevelFor(mockXpCurrent);
+  const goal = mockGoalFor(level);
   return {
     user_id: userId,
     display_name: mockCharacterDisplayName,
-    level: 2,
-    stage: "puppy",
-    stage_index: 1,
+    level,
+    stage: mockStageFor(level),
+    stage_index: level,
     stage_count: 5,
-    xp_current: 210,
-    xp_goal: 250,
-    xp_remaining: 40,
+    xp_current: mockXpCurrent,
+    xp_goal: goal,
+    xp_remaining: Math.max(0, goal - mockXpCurrent),
     skin_id: "memoi-1",
     unlocked: ["chick", "puppy"],
   };
 }
 
 export function mockXpHistory(): XpHistoryResponse {
-  const entries: [string, string, number, number][] = [
-    ["emotional_qa_completed", "AI 정서 문답 완료", 30, 0],
-    ["game_completed", "기억력 게임 ★★★", 30, 0],
-    ["streak_bonus", "7일 연속 보너스", 50, 1],
-    ["emotional_qa_completed", "AI 정서 문답 완료", 30, 1],
-    ["game_completed", "기억력 게임 ★★☆", 20, 2],
-  ];
   return {
-    records: entries.map(([reason, title, amount, ago], i) => ({
-      xp_ledger_id: fixedId("bbbbbbbb", i + 1),
-      reason,
-      display_title: title,
-      amount,
-      event_id: null,
-      earned_at: daysAgo(ago).toISOString(),
-    })),
+    records: [...mockXpRecords],
     next_cursor: null,
   };
 }
 
 export function mockGameHistory(): GameHistoryResponse {
-  return { records: [], total: 0, limit: 20 };
+  return { records: [...mockGameRecords], total: mockGameRecords.length, limit: 20 };
 }
 
 /* ── notifications ──────────────────────────────────────────────────────── */
@@ -506,8 +607,10 @@ export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse 
 }
 
 export function mockSession(userId: Uuid, sessionType: SessionType): SessionResponse {
+  const sessionId = fixedId("33333333", mockSessionSequence++);
+  mockSessionTypes.set(sessionId, sessionType);
   return {
-    session_id: MOCK_SESSION_ID,
+    session_id: sessionId,
     user_id: userId,
     session_type: sessionType,
     status: "in_progress",
@@ -522,6 +625,17 @@ export function mockSession(userId: Uuid, sessionType: SessionType): SessionResp
 }
 
 export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
+  const sessionType = mockSessionTypes.get(sessionId) ?? "emotional_qa";
+  let xpEarned = 0;
+  if (!mockEndedSessions.has(sessionId)) {
+    mockEndedSessions.add(sessionId);
+    if (sessionType === "emotional_qa") {
+      xpEarned = awardMockXp(20, "emotional_qa", "AI 정서 문답 완료", `emotional_qa:${sessionId}`);
+    } else if (!mockFirstCistAwarded && (sessionType === "cist" || sessionType === "baseline")) {
+      mockFirstCistAwarded = true;
+      xpEarned = awardMockXp(30, "cist", "최초 CIST 완료", `cist:first:${MOCK_ELDER_ID}`);
+    }
+  }
   return {
     session_id: sessionId,
     status: "completed",
@@ -533,8 +647,8 @@ export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
     display_label: "안정적",
     message: "오늘도 인지 기능이 안정적이에요. 지금처럼만 꾸준히 이어가 주세요!",
     recommendation: "내일도 같은 시간에 대화해요.",
-    xp_earned: 30,
-    character_level: 2,
+    xp_earned: xpEarned,
+    character_level: mockLevelFor(mockXpCurrent),
     level_up: false,
   };
 }

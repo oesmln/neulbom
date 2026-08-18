@@ -130,12 +130,15 @@ class SessionIntegrationTest {
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ended"))
-                .andExpect(jsonPath("$.analysis_status").value("pending"));
+                .andExpect(jsonPath("$.analysis_status").value("pending"))
+                .andExpect(jsonPath("$.xp_earned").value(30))
+                .andExpect(jsonPath("$.character_level").value(1));
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
-                        .with(jwtFor(elder)))
+                .with(jwtFor(elder)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ended"));
+                .andExpect(jsonPath("$.status").value("ended"))
+                .andExpect(jsonPath("$.xp_earned").value(0));
 
         mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
                         .with(jwtFor(elder))
@@ -256,7 +259,8 @@ class SessionIntegrationTest {
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ended"));
+                .andExpect(jsonPath("$.status").value("ended"))
+                .andExpect(jsonPath("$.xp_earned").value(30));
 
         org.assertj.core.api.Assertions.assertThat(userRepository.findById(elder.getId()).orElseThrow().isBaselineCompleted())
                 .isTrue();
@@ -291,7 +295,9 @@ class SessionIntegrationTest {
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.xp_earned").value(20))
+                .andExpect(jsonPath("$.character_level").value(1));
     }
 
     @Test

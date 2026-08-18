@@ -93,18 +93,9 @@ public class CharacterEntity {
     public int awardXp(int amount, Instant updatedAt) {
         int previousLevel = level;
         xpCurrent += amount;
-        while (xpCurrent >= xpGoal) {
-            xpCurrent -= xpGoal;
-            level++;
-            xpGoal += 100;
-        }
-        stage = switch (Math.min(level, 5)) {
-            case 1 -> "egg";
-            case 2 -> "puppy";
-            case 3 -> "sprout";
-            case 4 -> "flower";
-            default -> "star";
-        };
+        level = XpPolicy.levelFor(xpCurrent);
+        xpGoal = XpPolicy.goalForLevel(level);
+        stage = XpPolicy.stageForLevel(level);
         this.updatedAt = updatedAt;
         return level > previousLevel ? level - previousLevel : 0;
     }

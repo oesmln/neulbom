@@ -151,7 +151,7 @@ export default function GuardianDashboardScreen() {
           icon="people-outline"
         />
         <Button
-          label="초대 코드 만들기"
+          label="초대 코드 생성"
           icon="person-add-outline"
           onPress={() => navigation.navigate("GuardianConnections")}
           style={{ backgroundColor: guardian.blue }}

@@ -7,11 +7,11 @@ import { guardian } from "@/theme";
 export default function GuardianSettingsScreen() {
   return (
     <AppSettingsView
-      palette={{
+      palette={() => ({
         accent: guardian.blue,
         accentLight: guardian.blueLight,
         accentDark: guardian.blueDark,
-      }}
+      })}
       headerRight={<GuardianNotificationButton />}
     />
   );

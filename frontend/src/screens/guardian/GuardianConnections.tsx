@@ -2,12 +2,12 @@ import React from "react";
 import {
   Alert,
   Pressable,
-  Share,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { useNavigation } from "@react-navigation/native";
 
 import { guardian as guardianApi } from "@/api";
@@ -40,10 +40,14 @@ const SCOPES = [
   { value: "activity", label: "활동·게임" },
 ] as const;
 
-function expirationLabel(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "10분 동안 사용할 수 있어요";
-  return `${date.toLocaleTimeString("ko-KR", { hour: "numeric", minute: "2-digit" })}까지 사용할 수 있어요`;
+function remainingTimeLabel(expiresAt: string, now: number): string {
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (Number.isNaN(expiresAtMs)) return "남은 시간을 확인할 수 없어요";
+  const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - now) / 1000));
+  if (remainingSeconds === 0) return "초대 코드가 만료됐어요";
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  return `남은 시간 ${minutes}분 ${String(seconds).padStart(2, "0")}초`;
 }
 
 export default function GuardianConnectionsScreen() {
@@ -54,6 +58,21 @@ export default function GuardianConnectionsScreen() {
   const [invitation, setInvitation] = React.useState<InvitationCreateResponse | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [inviteError, setInviteError] = React.useState<string | null>(null);
+  const [now, setNow] = React.useState(Date.now());
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!invitation) return;
+    setNow(Date.now());
+    const intervalId = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(intervalId);
+  }, [invitation]);
+
+  React.useEffect(() => {
+    if (!copied) return;
+    const timeoutId = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [copied]);
 
   const links = useApi(() => guardianApi.elders(userId as string), [userId], {
     enabled: !!userId,
@@ -70,6 +89,8 @@ export default function GuardianConnectionsScreen() {
         expires_in: 600,
       });
       setInvitation(created);
+      setCopied(false);
+      setNow(Date.now());
     } catch (cause) {
       setInviteError(apiErrorMessage(cause));
     } finally {
@@ -77,13 +98,14 @@ export default function GuardianConnectionsScreen() {
     }
   };
 
-  const shareInvitation = async () => {
-    if (!invitation) return;
+  const expiresAtMs = invitation ? new Date(invitation.expires_at).getTime() : 0;
+  const invitationExpired = !!invitation && (!Number.isFinite(expiresAtMs) || expiresAtMs <= now);
+
+  const copyInvitation = async () => {
+    if (!invitation || invitationExpired) return;
     try {
-      await Share.share({
-        title: "늘봄 보호자 연결 코드",
-        message: `늘봄 보호자 연결 코드: ${invitation.invite_code}\n앱의 초대 코드 입력란에 10분 안에 입력해 주세요.`,
-      });
+      await Clipboard.setStringAsync(invitation.invite_code);
+      setCopied(true);
     } catch (cause) {
       setInviteError(apiErrorMessage(cause));
     }
@@ -135,18 +157,30 @@ export default function GuardianConnectionsScreen() {
         {invitation ? (
           <View style={styles.invitationBox}>
             <Text style={styles.invitationGuide}>어르신께 아래 코드를 알려 주세요</Text>
-            <Text selectable style={styles.inviteCode}>{invitation.invite_code}</Text>
-            <Text style={styles.expiration}>{expirationLabel(invitation.expires_at)}</Text>
+            <Pressable
+              onPress={() => void copyInvitation()}
+              disabled={invitationExpired}
+              accessibilityRole="button"
+              accessibilityLabel={`초대 코드 ${invitation.invite_code} 복사`}
+            >
+              <Text selectable style={[styles.inviteCode, invitationExpired && styles.expiredCode]}>
+                {invitation.invite_code}
+              </Text>
+            </Pressable>
+            <Text style={[styles.expiration, invitationExpired && styles.expiredText]}>
+              {remainingTimeLabel(invitation.expires_at, now)}
+            </Text>
             <Button
-              label="안전하게 공유하기"
-              icon="share-social-outline"
-              onPress={() => void shareInvitation()}
+              label={copied ? "복사됐어요" : "초대 코드 복사"}
+              icon={copied ? "checkmark-outline" : "copy-outline"}
+              disabled={invitationExpired}
+              onPress={() => void copyInvitation()}
               style={{ backgroundColor: guardian.blue }}
             />
           </View>
         ) : (
           <Button
-            label={creating ? "코드 만드는 중" : "초대 코드 만들기"}
+            label={creating ? "초대 코드 생성 중" : "초대 코드 생성"}
             disabled={creating || scopes.length === 0}
             onPress={() => void createInvitation()}
             style={{ backgroundColor: guardian.blue }}
@@ -155,7 +189,7 @@ export default function GuardianConnectionsScreen() {
 
         {invitation ? (
           <Button
-            label={creating ? "새 코드 만드는 중" : "새 코드 만들기"}
+            label={creating ? "새 초대 코드 생성 중" : "새 초대 코드 생성"}
             variant="outline"
             disabled={creating || scopes.length === 0}
             onPress={() => void createInvitation()}
@@ -408,6 +442,8 @@ const styles = StyleSheet.create({
     letterSpacing: 7,
   },
   expiration: { marginBottom: spacing.sm, fontSize: fontSize.caption, color: colors.mutedForeground },
+  expiredCode: { color: colors.mutedForeground },
+  expiredText: { color: colors.destructive },
   connectionHeading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   elderName: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.bold, color: colors.foreground },
   errorText: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },

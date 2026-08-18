@@ -9,6 +9,7 @@ import { RootStackParamList } from "@/navigation/types";
 import { navigationRef } from "@/navigation/ref";
 import { colors, isDarkApplied } from "@/theme";
 import { AppProvider } from "@/store/AppContext";
+import { DisplaySettingsProvider, useDisplaySettings } from "@/store/DisplaySettingsContext";
 
 import SplashScreen from "@/screens/auth/SplashScreen";
 import LoginScreen from "@/screens/auth/LoginScreen";
@@ -30,18 +31,6 @@ import GuardianNavigator from "@/navigation/GuardianNavigator";
 LogBox.ignoreLogs(["THREE.Clock: This module has been deprecated"]);
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-
-const navTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: colors.background,
-    primary: colors.primary,
-    card: colors.background,
-    text: colors.foreground,
-    border: colors.border,
-  },
-};
 
 const linking = {
   prefixes: ["memocare://"],
@@ -69,7 +58,20 @@ const linking = {
   },
 };
 
-export default function App() {
+function AppContent() {
+  useDisplaySettings();
+  const navTheme = {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      background: colors.background,
+      primary: colors.primary,
+      card: colors.background,
+      text: colors.foreground,
+      border: colors.border,
+    },
+  };
+
   return (
     <SafeAreaProvider>
       <AppProvider>
@@ -93,5 +95,13 @@ export default function App() {
         </NavigationContainer>
       </AppProvider>
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <DisplaySettingsProvider>
+      <AppContent />
+    </DisplaySettingsProvider>
   );
 }

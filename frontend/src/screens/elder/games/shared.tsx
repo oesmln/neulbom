@@ -142,11 +142,16 @@ export function SubmitStatus({
   }
   if (result) {
     return (
-      <Text style={styles.xpNote}>
-        {result.deduplicated
-          ? "이미 저장된 결과예요"
-          : `경험치 +${result.xp_earned} XP를 받았어요!`}
-      </Text>
+      <View style={styles.xpResult}>
+        <Text style={styles.xpNote}>
+          {result.deduplicated
+            ? "이미 저장된 결과예요"
+            : `이번 게임에서 +${result.xp_earned} XP를 받았어요!`}
+        </Text>
+        {!result.deduplicated ? (
+          <Text style={styles.xpPolicy}>참여 +3 XP · 성공 시 +10 XP · 하루 최대 100 XP</Text>
+        ) : null}
+      </View>
     );
   }
   return null;
@@ -197,6 +202,8 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: 4, backgroundColor: colors.primary },
 
   xpNote: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  xpResult: { alignItems: "center", gap: 4 },
+  xpPolicy: { fontSize: fontSize.caption, color: colors.mutedForeground, textAlign: "center" },
   submitError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
   retry: {
     height: 40,

@@ -281,7 +281,11 @@ export default theme;
  * keeps the role of the token it replaces (e.g. `primaryDark` is "text on a
  * light-sage surface", so in dark mode it becomes a light sage).
  */
-const darkColors = {
+const lightColors = { ...colors };
+const lightGuardian = { ...guardian };
+const baseFontSize = { ...fontSize };
+
+export const darkColors = {
   background: "#191C1A",
   foreground: "#E8ECE9",
   card: "#232725",
@@ -301,7 +305,7 @@ const darkColors = {
   screenBackground: "#141715",
 } as const;
 
-const darkGuardian = {
+export const darkGuardian = {
   blueLight: "#20304A",
   blueDark: "#9FC2EC",
   dangerText: "#EDAFA6",
@@ -319,24 +323,38 @@ let darkApplied = false;
  *
  * MUST run before any screen module is imported: screens call
  * `StyleSheet.create` at import time and capture token values then, which is
- * why `src/Boot.tsx` requires `App` only after this has run — and why a change
- * from the settings screen applies on the next launch.
+ * why `src/Boot.tsx` requires `App` only after this has run. Runtime changes
+ * reset these tokens and refresh registered style sheets in place.
  */
 export function applyDisplaySettings(settings: {
   darkMode: boolean;
   fontScale: keyof typeof FONT_SCALES;
 }): void {
+  Object.assign(colors, lightColors);
+  Object.assign(guardian, lightGuardian);
+  Object.assign(fontSize, baseFontSize);
+  darkApplied = false;
+
   if (settings.darkMode) {
     Object.assign(colors, darkColors);
     Object.assign(guardian, darkGuardian);
     darkApplied = true;
   }
   const scale = FONT_SCALES[settings.fontScale] ?? 1;
-  if (scale !== 1) {
-    for (const key of Object.keys(fontSize) as (keyof typeof fontSize)[]) {
-      (fontSize as Record<string, number>)[key] = Math.round(fontSize[key] * scale);
-    }
+  for (const key of Object.keys(fontSize) as (keyof typeof fontSize)[]) {
+    (fontSize as Record<string, number>)[key] = Math.round(baseFontSize[key] * scale);
   }
+}
+
+export function displayTokenSnapshot(settings: {
+  darkMode: boolean;
+  fontScale: keyof typeof FONT_SCALES;
+}) {
+  return {
+    colors: settings.darkMode ? { ...lightColors, ...darkColors } : { ...lightColors },
+    guardian: settings.darkMode ? { ...lightGuardian, ...darkGuardian } : { ...lightGuardian },
+    fontScale: FONT_SCALES[settings.fontScale] ?? 1,
+  };
 }
 
 /** Whether the dark palette is active this launch — drives the status bar. */

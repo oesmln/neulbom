@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import type { ElderNav } from "@/navigation/types";
@@ -56,9 +56,10 @@ const GAMES: {
 
 export default function ElderGameHubScreen() {
   const navigation = useNavigation<ElderNav>();
+  const isFocused = useIsFocused();
   const { userId } = useApp();
-  const history = useApi(() => game.history(userId as string, 3), [userId], {
-    enabled: !!userId,
+  const history = useApi(() => game.history(userId as string, 3), [userId, isFocused], {
+    enabled: !!userId && isFocused,
   });
 
   return (
@@ -66,6 +67,14 @@ export default function ElderGameHubScreen() {
       <ScreenHeader title="두뇌 게임" subtitle="재미있는 게임으로 두뇌를 자극해요" />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <View style={styles.rewardGuide}>
+          <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rewardTitle}>게임 경험치</Text>
+            <Text style={styles.rewardText}>참여 +3 XP · 성공 시 +10 XP · 하루 최대 100 XP</Text>
+          </View>
+        </View>
+
         {GAMES.map((game) => (
           <Card
             key={game.route}
@@ -129,6 +138,16 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.screenBackground },
   body: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xxl },
   game: { paddingVertical: spacing.xl },
+  rewardGuide: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: 12,
+    backgroundColor: colors.secondary,
+  },
+  rewardTitle: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.primaryDark },
+  rewardText: { marginTop: 2, fontSize: fontSize.caption, color: colors.mutedForeground },
   row: { flexDirection: "row", alignItems: "center" },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: 6 },
   title: { fontSize: fontSize.subtitle, fontWeight: fontWeight.bold, color: colors.foreground },

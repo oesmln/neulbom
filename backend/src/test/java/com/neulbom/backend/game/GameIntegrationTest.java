@@ -32,6 +32,7 @@ class GameIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private SessionRepository sessionRepository;
+    @Autowired private XpLedgerRepository xpLedgerRepository;
     @Autowired private UuidGenerator uuidGenerator;
 
     @Test
@@ -42,20 +43,20 @@ class GameIntegrationTest {
         String request = """
                 {
                   "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
-                  "game_type":"image_match", "score":5, "response_times":[1.2,0.8],
-                  "error_count":1, "total_questions":6, "matched_pairs":5, "attempt_count":7,
+                  "game_type":"image_match", "score":6, "response_times":[1.2,0.8],
+                  "error_count":0, "total_questions":6, "matched_pairs":6, "attempt_count":7,
                   "duration_sec":42, "restarted_count":0, "completed":true
                 }
                 """.formatted(elder.getId(), session.getId(), clientResultId);
 
         mockMvc.perform(post("/api/v1/game/result").with(jwtFor(elder)).contentType(MediaType.APPLICATION_JSON).content(request))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.cognitive_index").value(83.33))
-                .andExpect(jsonPath("$.xp_earned").value(30)).andExpect(jsonPath("$.deduplicated").value(false));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.cognitive_index").value(100.0))
+                .andExpect(jsonPath("$.xp_earned").value(13)).andExpect(jsonPath("$.deduplicated").value(false));
         mockMvc.perform(post("/api/v1/game/result").with(jwtFor(elder)).contentType(MediaType.APPLICATION_JSON).content(request))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_earned").value(30)).andExpect(jsonPath("$.deduplicated").value(true));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_earned").value(13)).andExpect(jsonPath("$.deduplicated").value(true));
         mockMvc.perform(get("/api/v1/game/{userId}/history", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.records.length()").value(1))
-                .andExpect(jsonPath("$.records[0].xp_earned").value(30));
+                .andExpect(jsonPath("$.records[0].xp_earned").value(13));
         String colorMatchRequest = """
                 {
                   "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
@@ -67,7 +68,8 @@ class GameIntegrationTest {
         mockMvc.perform(post("/api/v1/game/result").with(jwtFor(elder)).contentType(MediaType.APPLICATION_JSON).content(colorMatchRequest))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.cognitive_index").value(80.0));
         mockMvc.perform(get("/api/v1/character/{userId}", elder.getId()).with(jwtFor(elder)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(60))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(26))
+                .andExpect(jsonPath("$.xp_goal").value(100))
                 .andExpect(jsonPath("$.stage").value("egg"));
         mockMvc.perform(get("/api/v1/character/{userId}/xp-history", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.records[0].reason").value("game"));
@@ -76,10 +78,66 @@ class GameIntegrationTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":10,\"reason\":\"attendance\",\"event_id\":\"attendance-1\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(70));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.xp_current").value(36))
+                .andExpect(jsonPath("$.awarded_amount").value(10));
         mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":10,\"reason\":\"attendance\",\"event_id\":\"attendance-1\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.deduplicated").value(true));
+    }
+
+    @Test
+    void dailyXpCapClipsAwardsAndRecordsZeroAmountEventsAsDeduplicated() throws Exception {
+        UserEntity elder = saveUser("daily-cap-owner");
+
+        mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":60,\"reason\":\"visit\",\"event_id\":\"daily-cap-1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.awarded_amount").value(60))
+                .andExpect(jsonPath("$.xp_current").value(60));
+
+        mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":60,\"reason\":\"visit\",\"event_id\":\"daily-cap-2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.awarded_amount").value(40))
+                .andExpect(jsonPath("$.xp_current").value(100))
+                .andExpect(jsonPath("$.level").value(2));
+
+        mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":10,\"reason\":\"visit\",\"event_id\":\"daily-cap-3\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.awarded_amount").value(0))
+                .andExpect(jsonPath("$.deduplicated").value(false));
+
+        mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":10,\"reason\":\"visit\",\"event_id\":\"daily-cap-3\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.awarded_amount").value(0))
+                .andExpect(jsonPath("$.deduplicated").value(true));
+
+        mockMvc.perform(get("/api/v1/character/{userId}/xp-history", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records.length()").value(2));
+    }
+
+    @Test
+    void threeDayActivityStreakAwardsTenBonusXp() throws Exception {
+        UserEntity elder = saveUser("streak-owner");
+        Instant now = Instant.now();
+        xpLedgerRepository.save(new XpLedgerEntity(
+                uuidGenerator.generate(), elder.getId(), "streak-activity-1", 3, "game", now.minusSeconds(2 * 86_400L)));
+        xpLedgerRepository.save(new XpLedgerEntity(
+                uuidGenerator.generate(), elder.getId(), "streak-activity-2", 3, "game", now.minusSeconds(86_400L)));
+
+        mockMvc.perform(post("/api/v1/character/{userId}/xp", elder.getId()).with(serverJwt(elder)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":20,\"reason\":\"emotional_qa\",\"event_id\":\"streak-activity-3\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.awarded_amount").value(20))
+                .andExpect(jsonPath("$.xp_current").value(30));
+
+        mockMvc.perform(get("/api/v1/character/{userId}/xp-history", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].reason").value("streak"))
+                .andExpect(jsonPath("$.records[0].amount").value(10));
     }
 
     private UserEntity saveUser(String prefix) {
