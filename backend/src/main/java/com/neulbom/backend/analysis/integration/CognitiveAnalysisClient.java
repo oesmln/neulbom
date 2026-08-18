@@ -8,7 +8,7 @@ public interface CognitiveAnalysisClient {
 
     boolean isConfigured();
 
-    CognitiveResult analyze(String transcript, String questionType, String modelVersion);
+    CognitiveResult analyze(String question, String transcript, String questionType, String modelVersion);
 
     record CognitiveResult(
             BigDecimal languageReferenceScore,
