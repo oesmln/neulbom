@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neulbom.backend.auth.service.TokenHasher;
 import com.neulbom.backend.guardian.api.GuardianLinkResponse;
 import com.neulbom.backend.guardian.api.InvitationCreateResponse;
 import com.neulbom.backend.user.UserEntity;
@@ -42,10 +43,18 @@ class GuardianIntegrationTest {
     @Autowired
     private GuardianAccessService guardianAccessService;
 
+    @Autowired
+    private GuardianInvitationRepository invitationRepository;
+
+    @Autowired
+    private TokenHasher tokenHasher;
+
     @Test
     void invitationIsHashedVerifiedOnceAndCreatesActiveScopedLink() throws Exception {
         UserEntity guardian = saveUser("guardian-invite", "guardian");
         UserEntity elder = saveUser("elder-invite", "elder");
+        UserEntity secondElder = saveUser("elder-invite-second", "elder");
+        Instant issuedAfter = Instant.now();
 
         String invitationBody = mockMvc.perform(post("/api/v1/guardian/invitations")
                         .with(jwtFor(guardian))
@@ -62,6 +71,8 @@ class GuardianIntegrationTest {
                 .andExpect(jsonPath("$.access_scope[0]").value("screening"))
                 .andReturn().getResponse().getContentAsString();
         InvitationCreateResponse invitation = objectMapper.readValue(invitationBody, InvitationCreateResponse.class);
+        org.assertj.core.api.Assertions.assertThat(invitation.expiresAt())
+                .isBetween(issuedAfter.plusSeconds(599), Instant.now().plusSeconds(601));
 
         mockMvc.perform(post("/api/v1/guardian/invitations/verify")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -69,6 +80,12 @@ class GuardianIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.invitation_id").value(invitation.invitationId().toString()))
                 .andExpect(jsonPath("$.requires_consent").value(true));
+
+        mockMvc.perform(post("/api/v1/guardian/invitations/accept")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invite_code\":\"" + invitation.inviteCode() + "\",\"consent_agreed\":false}"))
+                .andExpect(status().isUnprocessableEntity());
 
         String linkBody = mockMvc.perform(post("/api/v1/guardian/invitations/accept")
                         .with(jwtFor(elder))
@@ -89,7 +106,7 @@ class GuardianIntegrationTest {
                 .isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
 
         mockMvc.perform(post("/api/v1/guardian/invitations/accept")
-                        .with(jwtFor(elder))
+                        .with(jwtFor(secondElder))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"invite_code\":\"" + invitation.inviteCode() + "\",\"consent_agreed\":true}"))
                 .andExpect(status().isGone());
@@ -100,6 +117,38 @@ class GuardianIntegrationTest {
                 .andExpect(jsonPath("$.elders.length()").value(1))
                 .andExpect(jsonPath("$.elders[0].link_id").value(link.linkId().toString()))
                 .andExpect(jsonPath("$.elders[0].consent_status").value("agreed"));
+    }
+
+    @Test
+    void invitationExpiresAfterTenMinutesAndCannotBeVerifiedOrAccepted() throws Exception {
+        UserEntity guardian = saveUser("guardian-expired-invite", "guardian");
+        UserEntity elder = saveUser("elder-expired-invite", "elder");
+        String inviteCode = "654321";
+        Instant now = Instant.now();
+        GuardianInvitationEntity expiredInvitation = invitationRepository.save(
+                new GuardianInvitationEntity(
+                        UUID.randomUUID(),
+                        guardian.getId(),
+                        tokenHasher.hash(inviteCode),
+                        "보호자",
+                        now.minusSeconds(1),
+                        5,
+                        now.minusSeconds(601)));
+
+        mockMvc.perform(post("/api/v1/guardian/invitations/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invite_code\":\"" + inviteCode + "\"}"))
+                .andExpect(status().isGone());
+
+        org.assertj.core.api.Assertions.assertThat(
+                        invitationRepository.findById(expiredInvitation.getId()).orElseThrow().getStatus())
+                .isEqualTo(GuardianInvitationEntity.EXPIRED);
+
+        mockMvc.perform(post("/api/v1/guardian/invitations/accept")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invite_code\":\"" + inviteCode + "\",\"consent_agreed\":true}"))
+                .andExpect(status().isGone());
     }
 
     @Test

@@ -78,6 +78,19 @@ export default function GuardianConnectionsScreen() {
     enabled: !!userId,
   });
 
+  React.useEffect(() => {
+    if (!links.data) return;
+    const selectableElders = links.data.elders.filter(
+      (elder) => elder.status === "active" && elder.consent_status === "agreed",
+    );
+    const selectionIsValid = selectableElders.some(
+      (elder) => elder.elder_id === selectedElderId,
+    );
+    if (!selectionIsValid) {
+      setSelectedElderId(selectableElders[0]?.elder_id ?? null);
+    }
+  }, [links.data, selectedElderId, setSelectedElderId]);
+
   const createInvitation = async () => {
     if (creating || scopes.length === 0) return;
     setCreating(true);
@@ -114,6 +127,12 @@ export default function GuardianConnectionsScreen() {
   const afterRevoke = (elderId: Uuid) => {
     if (selectedElderId === elderId) setSelectedElderId(null);
     links.reload();
+  };
+
+  const selectElder = (elder: ElderSummaryResponse) => {
+    if (elder.status !== "active" || elder.consent_status !== "agreed") return;
+    setSelectedElderId(elder.elder_id);
+    navigation.navigate("GuardianTabs", { screen: "GuardianDashboard" });
   };
 
   return (
@@ -197,9 +216,22 @@ export default function GuardianConnectionsScreen() {
         ) : null}
       </Card>
 
-      <View>
-        <Text style={styles.listTitle}>연결된 어르신</Text>
-        <Text style={styles.sectionDescription}>현재 연결 상태와 허용된 정보 범위예요.</Text>
+      <View style={styles.listHeading}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.listTitle}>연결된 어르신</Text>
+          <Text style={styles.sectionDescription}>
+            현재 보고 있는 어르신을 확인하고 다른 어르신으로 전환할 수 있어요.
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => void links.reload()}
+          accessibilityRole="button"
+          accessibilityLabel="연결된 어르신 목록 새로고침"
+          style={styles.refreshButton}
+        >
+          <Ionicons name="refresh-outline" size={17} color={guardian.blue} />
+          <Text style={styles.refreshLabel}>새로고침</Text>
+        </Pressable>
       </View>
 
       {links.loading && !links.data ? <LoadingState label="연결 목록을 불러오는 중이에요" /> : null}
@@ -213,6 +245,8 @@ export default function GuardianConnectionsScreen() {
         <ConnectionCard
           key={elder.link_id ?? elder.elder_id}
           elder={elder}
+          selected={elder.elder_id === selectedElderId}
+          onSelect={() => selectElder(elder)}
           onChanged={links.reload}
           onRevoked={() => afterRevoke(elder.elder_id)}
         />
@@ -274,10 +308,14 @@ function ScopeSelector({
 
 function ConnectionCard({
   elder,
+  selected,
+  onSelect,
   onChanged,
   onRevoked,
 }: {
   elder: ElderSummaryResponse;
+  selected: boolean;
+  onSelect: () => void;
   onChanged: () => void;
   onRevoked: () => void;
 }) {
@@ -287,6 +325,7 @@ function ConnectionCard({
   const [error, setError] = React.useState<string | null>(null);
   const active = elder.status === "active";
   const revoked = elder.status === "revoked";
+  const selectable = active && elder.consent_status === "agreed";
 
   React.useEffect(() => setScopes(elder.access_scope ?? []), [elder.access_scope]);
 
@@ -349,8 +388,23 @@ function ConnectionCard({
               : "허용할 정보를 필요에 맞게 변경할 수 있어요."}
           </Text>
         </View>
-        <Badge label={status.label} color={status.color} background={status.background} />
+        <View style={styles.statusBadges}>
+          {selected && selectable ? (
+            <Badge label="현재 어르신" color={colors.white} background={guardian.blue} />
+          ) : null}
+          <Badge label={status.label} color={status.color} background={status.background} />
+        </View>
       </View>
+
+      {selectable ? (
+        <Button
+          label={selected ? "현재 보고 있는 어르신" : `${elder.elder_name} 어르신으로 전환`}
+          icon={selected ? "checkmark-circle-outline" : "swap-horizontal-outline"}
+          disabled={selected || saving}
+          onPress={onSelect}
+          style={{ backgroundColor: guardian.blue }}
+        />
+      ) : null}
 
       <ScopeSelector selected={scopes} onChange={setScopes} disabled={!active || saving} />
 
@@ -399,7 +453,19 @@ const styles = StyleSheet.create({
     backgroundColor: guardian.blueLight,
   },
   sectionTitle: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.bold, color: colors.foreground },
+  listHeading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   listTitle: { fontSize: fontSize.subtitle, fontWeight: fontWeight.bold, color: colors.foreground },
+  refreshButton: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: guardian.blue,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+  },
+  refreshLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: guardian.blue },
   sectionDescription: { marginTop: 3, fontSize: fontSize.caption, color: colors.mutedForeground, lineHeight: 20 },
   fieldLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.foreground },
   input: {
@@ -445,6 +511,7 @@ const styles = StyleSheet.create({
   expiredCode: { color: colors.mutedForeground },
   expiredText: { color: colors.destructive },
   connectionHeading: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
+  statusBadges: { alignItems: "flex-end", gap: spacing.xs },
   elderName: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.bold, color: colors.foreground },
   errorText: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
 });

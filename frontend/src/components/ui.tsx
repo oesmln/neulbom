@@ -21,6 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, onHeader, radius, spacing, fontSize, fontWeight, sizes, shadow } from "@/theme";
+import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
 /* ----------------------------------------------------------------- Screen */
 
@@ -91,6 +92,9 @@ export function ScreenHeader({
   color?: string;
   children?: React.ReactNode;
 }) {
+  // Registered styles are refreshed in place; subscribing here makes an
+  // already-mounted navigation header render those new values immediately.
+  useDisplaySettings();
   return (
     <View style={[styles.header, { backgroundColor: color }]}>
       {onBack && backLabel ? (
@@ -345,6 +349,10 @@ export function SentenceText({
   children,
   ...props
 }: React.ComponentProps<typeof Text>) {
+  // Most screen copy funnels through this primitive. Context subscription is
+  // required because mutating a registered style alone does not re-render an
+  // already-mounted React Native Web text node.
+  useDisplaySettings();
   return <Text {...props}>{formatTextChildren(children)}</Text>;
 }
 

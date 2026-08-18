@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, Pressable, Linking } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { counseling } from "@/api";
@@ -30,7 +30,7 @@ import {
   LoadingState,
   SentenceText as Text,
 } from "@/components/ui";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
 /**
  * 전문의 상담 예약 — `GET /counseling/centers`.
@@ -155,7 +155,11 @@ const TYPE_FILTERS = [
 
 export default function GuardianCounselingCentersScreen() {
   const navigation = useNavigation();
-  const canGoBack = navigation.canGoBack();
+  const route = useRoute();
+  // This component is both a bottom tab and a pushed dashboard detail. Tab
+  // history also makes canGoBack() true, so the route name is the reliable way
+  // to avoid adding a back row (and changing header height) on the main tab.
+  const isDashboardDetail = route.name === "GuardianCounselingCenters";
   const [province, setProvince] = React.useState<{ code: string; name: string } | null>(null);
   const [district, setDistrict] = React.useState<{ code: string; name: string } | null>(null);
   const [facilityType, setFacilityType] = React.useState<string | null>(null);
@@ -194,11 +198,11 @@ export default function GuardianCounselingCentersScreen() {
       header={
         <ScreenHeader
           color={guardian.blue}
-          onBack={canGoBack ? () => navigation.goBack() : undefined}
-          backLabel={canGoBack ? "대시보드" : undefined}
+          onBack={isDashboardDetail ? () => navigation.goBack() : undefined}
+          backLabel={isDashboardDetail ? "대시보드" : undefined}
           title="전문의 상담 예약"
           subtitle="지역을 선택하면 치매안심센터·병원·보건소를 안내해 드려요."
-          right={<GuardianNotificationButton />}
+          right={<GuardianHeaderActions />}
         />
       }
     >

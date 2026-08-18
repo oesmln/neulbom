@@ -8,7 +8,8 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
-import { colors, guardian } from "@/theme";
+import { colors, fontSize, guardian } from "@/theme";
+import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
 /**
  * CIST score trend, drawn to the Figma guardian design.
@@ -46,7 +47,6 @@ interface Variant {
   showMildFloor: boolean;
   /** The dashboard enlarges the newest dot and prints its value above. */
   emphasiseLast: boolean;
-  lastLabelSize: number;
 }
 
 const VARIANTS: Record<"compact" | "full", Variant> = {
@@ -58,7 +58,6 @@ const VARIANTS: Record<"compact" | "full", Variant> = {
     yTicks: [30, 24, 18],
     showMildFloor: false,
     emphasiseLast: true,
-    lastLabelSize: 11,
   },
   full: {
     width: 318,
@@ -68,7 +67,6 @@ const VARIANTS: Record<"compact" | "full", Variant> = {
     yTicks: [30, 24, 18, 15],
     showMildFloor: true,
     emphasiseLast: false,
-    lastLabelSize: 10,
   },
 };
 
@@ -79,6 +77,9 @@ export default function ScoreTrendChart({
   points: TrendPoint[];
   variant?: "compact" | "full";
 }) {
+  // SVG text is not registered with React Native's StyleSheet runtime, so
+  // subscribe explicitly to display-setting changes before reading the tokens.
+  useDisplaySettings();
   const v = VARIANTS[variant];
   if (points.length === 0) return null;
 
@@ -171,7 +172,7 @@ export default function ScoreTrendChart({
           x={v.padLeft - 4}
           y={toY(tick) + 4}
           textAnchor="end"
-          fontSize={9}
+          fontSize={fontSize.badge}
           fill={colors.mutedForeground}
         >
           {String(tick)}
@@ -205,7 +206,7 @@ export default function ScoreTrendChart({
                 x={p.x}
                 y={p.y - (v.emphasiseLast ? 9 : 7)}
                 textAnchor="middle"
-                fontSize={v.lastLabelSize}
+                fontSize={variant === "compact" ? fontSize.caption : fontSize.badge}
                 fontWeight="700"
                 fill={dotColor(p.score)}
               >
@@ -225,7 +226,7 @@ export default function ScoreTrendChart({
           // would hang outside the viewBox — which the web prototype got away
           // with and React Native clips. Anchor the end labels inward instead.
           textAnchor={i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle"}
-          fontSize={9}
+          fontSize={fontSize.badge}
           fill={colors.mutedForeground}
         >
           {p.label}

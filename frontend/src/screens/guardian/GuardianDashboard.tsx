@@ -10,9 +10,9 @@ import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
 import type { GuardianReportResponse } from "@/api/types";
-import { colors, guardian, onHeader, spacing, radius, fontSize, fontWeight } from "@/theme";
+import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
-import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import {
   Screen,
   ScreenHeader,
@@ -118,20 +118,7 @@ export default function GuardianDashboardScreen() {
             ? `${selectedElder.elder_name}님의 인지 상태를 확인 중`
             : undefined
       }
-      right={
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => navigation.navigate("GuardianConnections")}
-            accessibilityRole="button"
-            accessibilityLabel="보호자 연결 관리"
-            hitSlop={8}
-            style={styles.gear}
-          >
-            <Ionicons name="people-outline" size={18} color={colors.white} />
-          </Pressable>
-          <GuardianNotificationButton />
-        </View>
-      }
+      right={<GuardianHeaderActions />}
     />
   );
 
@@ -412,15 +399,6 @@ export default function GuardianDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerActions: { flexDirection: "row", gap: spacing.sm },
-  gear: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: onHeader.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   elderSelector: { marginBottom: spacing.lg, gap: spacing.sm },
   elderOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   elderOption: {

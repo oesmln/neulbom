@@ -137,7 +137,7 @@
 | 개별 질문 조회 | `GET /questions/{questionId}` | 현재 화면에 불필요 | 일일 질문 응답으로 충족 |
 | 지역 인지 지표 비교 | `GET /analysis/cognitive/{userId}/benchmark` | 프론트 구현 누락 | 보호자 차트 비교 UI 연결 |
 | 보호자 리포트 내보내기 | `GET /guardian/{guardianId}/report/export` | 프론트 구현 누락 | 내보내기 버튼·다운로드 처리 |
-| 보호자 초대 생성 | `POST /guardian/invitations` | 구현 완료 | 코드 생성·초 단위 만료 표시·클립보드 복사 UI 연결 (#59, #110) |
+| 보호자 초대 생성 | `POST /guardian/invitations` | 구현 완료 | 코드 생성·초 단위 만료 표시·클립보드 복사·연결 어르신 선택 UI 연결 (#59, #110) |
 | 보호자 직접 연결 | `POST /guardian/link` | 프론트 구현 누락 | 운영 방식 확정 후 연결 UI 구현 |
 | 보호자 연결 범위 수정·삭제 | `PATCH/DELETE /guardian/link/{linkId}` | 구현 완료 | 연결별 scope 수정·해제 확인 UI 연결 (#59) |
 | 음성 직접 변환 | `POST /voice/transcribe` | 서버 worker 전용 | 앱에서 직접 호출하지 않음 |

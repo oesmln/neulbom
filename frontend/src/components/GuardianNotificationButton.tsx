@@ -7,7 +7,7 @@ import { notifications } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useApp } from "@/store/AppContext";
 import type { GuardianNav } from "@/navigation/types";
-import { colors, guardian } from "@/theme";
+import { colors, guardian, onHeader } from "@/theme";
 
 export default function GuardianNotificationButton() {
   const navigation = useNavigation<GuardianNav>();
@@ -34,11 +34,18 @@ export default function GuardianNotificationButton() {
 }
 
 const styles = StyleSheet.create({
-  button: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  button: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: onHeader.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   dot: {
     position: "absolute",
-    top: 1,
-    right: 2,
+    top: 5,
+    right: 5,
     width: 8,
     height: 8,
     borderRadius: 4,
