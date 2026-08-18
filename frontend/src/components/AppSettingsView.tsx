@@ -50,11 +50,13 @@ export default function AppSettingsView({
   onBack,
   backLabel,
   headerRight,
+  footer,
 }: {
   palette: () => AppSettingsPalette;
   onBack?: () => void;
   backLabel?: string;
   headerRight?: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   const { userId } = useApp();
   const { settings, updateSettings } = useDisplaySettings();
@@ -164,6 +166,7 @@ export default function AppSettingsView({
       </SettingsGroup>
 
       <ConsentManagementView userId={userId} />
+      {footer}
     </Screen>
   );
 }

@@ -2,6 +2,7 @@ import React from "react";
 
 import AppSettingsView from "@/components/AppSettingsView";
 import GuardianNotificationButton from "@/components/GuardianNotificationButton";
+import GuardianAccountActions from "@/screens/guardian/GuardianAccountActions";
 import { guardian } from "@/theme";
 
 export default function GuardianSettingsScreen() {
@@ -13,6 +14,7 @@ export default function GuardianSettingsScreen() {
         accentDark: guardian.blueDark,
       })}
       headerRight={<GuardianNotificationButton />}
+      footer={<GuardianAccountActions />}
     />
   );
 }
