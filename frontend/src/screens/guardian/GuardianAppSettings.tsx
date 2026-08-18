@@ -11,11 +11,11 @@ export default function GuardianAppSettingsScreen() {
 
   return (
     <AppSettingsView
-      palette={{
+      palette={() => ({
         accent: guardian.blue,
         accentLight: guardian.blueLight,
         accentDark: guardian.blueDark,
-      }}
+      })}
       onBack={() => navigation.goBack()}
       backLabel="홈"
       headerRight={<GuardianNotificationButton />}

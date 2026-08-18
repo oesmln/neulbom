@@ -10,11 +10,11 @@ export default function ElderAppSettingsScreen() {
 
   return (
     <AppSettingsView
-      palette={{
+      palette={() => ({
         accent: colors.primary,
         accentLight: colors.secondary,
         accentDark: colors.primaryDark,
-      }}
+      })}
       onBack={() => navigation.goBack()}
       backLabel="마이페이지"
     />

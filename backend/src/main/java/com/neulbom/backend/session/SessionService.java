@@ -16,6 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.game.GameService;
+import com.neulbom.backend.game.XpPolicy;
+import com.neulbom.backend.game.api.XpAwardResponse;
 import com.neulbom.backend.guardian.GuardianAccessService;
 import com.neulbom.backend.session.api.AnswerRequest;
 import com.neulbom.backend.session.api.AnswerResponse;
@@ -61,6 +64,7 @@ public class SessionService {
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final GuardianAccessService guardianAccessService;
+    private final GameService gameService;
     private final ObjectMapper objectMapper;
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
@@ -74,6 +78,7 @@ public class SessionService {
             QuestionRepository questionRepository,
             AnswerRepository answerRepository,
             GuardianAccessService guardianAccessService,
+            GameService gameService,
             ObjectMapper objectMapper,
             UuidGenerator uuidGenerator,
             Clock clock
@@ -86,6 +91,7 @@ public class SessionService {
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.guardianAccessService = guardianAccessService;
+        this.gameService = gameService;
         this.objectMapper = objectMapper;
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
@@ -161,6 +167,9 @@ public class SessionService {
     @Transactional
     public SessionEndResponse endSession(UUID authenticatedUserId, UUID sessionId) {
         SessionEntity session = ownedSession(authenticatedUserId, sessionId);
+        int xpEarned = 0;
+        Integer characterLevel = null;
+        boolean levelUp = false;
         if (SessionEntity.ACTIVE.equals(session.getStatus())) {
             Instant endedAt = clock.instant();
             session.end(endedAt);
@@ -172,6 +181,24 @@ public class SessionService {
                             user.completeBaseline(endedAt);
                             userRepository.save(user);
                         });
+            }
+            XpAwardResponse award = switch (session.getSessionType()) {
+                case "emotional_qa" -> gameService.awardActivityXp(
+                        session.getUserId(),
+                        XpPolicy.EMOTIONAL_QA_XP,
+                        "emotional_qa",
+                        "emotional_qa:" + session.getId());
+                case "cist", "baseline" -> gameService.awardActivityXp(
+                        session.getUserId(),
+                        XpPolicy.FIRST_CIST_XP,
+                        "cist",
+                        "cist:first:" + session.getUserId());
+                default -> null;
+            };
+            if (award != null) {
+                xpEarned = award.deduplicated() ? 0 : award.awardedAmount();
+                characterLevel = award.level();
+                levelUp = award.levelUp();
             }
         }
         return new SessionEndResponse(
@@ -185,9 +212,9 @@ public class SessionService {
                 null,
                 null,
                 null,
-                0,
-                null,
-                false);
+                xpEarned,
+                characterLevel,
+                levelUp);
     }
 
     @Transactional(readOnly = true)

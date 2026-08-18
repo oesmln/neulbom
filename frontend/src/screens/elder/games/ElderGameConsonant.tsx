@@ -32,7 +32,7 @@ const QUESTIONS = [
   { initials: "ㅅㄱ", hint: "과일", example: "사과" },
   { initials: "ㄴㅂ", hint: "곤충", example: "나비" },
   { initials: "ㅂㅅ", hint: "탈것", example: "버스" },
-  { initials: "ㄷㄱ", hint: "과일", example: "딸기" },
+  { initials: "ㄷㄱ", hint: "과일", example: "단감" },
   { initials: "ㄱㅇㅇ", hint: "동물", example: "고양이" },
   { initials: "ㅈㄷㅊ", hint: "탈것", example: "자동차" },
   { initials: "ㅅㄴㅁ", hint: "나무", example: "소나무" },

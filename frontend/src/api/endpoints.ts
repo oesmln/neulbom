@@ -15,6 +15,7 @@ import { Platform } from "react-native";
 
 import { USE_MOCK_API, APP_TIMEZONE } from "./config";
 import { request, uploadMultipart } from "./client";
+import { ApiError } from "./errors";
 import * as mock from "./mock";
 import type {
   AnswerRequest,
@@ -144,7 +145,12 @@ export const auth = {
   },
 
   login(body: LoginRequest): Promise<AuthTokenResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockAuthToken());
+    if (USE_MOCK_API) {
+      const role = body.email.trim().toLowerCase().startsWith("guardian")
+        ? "guardian"
+        : mock.currentMockRole();
+      return Promise.resolve(mock.mockAuthToken(role));
+    }
     return request("/auth/login", { method: "POST", body, anonymous: true });
   },
 
@@ -587,14 +593,7 @@ export const game = {
    */
   submitResult(body: GameResultRequest): Promise<GameResultResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        game_result_id: newClientId(),
-        cognitive_index: null,
-        xp_earned: 30,
-        character_level: 2,
-        level_up: false,
-        deduplicated: false,
-      });
+      return Promise.resolve(mock.mockSubmitGameResult(body));
     }
     return request("/game/result", {
       method: "POST",
@@ -654,29 +653,45 @@ export const notifications = {
 
 /* ── guardian link ──────────────────────────────────────────────────────── */
 
+let mockInvitation: InvitationCreateResponse | null = null;
+let mockInvitationUsed = false;
+
+function requireUsableMockInvitation(inviteCode: string): InvitationCreateResponse {
+  if (!mockInvitation || mockInvitation.invite_code !== inviteCode) {
+    throw new ApiError(404, "초대 코드를 찾을 수 없습니다.");
+  }
+  if (mockInvitationUsed || new Date(mockInvitation.expires_at).getTime() <= Date.now()) {
+    throw new ApiError(410, "초대 코드가 만료되었거나 이미 사용되었습니다.");
+  }
+  return mockInvitation;
+}
+
 export const guardian = {
   createInvitation(body: InvitationCreateRequest): Promise<InvitationCreateResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
+      mockInvitation = {
         invitation_id: newClientId(),
         invite_code: "123456",
         status: "issued",
         relation: body.relation ?? null,
         access_scope: body.access_scope ?? ["screening", "summary", "diary", "activity"],
         expires_at: new Date(Date.now() + (body.expires_in ?? 600) * 1000).toISOString(),
-      });
+      };
+      mockInvitationUsed = false;
+      return Promise.resolve(mockInvitation);
     }
     return request("/guardian/invitations", { method: "POST", body });
   },
 
   verifyInvitation(inviteCode: string): Promise<InvitationVerifyResponse> {
     if (USE_MOCK_API) {
+      const invitation = requireUsableMockInvitation(inviteCode);
       return Promise.resolve({
-        invitation_id: newClientId(),
+        invitation_id: invitation.invitation_id,
         status: "pending",
-        relation: "자녀",
-        access_scope: ["screening", "summary", "diary", "activity"],
-        expires_at: new Date(Date.now() + 600_000).toISOString(),
+        relation: invitation.relation,
+        access_scope: invitation.access_scope,
+        expires_at: invitation.expires_at,
         requires_consent: true,
       });
     }
@@ -687,8 +702,23 @@ export const guardian = {
     });
   },
 
-  acceptInvitation(inviteCode: string, consentAgreed: boolean) {
-    if (USE_MOCK_API) return Promise.resolve(null);
+  acceptInvitation(inviteCode: string, consentAgreed: boolean): Promise<GuardianLinkResponse> {
+    if (USE_MOCK_API) {
+      const invitation = requireUsableMockInvitation(inviteCode);
+      if (!consentAgreed) throw new ApiError(422, "보호자 접근 동의가 필요합니다.");
+      mockInvitationUsed = true;
+      return Promise.resolve({
+        invitation_id: invitation.invitation_id,
+        link_id: newClientId(),
+        elder_id: mock.MOCK_ELDER_ID,
+        guardian_id: mock.MOCK_GUARDIAN_ID,
+        status: "active",
+        access_scope: invitation.access_scope,
+        consent_required: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
     return request("/guardian/invitations/accept", {
       method: "POST",
       body: { invite_code: inviteCode, consent_agreed: consentAgreed },

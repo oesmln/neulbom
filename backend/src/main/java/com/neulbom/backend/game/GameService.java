@@ -4,9 +4,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -14,7 +18,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
-import com.neulbom.backend.diary.DiaryService;
 import com.neulbom.backend.game.api.CharacterResponse;
 import com.neulbom.backend.game.api.GameHistoryItem;
 import com.neulbom.backend.game.api.GameHistoryResponse;
@@ -39,8 +42,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class GameService {
 
     private static final Set<String> GAME_TYPES = Set.of("image_match", "consonant", "word_match", "color_match");
-    private static final Set<String> XP_REASONS = Set.of("attendance", "visit", "emotional_qa", "game", "campaign");
-    private static final int COMPLETED_GAME_XP = 30;
+    private static final Set<String> XP_REASONS = Set.of(
+            "attendance", "visit", "emotional_qa", "game", "campaign", "cist", "streak");
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
+    private static final List<StreakReward> STREAK_REWARDS = List.of(
+            new StreakReward(3, 10),
+            new StreakReward(7, 25),
+            new StreakReward(14, 50));
 
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
@@ -97,12 +105,12 @@ public class GameService {
                 request.gameType(), request.score(), json(request.responseTimes()), request.errorCount(), request.totalQuestions(), request.matchedPairs(),
                 request.attemptCount(), request.durationSec(), request.restartedCount() == null ? 0 : request.restartedCount(), request.completed(), cognitiveIndex, now);
         gameResultRepository.save(result);
-        XpAwardResponse xp = request.completed() ? awardXpInternal(request.userId(), COMPLETED_GAME_XP, "game", result.getId().toString())
-                : new XpAwardResponse(ensureCharacter(request.userId()).getXpCurrent(), ensureCharacter(request.userId()).getLevel(), false, false);
+        int requestedXp = gameReward(request);
+        XpAwardResponse xp = awardActivityXp(request.userId(), requestedXp, "game", result.getId().toString());
         if (request.completed()) {
             notificationService.notifyGameCompleted(request.userId(), result.getId(), result.getSessionId());
         }
-        return new GameResultResponse(result.getId(), cognitiveIndex, request.completed() ? COMPLETED_GAME_XP : 0, xp.level(), xp.levelUp(), false);
+        return new GameResultResponse(result.getId(), cognitiveIndex, xp.awardedAmount(), xp.level(), xp.levelUp(), false);
     }
 
     @Transactional(readOnly = true)
@@ -132,7 +140,9 @@ public class GameService {
         authorizeRead(authenticatedUserId, userId);
         if (limit < 1 || limit > 100) throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "limit은 1~100이어야 합니다.");
         int offset = parseCursor(cursor);
-        List<XpLedgerEntity> records = xpLedgerRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+        List<XpLedgerEntity> records = xpLedgerRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                .filter(entry -> entry.getAmount() > 0)
+                .toList();
         int from = Math.min(offset, records.size());
         int to = Math.min(from + limit, records.size());
         String next = to < records.size() ? Integer.toString(to) : null;
@@ -142,24 +152,65 @@ public class GameService {
     @Transactional
     public XpAwardResponse awardXp(UUID userId, XpAwardRequest request) {
         activeElder(userId);
-        return awardXpInternal(userId, request.amount(), request.reason(), request.eventId());
+        return awardActivityXp(userId, request.amount(), request.reason(), request.eventId());
+    }
+
+    @Transactional
+    public XpAwardResponse awardActivityXp(UUID userId, int amount, String reason, String eventId) {
+        activeElder(userId);
+        XpAwardResponse primary = awardXpInternal(userId, amount, reason, eventId);
+        if (primary.deduplicated()) {
+            return primary;
+        }
+        boolean streakLevelUp = awardEligibleStreakBonuses(userId);
+        CharacterEntity current = ensureCharacter(userId);
+        return new XpAwardResponse(
+                current.getXpCurrent(),
+                current.getLevel(),
+                primary.awardedAmount(),
+                primary.levelUp() || streakLevelUp,
+                false);
     }
 
     private XpAwardResponse awardXpInternal(UUID userId, int amount, String reason, String eventId) {
         if (amount < 1 || amount > 500) throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "amount는 1~500이어야 합니다.");
         if (!XP_REASONS.contains(reason)) throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "reason 허용값을 확인하세요.");
+        CharacterEntity character = ensureCharacterForUpdate(userId);
         XpLedgerEntity existing = xpLedgerRepository.findByEventId(eventId).orElse(null);
-        CharacterEntity character = ensureCharacter(userId);
-        if (existing != null) return new XpAwardResponse(character.getXpCurrent(), character.getLevel(), false, true);
+        if (existing != null) {
+            return new XpAwardResponse(character.getXpCurrent(), character.getLevel(), existing.getAmount(), false, true);
+        }
         Instant now = clock.instant();
-        xpLedgerRepository.save(new XpLedgerEntity(uuidGenerator.generate(), userId, eventId, amount, reason, now));
-        int levelDelta = character.awardXp(amount, now);
-        characterRepository.save(character);
-        return new XpAwardResponse(character.getXpCurrent(), character.getLevel(), levelDelta > 0, false);
+        LocalDate localDate = now.atZone(BUSINESS_ZONE).toLocalDate();
+        Instant dayStart = localDate.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant nextDayStart = localDate.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        long awardedToday = xpLedgerRepository.sumAmountByUserIdAndCreatedAtBetween(userId, dayStart, nextDayStart);
+        int available = (int) Math.max(0, XpPolicy.DAILY_XP_CAP - awardedToday);
+        int awardedAmount = Math.min(amount, available);
+        xpLedgerRepository.save(new XpLedgerEntity(uuidGenerator.generate(), userId, eventId, awardedAmount, reason, now));
+        int levelDelta = awardedAmount > 0 ? character.awardXp(awardedAmount, now) : 0;
+        if (awardedAmount > 0) {
+            characterRepository.save(character);
+        }
+        return new XpAwardResponse(character.getXpCurrent(), character.getLevel(), awardedAmount, levelDelta > 0, false);
     }
 
     private CharacterEntity ensureCharacter(UUID userId) {
         CharacterEntity character = characterRepository.findById(userId).orElseGet(() -> characterRepository.save(defaultCharacter(userId)));
+        String userCharacterName = userRepository.findById(userId)
+                .map(UserEntity::getCharacterName)
+                .map(String::trim)
+                .filter(name -> !name.isBlank())
+                .orElse(null);
+        if (userCharacterName != null && !userCharacterName.equals(character.getDisplayName())) {
+            character.rename(userCharacterName, clock.instant());
+            characterRepository.save(character);
+        }
+        return character;
+    }
+
+    private CharacterEntity ensureCharacterForUpdate(UUID userId) {
+        CharacterEntity character = characterRepository.findByUserIdForUpdate(userId).orElseGet(() -> characterRepository.save(defaultCharacter(userId)));
         String userCharacterName = userRepository.findById(userId)
                 .map(UserEntity::getCharacterName)
                 .map(String::trim)
@@ -179,7 +230,8 @@ public class GameService {
                 .map(String::trim)
                 .filter(name -> !name.isBlank())
                 .orElse("꼬마 메모이");
-        return new CharacterEntity(userId, 1, displayName, "egg", 0, 100, null, "[]", now, now);
+        return new CharacterEntity(userId, 1, displayName, XpPolicy.stageForLevel(1), 0,
+                XpPolicy.goalForLevel(1), null, "[]", now, now);
     }
 
     private GameHistoryItem toHistoryItem(GameResultEntity result) {
@@ -202,8 +254,64 @@ public class GameService {
     }
 
     private XpHistoryItem toXpHistory(XpLedgerEntity entry) {
-        String title = switch (entry.getReason()) { case "game" -> "기억력 게임 완료"; case "emotional_qa" -> "AI 정서 문답 완료"; case "attendance" -> "연속 출석 보너스"; case "visit" -> "방문 보너스"; default -> "활동 보너스"; };
+        String title = switch (entry.getReason()) {
+            case "game" -> "두뇌 게임 경험치";
+            case "emotional_qa" -> "AI 정서 문답 완료";
+            case "streak", "attendance" -> "연속 활동 보너스";
+            case "cist" -> "최초 CIST 완료";
+            case "visit" -> "방문 보너스";
+            default -> "활동 보너스";
+        };
         return new XpHistoryItem(entry.getId(), entry.getReason(), title, entry.getAmount(), entry.getEventId(), entry.getCreatedAt());
+    }
+
+    private int gameReward(GameResultRequest request) {
+        int reward = XpPolicy.GAME_PARTICIPATION_XP;
+        if (isSuccessfulGame(request)) {
+            reward += XpPolicy.GAME_SUCCESS_XP;
+        }
+        return reward;
+    }
+
+    private boolean isSuccessfulGame(GameResultRequest request) {
+        if (!request.completed()) {
+            return false;
+        }
+        if ("image_match".equals(request.gameType())) {
+            return request.matchedPairs() != null
+                    && request.matchedPairs() >= request.totalQuestions()
+                    && request.score() >= request.totalQuestions();
+        }
+        return (long) request.score() * 100 >= (long) request.totalQuestions() * 60;
+    }
+
+    private boolean awardEligibleStreakBonuses(UUID userId) {
+        LocalDate today = clock.instant().atZone(BUSINESS_ZONE).toLocalDate();
+        Set<LocalDate> activityDates = xpLedgerRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                .filter(entry -> !"streak".equals(entry.getReason()))
+                .map(entry -> entry.getCreatedAt().atZone(BUSINESS_ZONE).toLocalDate())
+                .collect(Collectors.toCollection(HashSet::new));
+        if (!activityDates.contains(today)) {
+            return false;
+        }
+
+        int streakDays = 0;
+        LocalDate cursor = today;
+        while (activityDates.contains(cursor)) {
+            streakDays++;
+            cursor = cursor.minusDays(1);
+        }
+        LocalDate streakStartedAt = today.minusDays(streakDays - 1L);
+        boolean levelUp = false;
+        for (StreakReward reward : STREAK_REWARDS) {
+            if (streakDays < reward.days()) {
+                continue;
+            }
+            String eventId = "streak:" + reward.days() + ":" + streakStartedAt + ":" + userId;
+            XpAwardResponse awarded = awardXpInternal(userId, reward.amount(), "streak", eventId);
+            levelUp = levelUp || awarded.levelUp();
+        }
+        return levelUp;
     }
 
     private void validateResult(GameResultRequest request) {
@@ -231,4 +339,7 @@ public class GameService {
     private void activeElder(UUID userId) { UserEntity user = userRepository.findById(userId).filter(UserEntity::isActive).orElseThrow(() -> new ResourceNotFoundException("사용자 정보를 찾을 수 없습니다.")); if (!"elder".equals(user.getRole())) throw new AccessDeniedException("고령자 계정만 사용할 수 있습니다."); }
     private String json(Object value) { try { return objectMapper.writeValueAsString(value); } catch (JsonProcessingException exception) { throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "게임 결과 저장에 실패했습니다.", "잠시 후 다시 시도하세요."); } }
     private int parseCursor(String cursor) { if (cursor == null || cursor.isBlank()) return 0; try { int value = Integer.parseInt(cursor); if (value < 0) throw new NumberFormatException(); return value; } catch (NumberFormatException exception) { throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "cursor를 확인하세요."); } }
+
+    private record StreakReward(int days, int amount) {
+    }
 }
