@@ -49,6 +49,18 @@ function domainOf(question: QuestionResponse, index: number): string {
   return CIST_DOMAINS[index] ?? `문항 ${question.order}`;
 }
 
+type CompletedTurn = {
+  questionId: Uuid;
+  domain: string;
+  question: string;
+  answer: string;
+};
+
+function answerTextForTurn(isListenQuestion: boolean, transcript: string | null): string {
+  const cleaned = transcript?.trim();
+  return cleaned || (isListenQuestion ? "질문을 들었어요." : "음성 답변을 완료했어요.");
+}
+
 export default function ElderCistScreen() {
   const navigation = useNavigation<ElderNav>();
   const { userId } = useApp();
@@ -57,10 +69,13 @@ export default function ElderCistScreen() {
   const [listened, setListened] = React.useState(false);
   const [answered, setAnswered] = React.useState(false);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
+  const [currentTranscript, setCurrentTranscript] = React.useState<string | null>(null);
+  const [completedTurns, setCompletedTurns] = React.useState<CompletedTurn[]>([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
+  const scrollRef = React.useRef<ScrollView>(null);
 
   const session = useApi(
     () => sessions.start({ user_id: userId as string, session_type: "baseline" }),
@@ -85,11 +100,21 @@ export default function ElderCistScreen() {
   React.useEffect(() => {
     setAskedAt(Date.now());
     setRecordingId(null);
+    setCurrentTranscript(null);
     setSubmissionError(null);
   }, [index]);
 
+  React.useEffect(() => {
+    if (!question) return;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [completedTurns.length, question?.question_id]);
+
   const goBack = () => {
     if (index > 0) {
+      setCompletedTurns((current) => current.slice(0, Math.max(0, index - 1)));
       setIndex(index - 1);
       setListened(false);
       setAnswered(false);
@@ -103,6 +128,12 @@ export default function ElderCistScreen() {
     setSubmitting(true);
     setSubmissionError(null);
     const sessionId = session.data.session_id;
+    const completedTurn: CompletedTurn = {
+      questionId: question.question_id,
+      domain: domainOf(question, index),
+      question: question.content,
+      answer: answerTextForTurn(isListenQuestion, currentTranscript),
+    };
 
     try {
       await sessions.saveAnswer(sessionId, {
@@ -121,6 +152,7 @@ export default function ElderCistScreen() {
         navigation.replace("ElderResult", { sessionId, mode: "baseline" });
         return;
       }
+      setCompletedTurns((current) => [...current, completedTurn]);
       setListened(false);
       setAnswered(false);
       setIndex(index + 1);
@@ -163,7 +195,11 @@ export default function ElderCistScreen() {
         />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+      >
         {loading && !question ? <LoadingState label="문항을 불러오는 중이에요" /> : null}
 
         {error && !question ? (
@@ -176,8 +212,13 @@ export default function ElderCistScreen() {
           />
         ) : null}
 
+        {completedTurns.map((turn) => (
+          <CompletedTurnCard key={turn.questionId} turn={turn} />
+        ))}
+
         {question ? (
-          <>
+          <View style={styles.currentTurn}>
+            {completedTurns.length > 0 ? <Text style={styles.currentLabel}>다음 질문</Text> : null}
             <Badge label={domainOf(question, index)} />
 
             <View style={{ gap: spacing.md }}>
@@ -213,6 +254,7 @@ export default function ElderCistScreen() {
                   setRecordingId(id);
                   setAnswered(true);
                 }}
+                onTranscript={setCurrentTranscript}
               />
             )}
 
@@ -226,10 +268,29 @@ export default function ElderCistScreen() {
                 onPress={() => void advance()}
               />
             </View>
-          </>
+          </View>
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function CompletedTurnCard({ turn }: { turn: CompletedTurn }) {
+  return (
+    <View style={styles.completedTurn}>
+      <View style={styles.completedTurnHeader}>
+        <Badge label={turn.domain} />
+        <Text style={styles.completedTurnStatus}>답변 완료</Text>
+      </View>
+      <View style={styles.questionBubble}>
+        <Text style={styles.bubbleLabel}>질문</Text>
+        <Text style={styles.historyQuestion}>{turn.question}</Text>
+      </View>
+      <View style={styles.answerBubble}>
+        <Text style={styles.bubbleLabel}>내 답변</Text>
+        <Text style={styles.historyAnswer}>{turn.answer}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -240,6 +301,7 @@ function MicRecorder({
   answered,
   disabled,
   onAnswer,
+  onTranscript,
 }: {
   userId: Uuid | null;
   sessionId: Uuid | null;
@@ -247,12 +309,16 @@ function MicRecorder({
   answered: boolean;
   disabled: boolean;
   onAnswer: (recordingId: Uuid) => void;
+  onTranscript: (transcript: string) => void;
 }) {
   const [transcript, setTranscript] = React.useState<string | null>(null);
   const recording = useAnswerRecording(
     { userId, sessionId, questionId },
     onAnswer,
-    (text) => setTranscript(text),
+    (text) => {
+      setTranscript(text);
+      onTranscript(text);
+    },
   );
   const elapsed = Math.floor(recording.durationMillis / 1000);
 
@@ -380,6 +446,43 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     gap: spacing.xl,
   },
+  completedTurn: {
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.xl,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  completedTurnHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  completedTurnStatus: { fontSize: fontSize.caption, color: colors.success, fontWeight: fontWeight.semibold },
+  currentTurn: { gap: spacing.xl },
+  currentLabel: { fontSize: fontSize.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
+  questionBubble: {
+    alignSelf: "flex-start",
+    maxWidth: "92%",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderTopLeftRadius: 4,
+    backgroundColor: colors.muted,
+  },
+  answerBubble: {
+    alignSelf: "flex-end",
+    maxWidth: "92%",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderTopRightRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  bubbleLabel: { fontSize: fontSize.badge, fontWeight: fontWeight.semibold, color: colors.mutedForeground, marginBottom: spacing.xs },
+  historyQuestion: { fontSize: fontSize.body, lineHeight: 23, color: colors.foreground },
+  historyAnswer: { fontSize: fontSize.body, lineHeight: 23, color: colors.white },
   prompt: { fontSize: fontSize.title, fontWeight: fontWeight.bold, lineHeight: 31, color: colors.foreground },
   hint: { fontSize: fontSize.body, color: colors.mutedForeground, lineHeight: 22 },
   voiceError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
