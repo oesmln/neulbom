@@ -8,6 +8,8 @@ import com.neulbom.backend.analysis.api.AcousticAnalysisRequest;
 import com.neulbom.backend.analysis.api.AcousticAnalysisResponse;
 import com.neulbom.backend.analysis.api.CognitiveAnalysisRequest;
 import com.neulbom.backend.analysis.api.CognitiveAnalysisResponse;
+import com.neulbom.backend.analysis.api.CistFusionFeaturesRequest;
+import com.neulbom.backend.analysis.api.CistFusionFeaturesResponse;
 import com.neulbom.backend.analysis.api.DailySummariesResponse;
 import com.neulbom.backend.analysis.api.DailySummaryRequest;
 import com.neulbom.backend.analysis.api.DailySummaryResponse;
@@ -36,10 +38,16 @@ import org.springframework.web.multipart.MultipartFile;
 public class AnalysisController {
 
     private final AnalysisService analysisService;
+    private final CistFusionFeatureService cistFusionFeatureService;
     private final AuthService authService;
 
-    public AnalysisController(AnalysisService analysisService, AuthService authService) {
+    public AnalysisController(
+            AnalysisService analysisService,
+            CistFusionFeatureService cistFusionFeatureService,
+            AuthService authService
+    ) {
         this.analysisService = analysisService;
+        this.cistFusionFeatureService = cistFusionFeatureService;
         this.authService = authService;
     }
 
@@ -65,6 +73,31 @@ public class AnalysisController {
     @PostMapping("/analysis/cognitive")
     public CognitiveAnalysisResponse analyzeCognitive(@Valid @RequestBody CognitiveAnalysisRequest request) {
         return analysisService.analyzeCognitive(request);
+    }
+
+    @ServerWorkerOnly
+    @PostMapping("/analysis/cist/features")
+    public CistFusionFeaturesResponse aggregateCistFusionFeatures(
+            @Valid @RequestBody CistFusionFeaturesRequest request
+    ) {
+        CistFusionFeatureEntity feature = cistFusionFeatureService.aggregate(
+                request.userId(),
+                request.sessionId(),
+                request.astScore(),
+                request.kcElectraScore(),
+                request.featureVersion(),
+                request.scalerVersion());
+        return new CistFusionFeaturesResponse(
+                feature.getId(),
+                feature.getSessionId(),
+                feature.getUserId(),
+                feature.getAstScore(),
+                feature.getKcElectraScore(),
+                feature.getCategoryBalancedWrongEventScore(),
+                feature.getCategoryBalancedMedianDelay(),
+                feature.getFeatureVersion(),
+                feature.getScalerVersion(),
+                feature.getUpdatedAt());
     }
 
     @ServerWorkerOnly

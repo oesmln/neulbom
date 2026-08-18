@@ -10,16 +10,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.math.BigDecimal;
 import java.util.UUID;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.analysis.integration.AcousticAnalysisClient;
+import com.neulbom.backend.analysis.integration.CognitiveAnalysisClient;
+import com.neulbom.backend.analysis.integration.SpeechToTextClient;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
+import com.neulbom.backend.recording.RecordingStorage;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,7 +34,11 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,7 +60,40 @@ class AnalysisIntegrationTest {
     private RecordingRepository recordingRepository;
 
     @Autowired
+    private RecordingStorage recordingStorage;
+
+    @Autowired
     private UuidGenerator uuidGenerator;
+
+    @MockitoBean
+    private SpeechToTextClient speechToTextClient;
+
+    @MockitoBean
+    private AcousticAnalysisClient acousticAnalysisClient;
+
+    @MockitoBean
+    private CognitiveAnalysisClient cognitiveAnalysisClient;
+
+    @BeforeEach
+    void stubCistProviders() {
+        when(speechToTextClient.isConfigured()).thenReturn(true);
+        when(speechToTextClient.transcribe(any())).thenReturn(new SpeechToTextClient.TranscriptionResult(
+                "2026년입니다.", BigDecimal.ONE, BigDecimal.ONE, "ko", "Google STT", "test-v1"));
+        when(acousticAnalysisClient.isConfigured()).thenReturn(true);
+        when(acousticAnalysisClient.analyze(any(), any(), any(Integer.class), any()))
+                .thenReturn(new AcousticAnalysisClient.AcousticResult(
+                        new BigDecimal("0.75"), JsonNodeFactory.instance.objectNode(),
+                        new BigDecimal("3.2"), new BigDecimal("0.15"),
+                        new BigDecimal("0.6"), new BigDecimal("0.8"), "AST", "test-v1"));
+        when(cognitiveAnalysisClient.isConfigured()).thenReturn(true);
+        var domainScores = JsonNodeFactory.instance.objectNode();
+        domainScores.putObject("orientation").put("correct", 1).put("total", 1).put("score_rate", 0.8);
+        when(cognitiveAnalysisClient.analyze(any(), any(), any(), any()))
+                .thenReturn(new CognitiveAnalysisClient.CognitiveResult(
+                        new BigDecimal("0.8"), JsonNodeFactory.instance.objectNode(),
+                        domainScores, JsonNodeFactory.instance.objectNode(),
+                        "KcELECTRA", "test-v1"));
+    }
 
     @Test
     void serverWorkerRunsSttAcousticCognitiveSummaryAndDailyAggregation() throws Exception {
@@ -57,9 +101,12 @@ class AnalysisIntegrationTest {
         Instant now = Instant.now();
         SessionEntity session = sessionRepository.save(new SessionEntity(
                 uuidGenerator.generate(), elder.getId(), "cist", 5, "{}", false, now));
+        UUID recordingId = uuidGenerator.generate();
+        String storageKey = recordingStorage.store(recordingId,
+                new MockMultipartFile("audio_file", "analysis.wav", "audio/wav", new byte[]{1}));
         RecordingEntity recording = recordingRepository.save(new RecordingEntity(
-                uuidGenerator.generate(), uuidGenerator.generate(), elder.getId(), RecordingEntity.ANSWER,
-                session.getId(), QUESTION_ID, "recordings/analysis.wav", "analysis.wav", "{}", "audio/wav", 4,
+                recordingId, uuidGenerator.generate(), elder.getId(), RecordingEntity.ANSWER,
+                session.getId(), QUESTION_ID, storageKey, "analysis.wav", "{}", "audio/wav", 1,
                 now.minusSeconds(1), now));
 
         String transcriptBody = mockMvc.perform(multipart("/api/v1/voice/transcribe")

@@ -150,13 +150,15 @@ class ExternalApiClientTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo("http://kc.test/analyze"))
                 .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("앞서 들은 단어를 기억해 보세요.")))
                 .andRespond(withSuccess("""
                         {"language_reference_score":0.68,"cognitive_flags":{"memory":true},"domain_scores":{"memory":{"correct":1,"total":2}},"model_breakdown":{"provider":"kc"},"model_name":"KcELECTRA","model_version":"kc-v3"}
                         """, MediaType.APPLICATION_JSON));
 
         HttpKcElectraClient client = new HttpKcElectraClient(
                 builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper());
-        CognitiveAnalysisClient.CognitiveResult result = client.analyze("오늘은 가족을 만났어요.", "memory", "kc-v3");
+        CognitiveAnalysisClient.CognitiveResult result = client.analyze(
+                "앞서 들은 단어를 기억해 보세요.", "오늘은 가족을 만났어요.", "memory", "kc-v3");
 
         assertThat(result.languageReferenceScore()).isEqualByComparingTo("0.68");
         assertThat(result.cognitiveFlags().path("memory").asBoolean()).isTrue();

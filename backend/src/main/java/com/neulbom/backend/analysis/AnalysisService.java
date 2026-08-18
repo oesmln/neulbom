@@ -73,6 +73,7 @@ public class AnalysisService {
     private final TranscriptRepository transcriptRepository;
     private final AcousticAnalysisRepository acousticAnalysisRepository;
     private final CognitiveAnalysisRepository cognitiveAnalysisRepository;
+    private final CistItemEvaluationService cistItemEvaluationService;
     private final SessionSummaryRepository sessionSummaryRepository;
     private final DailySummaryRepository dailySummaryRepository;
     private final GuardianAccessService guardianAccessService;
@@ -95,6 +96,7 @@ public class AnalysisService {
             TranscriptRepository transcriptRepository,
             AcousticAnalysisRepository acousticAnalysisRepository,
             CognitiveAnalysisRepository cognitiveAnalysisRepository,
+            CistItemEvaluationService cistItemEvaluationService,
             SessionSummaryRepository sessionSummaryRepository,
             DailySummaryRepository dailySummaryRepository,
             GuardianAccessService guardianAccessService,
@@ -116,6 +118,7 @@ public class AnalysisService {
         this.transcriptRepository = transcriptRepository;
         this.acousticAnalysisRepository = acousticAnalysisRepository;
         this.cognitiveAnalysisRepository = cognitiveAnalysisRepository;
+        this.cistItemEvaluationService = cistItemEvaluationService;
         this.sessionSummaryRepository = sessionSummaryRepository;
         this.dailySummaryRepository = dailySummaryRepository;
         this.guardianAccessService = guardianAccessService;
@@ -150,9 +153,11 @@ public class AnalysisService {
         }
 
         SpeechToTextClient.TranscriptionResult providerResult = null;
+        QuestionEntity question = questionRepository.findById(questionId).orElse(null);
+        boolean cistQuestion = question != null && "cist".equals(question.getSessionType());
         if (speechToTextClient.isConfigured()) {
             providerResult = speechToTextClient.transcribe(audioFile(recording, ignoredAudioFile));
-        } else if (!externalApiProperties.allowFallback()) {
+        } else if (cistQuestion || !externalApiProperties.allowFallback()) {
             throw new ExternalServiceUnavailableException("선택한 STT provider 설정이 없습니다.");
         }
         Instant now = clock.instant();
@@ -213,13 +218,15 @@ public class AnalysisService {
             return toAcousticResponse(existing);
         }
         AcousticAnalysisClient.AcousticResult providerResult = null;
+        QuestionEntity question = questionRepository.findById(recording.getQuestionId()).orElse(null);
+        boolean cistQuestion = question != null && "cist".equals(question.getSessionType());
         if (acousticAnalysisClient.isConfigured()) {
             providerResult = acousticAnalysisClient.analyze(
                     recording.getId().toString(),
                     audioFile(recording, null),
                     request.segmentLengthSec() == null ? 8 : request.segmentLengthSec(),
                     modelVersion);
-        } else if (!externalApiProperties.allowFallback()) {
+        } else if (cistQuestion || !externalApiProperties.allowFallback()) {
             throw new ExternalServiceUnavailableException("AST provider 설정이 없습니다.");
         }
         Instant now = clock.instant();
@@ -245,13 +252,20 @@ public class AnalysisService {
     @Transactional
     public CognitiveAnalysisResponse analyzeCognitive(CognitiveAnalysisRequest request) {
         validateQuestionType(request.questionType());
-        RecordingEntity recording = transcriptRecording(request.transcriptId(), request.userId(), request.sessionId());
+        TranscriptEntity storedTranscript = validatedTranscript(
+                request.transcriptId(), request.userId(), request.sessionId());
+        String transcript = storedTranscript.getTranscript();
+        if (transcript == null || transcript.isBlank()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "전사문이 비어 있습니다.", "STT 완료 상태를 확인하세요.");
+        }
+        RecordingEntity recording = ownedRecording(request.userId(), storedTranscript.getRecordingId());
         if (request.acousticAnalysisId() != null
                 && !acousticAnalysisRepository.existsById(request.acousticAnalysisId())) {
             throw new ResourceNotFoundException("AST 분석 결과를 찾을 수 없습니다.");
         }
+        QuestionEntity question = null;
         if (request.questionId() != null) {
-            QuestionEntity question = questionRepository.findById(request.questionId())
+            question = questionRepository.findById(request.questionId())
                     .filter(QuestionEntity::isActive)
                     .orElseThrow(() -> new ResourceNotFoundException("질문을 찾을 수 없습니다."));
             if (!question.getQuestionType().equals(request.questionType())) {
@@ -265,13 +279,18 @@ public class AnalysisService {
         }
 
         CognitiveAnalysisClient.CognitiveResult providerResult = null;
+        boolean cistQuestion = question != null && "cist".equals(question.getSessionType());
         if (cognitiveAnalysisClient.isConfigured()) {
-            providerResult = cognitiveAnalysisClient.analyze(request.transcript(), request.questionType(), "v1");
-        } else if (!externalApiProperties.allowFallback()) {
+            providerResult = cognitiveAnalysisClient.analyze(
+                    question == null ? null : question.getContent(),
+                    transcript,
+                    request.questionType(),
+                    "v1");
+        } else if (cistQuestion || !externalApiProperties.allowFallback()) {
             throw new ExternalServiceUnavailableException("KcELECTRA provider 설정이 없습니다.");
         }
         BigDecimal languageScore = providerResult == null
-                ? heuristicScore(request.transcript()) : boundedScore(providerResult.languageReferenceScore());
+                ? heuristicScore(transcript) : boundedScore(providerResult.languageReferenceScore());
         BigDecimal acousticScore = request.acousticAnalysisId() == null ? null
                 : acousticAnalysisRepository.findById(request.acousticAnalysisId())
                 .map(AcousticAnalysisEntity::getAcousticReferenceScore)
@@ -310,6 +329,7 @@ public class AnalysisService {
                 now,
                 now);
         cognitiveAnalysisRepository.save(analysis);
+        cistItemEvaluationService.evaluateForTranscript(request.transcriptId(), transcript);
         recording.markAnalysisCompleted(now);
         recordingRepository.save(recording);
         notificationService.notifyScreening(
@@ -482,14 +502,14 @@ public class AnalysisService {
         return recording;
     }
 
-    private RecordingEntity transcriptRecording(UUID transcriptId, UUID userId, UUID sessionId) {
+    private TranscriptEntity validatedTranscript(UUID transcriptId, UUID userId, UUID sessionId) {
         TranscriptEntity transcript = transcriptRepository.findById(transcriptId)
                 .orElseThrow(() -> new ResourceNotFoundException("전사 결과를 찾을 수 없습니다."));
         RecordingEntity recording = ownedRecording(userId, transcript.getRecordingId());
         if (!sessionId.equals(recording.getSessionId())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "전사 세션이 일치하지 않습니다.", "session_id를 확인하세요.");
         }
-        return recording;
+        return transcript;
     }
 
     private SessionEntity ownedSession(UUID userId, UUID sessionId) {

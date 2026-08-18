@@ -193,6 +193,7 @@
 | `POST` | `/voice/transcribe` | 선택한 STT provider 실행 | 필요/서버 전용 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
+| `POST` | `/analysis/cist/features` | CIST 범주 균형 융합 특징 집계 | 서버 전용 | 서버 작업 큐 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/benchmark` | 지역 기준선 비교 | 필요 | 권한 보유 보호자 | MVP |
 | `GET` | `/screenings/{session_id}/result` | 검사·정서 문답 세션 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -1456,20 +1457,22 @@ AST는 고령자가 **어떻게 말했는지**를 분석한다. 발화 속도, �
 
 ### 7.5 `POST /analysis/cognitive` - KcELECTRA 텍스트 분석
 
-KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과 답변의 적절성, 지남력, 기억 관련 표현, 문장 길이, 어휘 다양성, 의미 일관성 등을 분석한다.
+KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. CIST 문항에서는 서버가 `question_id`로 조회한 질문 원문과 STT 답변 전사문을 함께 provider에 전달한다. 프론트가 보낸 질문 원문은 사용하지 않는다. 질문별 정답·배점은 KcELECTRA의 위험도 점수와 분리된 CIST rubric 평가기가 계산한다.
 
 #### Request Body
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `transcript_id` | string | Y | Whisper 전사 ID |
-| `transcript` | string | Y | 분석할 텍스트 |
+| `transcript` | string | N | 하위 호환용 입력. 서버는 `transcript_id`로 저장된 STT 전사문을 사용하며 이 값을 신뢰하지 않는다 |
 | `user_id` | string | Y | 고령자 ID |
 | `session_id` | string | Y | 세션 ID |
 | `question_id` | string | N | 문항 ID |
 | `question_type` | enum | Y | `orientation`, `memory`, `attention`, `language`, `emotion` |
 | `acoustic_analysis_id` | string | N | AST 분석 결과 ID |
 | `fusion_mode` | enum | N | `none`, `average`, `weighted_average`; 실험 설정용 |
+
+`question_type`의 `language`는 보고서의 `유창성` 범주와 동일한 canonical code다. CIST의 네 상위 질문범주는 `orientation(지남력)`, `memory(기억력)`, `attention(주의력)`, `language(유창성)`으로 고정한다.
 
 #### Response `200`
 
@@ -1506,6 +1509,42 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
   "language": {"correct": 2, "total": 3, "score_rate": 0.67}
 }
 ```
+
+### 7.5.1 `POST /analysis/cist/features` - CIST 융합 특징 집계
+
+서버 작업 큐가 문항별 평가가 모두 완료된 뒤 호출한다. 이 endpoint는 모델을 학습하지 않으며, 문항 평가 결과에서 메타데이터 특징을 계산하고 AST·KcELECTRA 추론 점수와 함께 버전별로 저장한다. OOF 생성·fold 내부 표준화·Logistic Regression 학습은 오프라인 학습 파이프라인의 책임이다.
+
+#### Request Body
+
+| 필드 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `user_id` | string | Y | CIST 대상 고령자 ID |
+| `session_id` | string | Y | `cist` 또는 `baseline` 세션 ID |
+| `ast_score` | float/null | N | 배포된 AST 추론 점수, `0.0~1.0` |
+| `kc_electra_score` | float/null | N | 배포된 KcELECTRA 추론 점수, `0.0~1.0` |
+| `feature_version` | string | Y | 특징 계산 버전 |
+| `scaler_version` | string/null | N | 운영 scaler 버전 |
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `feature_id` | string | 저장된 특징 ID |
+| `session_id` | string | CIST 세션 ID |
+| `user_id` | string | 고령자 ID |
+| `ast_score` | float/null | AST 추론 점수 |
+| `kc_electra_score` | float/null | KcELECTRA 추론 점수 |
+| `category_balanced_wrong_event_score` | float | 범주 균형 명시적 오답 사건 점수, `0.0~1.0` |
+| `category_balanced_median_delay` | float/null | 범주 균형 응답 지연, 초 단위 |
+| `feature_version` | string | 특징 계산 버전 |
+| `scaler_version` | string/null | 적용한 scaler 버전 |
+| `updated_at` | string | 저장·갱신 일시 |
+
+오답 특징은 대상자·범주별 명시적 오답 사건 수를 `min(count, 2) / 2`로 변환한 뒤 네 범주를 동일 비중으로 평균한다. `틀린 답`, `틀린 대답`, `오답`, `모른다고`, `모름`, `무응답`만 오답 사건으로 인정하고 `주변 소음`, `기침`, `검사자 목소리`, `겹침`, `녹음 오류`는 제외한다.
+
+응답 지연은 숫자이며 0 이상인 값만 사용한다. `0초`는 유효한 측정값으로 유지한다. 대상자·범주별 중앙값을 먼저 계산한 뒤 네 범주를 동일 비중으로 평균한다. 범주별 유효 지연이 없으면 해당 범주를 0으로 대체하지 않고 전체 지연 특징을 `null`로 보존한다.
+
+문항 rubric이 없거나 문항 평가가 완료되지 않은 경우 특징을 임의로 생성하지 않고 `422` 또는 작업 `pending`으로 처리한다.
 
 ### 7.6 `GET /analysis/cognitive/{user_id}/history` - 분석 이력
 
@@ -1711,7 +1750,7 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. 질문과
 | STT | Google Cloud Speech-to-Text V2 | `STT_PROVIDER=google`, `GOOGLE_STT_PROJECT_ID`, `GOOGLE_STT_LOCATION`, `GOOGLE_STT_MODEL`, `GOOGLE_STT_LANGUAGE_CODE`, ADC credential | `POST /v2/projects/{project}/locations/{location}/recognizers/_:recognize` JSON `config.autoDecodingConfig`, `languageCodes`, `model`, base64 `content` |
 | TTS | Google Cloud Text-to-Speech v1 | `GOOGLE_TTS_PROJECT_ID`(미지정 시 STT project), `GOOGLE_TTS_LANGUAGE_CODE`, `GOOGLE_TTS_DEFAULT_VOICE`, `GOOGLE_TTS_CLEAR_VOICE`, ADC credential | `POST /v1/text:synthesize` JSON `input.text`, `voice`, `audioConfig`; MP3 base64 응답 |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
-| 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `transcript`, `question_type`, `model_version` |
+| 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `question`, `transcript`, `question_type`, `model_version` |
 | 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.

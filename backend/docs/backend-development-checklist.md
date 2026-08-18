@@ -778,11 +778,22 @@
 ### 8.5 KcELECTRA 분석
 
 - [x] `POST /analysis/cognitive`를 구현한다.
-- [x] 전사문과 질문 유형을 함께 분석한다.
+- [x] `question_id`로 서버가 조회한 질문 원문과 전사문을 함께 분석한다.
 - [x] 지남력·기억·주의·언어 플래그를 저장한다.
 - [ ] 문장 길이·어휘 다양성·의미 일관성 feature 저장 여부를 결정한다.
 - [x] `language_reference_score`와 모델 버전을 저장한다.
 - [x] AST 결과 ID를 선택적으로 연결한다.
+
+### 8.5.1 CIST 문항 평가·범주 균형 융합 특징
+
+- [x] CIST 문항 rubric과 버전을 별도 테이블로 관리할 수 있게 한다.
+- [x] 문항별 평가 결과에 정답 여부·점수·응답 지연·명시적 오답 사건을 저장한다.
+- [x] `language`를 보고서의 `유창성`으로 고정하고 네 핵심 범주를 검증한다.
+- [x] 범주별 오답 수를 2회로 상한 처리하고 동일 비중으로 평균한다.
+- [x] 범주별 응답 지연 중앙값을 계산하고 0초를 유효값으로 유지한다.
+- [x] `/analysis/cist/features` 서버 작업 API를 제공한다.
+- [ ] AST·KcELECTRA OOF 생성과 Logistic Regression 학습 파이프라인을 연결한다.
+- [ ] 배포된 fusion model 호출 결과를 `screening_results`에 저장한다.
 
 ### 8.6 점수 집계·사용자 노출 결과
 

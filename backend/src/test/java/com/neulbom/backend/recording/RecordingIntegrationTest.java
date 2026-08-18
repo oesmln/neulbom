@@ -14,11 +14,13 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.analysis.integration.SpeechToTextClient;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,7 +28,13 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.math.BigDecimal;
+
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -46,6 +54,16 @@ class RecordingIntegrationTest {
 
     @Autowired
     private UuidGenerator uuidGenerator;
+
+    @MockitoBean
+    private SpeechToTextClient speechToTextClient;
+
+    @BeforeEach
+    void stubSpeechToTextProvider() {
+        when(speechToTextClient.isConfigured()).thenReturn(true);
+        when(speechToTextClient.transcribe(any())).thenReturn(new SpeechToTextClient.TranscriptionResult(
+                "테스트 전사", BigDecimal.ONE, BigDecimal.ONE, "ko", "Google STT", "test-v1"));
+    }
 
     @Test
     void answerRecordingUploadsDeduplicatesAndExposesProcessingStatus() throws Exception {

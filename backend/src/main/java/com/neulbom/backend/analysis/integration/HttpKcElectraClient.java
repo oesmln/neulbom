@@ -39,9 +39,12 @@ public class HttpKcElectraClient implements CognitiveAnalysisClient {
     }
 
     @Override
-    public CognitiveResult analyze(String transcript, String questionType, String modelVersion) {
+    public CognitiveResult analyze(String question, String transcript, String questionType, String modelVersion) {
         String version = version(modelVersion);
         var requestBody = objectMapper.createObjectNode();
+        if (StringUtils.hasText(question)) {
+            requestBody.put("question", question);
+        }
         requestBody.put("transcript", transcript);
         requestBody.put("question_type", questionType);
         requestBody.put("model_version", version);
