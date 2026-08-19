@@ -155,7 +155,9 @@ export default function GuardianChartScreen() {
               style={[
                 styles.periodChip,
                 {
-                  backgroundColor: on ? guardian.blue : colors.white,
+                  // `colors.card`, not `colors.white`: white stays white in
+                  // dark mode and would wash out the unselected chip label.
+                  backgroundColor: on ? guardian.blue : colors.card,
                   borderColor: on ? guardian.blue : colors.border,
                 },
               ]}

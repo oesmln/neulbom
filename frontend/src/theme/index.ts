@@ -177,13 +177,20 @@ export const chartColors = [
  * `dashboard.cognitive_activity.status` and sends the wording with it — the app
  * must never derive a stage from a score (api-spec 5.1).
  */
-export const cognitiveStages = [
+export type CognitiveStageKey = "stable" | "observe" | "attention_required";
+
+// `color`/`bg` are mutable on purpose: `applyDisplaySettings` swaps them for
+// the dark variants in place, exactly like the `colors` tokens above.
+export const cognitiveStages: {
+  readonly key: CognitiveStageKey;
+  readonly step: string;
+  color: string;
+  bg: string;
+}[] = [
   { key: "stable", step: "안정적", color: "#4E9566", bg: "#E8F5EC" },
   { key: "observe", step: "꾸준한 관찰", color: "#C08A2A", bg: "#FEF3DC" },
   { key: "attention_required", step: "확인 필요", color: "#C0392B", bg: "#FDEAEA" },
-] as const;
-
-export type CognitiveStageKey = (typeof cognitiveStages)[number]["key"];
+];
 
 export const radius = {
   sm: 8,
@@ -274,44 +281,64 @@ export default theme;
 /* ------------------------------------------------- display settings hook-in */
 
 /**
- * Dark surfaces, applied over `colors` in place.
+ * Dark palette, applied over `colors` in place.
  *
- * Only surfaces and text invert; the sage/blue/tan accents stay, because the
- * headers and buttons built on them already carry white text. Every override
- * keeps the role of the token it replaces (e.g. `primaryDark` is "text on a
- * light-sage surface", so in dark mode it becomes a light sage).
+ * Surfaces invert, and — unlike the first cut — the accent colours are lifted
+ * too: sage, red, tan and blue tuned for light backgrounds sit at ~2.5-3:1
+ * against near-black, which is what made dark mode hard to read. Each lifted
+ * accent keeps roughly the same contrast against white text that its light
+ * counterpart had (~3:1), so buttons and headers stay legible while text and
+ * icons drawn in the accent colour become clearly brighter.
  */
 const lightColors = { ...colors };
 const lightGuardian = { ...guardian };
 const baseFontSize = { ...fontSize };
+const lightStageColors = cognitiveStages.map(({ color, bg }) => ({ color, bg }));
 
 export const darkColors = {
-  background: "#191C1A",
-  foreground: "#E8ECE9",
-  card: "#232725",
-  cardForeground: "#E8ECE9",
-  secondary: "#253B2C",
-  secondaryForeground: "#A9CFB4",
-  primaryDark: "#A9CFB4",
-  muted: "#2A2E2C",
-  mutedForeground: "#9BA69E",
-  accentLight: "#3B3223",
-  destructiveLight: "#3B2523",
-  successLight: "#22382A",
-  warningLight: "#3A3222",
-  border: "rgba(255,255,255,0.14)",
-  inputBackground: "#262A28",
-  switchBackground: "#4A504C",
-  screenBackground: "#141715",
+  background: "#161917",
+  foreground: "#F0F4F1",
+  card: "#252B27",
+  cardForeground: "#F0F4F1",
+
+  // Accents, lifted for dark surfaces.
+  primary: "#6BA37A",
+  ring: "#6BA37A",
+  primaryDark: "#B2D6BC",
+  secondary: "#27402E",
+  secondaryForeground: "#B2D6BC",
+  accent: "#DDB088",
+  destructive: "#E26D5A",
+  success: "#66B183",
+  warning: "#D9A648",
+
+  muted: "#2B312D",
+  mutedForeground: "#AEB9B1",
+  accentLight: "#3E3524",
+  destructiveLight: "#402823",
+  successLight: "#243C2D",
+  warningLight: "#3D3522",
+  border: "rgba(255,255,255,0.20)",
+  inputBackground: "#2C332E",
+  switchBackground: "#555D57",
+  screenBackground: "#101312",
 } as const;
 
 export const darkGuardian = {
-  blueLight: "#20304A",
-  blueDark: "#9FC2EC",
-  dangerText: "#EDAFA6",
-  bandNormal: "#1C2B21",
-  bandCaution: "#332E1D",
+  blue: "#5E8FD6",
+  blueLight: "#243450",
+  blueDark: "#A9C9F0",
+  dangerText: "#F0B4AA",
+  bandNormal: "#1E2F24",
+  bandCaution: "#37311E",
 } as const;
+
+/** Dark variants of the elder home status band (`cognitiveStages`). */
+const darkStageColors: Record<CognitiveStageKey, { color: string; bg: string }> = {
+  stable: { color: "#7FC493", bg: "#243C2D" },
+  observe: { color: "#D9A648", bg: "#3D3522" },
+  attention_required: { color: "#E8907E", bg: "#402823" },
+};
 
 /** Multipliers behind the 보통/크게/매우 크게 choice on the settings screen. */
 const FONT_SCALES = { normal: 1, large: 1.15, xlarge: 1.3 } as const;
@@ -333,11 +360,13 @@ export function applyDisplaySettings(settings: {
   Object.assign(colors, lightColors);
   Object.assign(guardian, lightGuardian);
   Object.assign(fontSize, baseFontSize);
+  cognitiveStages.forEach((stage, i) => Object.assign(stage, lightStageColors[i]));
   darkApplied = false;
 
   if (settings.darkMode) {
     Object.assign(colors, darkColors);
     Object.assign(guardian, darkGuardian);
+    cognitiveStages.forEach((stage) => Object.assign(stage, darkStageColors[stage.key]));
     darkApplied = true;
   }
   const scale = FONT_SCALES[settings.fontScale] ?? 1;

@@ -107,7 +107,8 @@ export default function ElderNotificationsScreen() {
           style={({ pressed }) => [
             styles.item,
             {
-              backgroundColor: n.is_read ? colors.white : colors.secondary,
+              // `colors.card`, not `colors.white` — read cards must darken in dark mode.
+              backgroundColor: n.is_read ? colors.card : colors.secondary,
               borderColor: n.is_read ? colors.border : `${colors.primary}55`,
               opacity: pressed ? 0.9 : 1,
             },
