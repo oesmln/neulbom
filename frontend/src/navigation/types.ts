@@ -80,10 +80,6 @@ export type ElderStackParamList = {
   ElderResult: { sessionId: string; mode?: "daily" | "baseline" } | undefined;
   ElderNotifications: undefined;
   ElderCampaign: undefined;
-  /** 비밀번호 변경 — reached from 마이페이지. */
-  ElderPasswordChange: undefined;
-  /** 앱 설정 — reached from 마이페이지. */
-  ElderAppSettings: undefined;
   /** 두뇌 게임 3종 — pushed over the tabs from the game hub. */
   ElderGameCardMatch: undefined;
   ElderGameColor: undefined;
@@ -96,7 +92,17 @@ export type ElderTabParamList = {
   ElderCalendar: undefined;
   ElderHome: undefined;
   ElderGameHub: undefined;
-  ElderMyPage: undefined;
+  ElderMyPage: NavigatorScreenParams<ElderMyPageStackParamList> | undefined;
+};
+
+/**
+ * 마이 탭 안의 스택. 앱 설정·비밀번호 변경은 탭 위로 push하지 않고 이 스택
+ * 안에서 열려 하단 탭바가 계속 보인다.
+ */
+export type ElderMyPageStackParamList = {
+  ElderMyPageMain: undefined;
+  ElderPasswordChange: undefined;
+  ElderAppSettings: undefined;
 };
 
 /**
@@ -129,4 +135,5 @@ export type GuardianTabParamList = {
 
 export type RootNav = NativeStackNavigationProp<RootStackParamList>;
 export type ElderNav = NativeStackNavigationProp<ElderStackParamList>;
+export type ElderMyPageNav = NativeStackNavigationProp<ElderMyPageStackParamList>;
 export type GuardianNav = NativeStackNavigationProp<GuardianStackParamList>;

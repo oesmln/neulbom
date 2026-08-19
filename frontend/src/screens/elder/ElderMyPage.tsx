@@ -4,7 +4,7 @@ import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ElderNav, RootNav } from "@/navigation/types";
+import { ElderMyPageNav, RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { auth, game, reports, users } from "@/api";
 import { useApi } from "@/hooks/useApi";
@@ -40,9 +40,10 @@ function levelMeta(level: number) {
 
 export default function ElderMyPageScreen() {
   const navigation = useNavigation<RootNav>();
-  // Same navigator object, typed for the elder stack — 비밀번호 변경 and 앱 설정
-  // are pushed there while 로그아웃 resets the root stack.
-  const elderNavigation = useNavigation<ElderNav>();
+  // Same navigator object, typed for the 마이 탭 stack — 비밀번호 변경 and 앱
+  // 설정 open inside the tab (keeping the bottom bar) while 로그아웃 resets the
+  // root stack.
+  const elderNavigation = useNavigation<ElderMyPageNav>();
   const isFocused = useIsFocused();
   const { userId, characterName, signOut, updateOnboardingState } = useApp();
   const [xpOpen, setXpOpen] = React.useState(false);
