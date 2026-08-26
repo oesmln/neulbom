@@ -744,16 +744,19 @@
 - [ ] 외부 서비스가 지연돼도 API 요청이 오래 붙잡히지 않게 한다.
 - [ ] 중복 작업이 실행돼도 결과가 중복 저장되지 않게 한다.
 
-### 8.3 Whisper STT
+### 8.3 STT
 
 - [x] `POST /voice/transcribe`를 구현한다.
 - [x] `STT_PROVIDER`로 OpenAI Whisper·로컬 Whisper·Google Cloud STT V2를 선택한다.
 - [x] 로컬 Whisper는 OpenAI 호환 `/v1/audio/transcriptions` adapter로 연결한다.
 - [x] Google Cloud STT V2는 ADC 인증과 regional recognizer endpoint를 사용한다.
+- [x] 운영 Google STT 기본값을 `us`, `chirp_3`, `ko-KR`, 자동 문장부호 사용으로 고정한다. (#123)
+- [x] 답변 녹음은 60초 이하만 허용하고 초과 요청은 STT 호출 전에 거부한다. (#123)
 - [x] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
 - [x] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
 - [x] 한국어 `ko` 결과를 기본값으로 처리한다.
-- [ ] STT 실패·빈 전사·낮은 confidence 처리 정책을 정한다.
+- [x] 빈 전사는 `EMPTY_TRANSCRIPT` 422로 반환하고 KcELECTRA를 호출하지 않는다. (#123)
+- [ ] STT 실패·낮은 confidence 처리 정책을 정한다.
 - [ ] 원본 전사문을 수정하지 않고 전처리본을 별도 저장한다.
 
 ### 8.3.1 Google TTS
@@ -779,6 +782,8 @@
 
 - [x] `POST /analysis/cognitive`를 구현한다.
 - [x] `question_id`로 서버가 조회한 질문 원문과 전사문을 함께 분석한다.
+- [x] CIST `question_id`를 녹음 문항과 대조하고 질문 원문이 없으면 provider 호출을 차단한다. (#123)
+- [x] KcELECTRA provider에 `question_id`, 질문 원문, 전사문을 별도 JSON 필드로 전달한다. (#123)
 - [x] 지남력·기억·주의·언어 플래그를 저장한다.
 - [ ] 문장 길이·어휘 다양성·의미 일관성 feature 저장 여부를 결정한다.
 - [x] `language_reference_score`와 모델 버전을 저장한다.
