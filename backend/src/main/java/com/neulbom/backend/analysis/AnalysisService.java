@@ -31,6 +31,7 @@ import com.neulbom.backend.guardian.GuardianAccessService;
 import com.neulbom.backend.notification.NotificationService;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
+import com.neulbom.backend.recording.RecordingService;
 import com.neulbom.backend.recording.RecordingStorage;
 import com.neulbom.backend.recording.TranscriptEntity;
 import com.neulbom.backend.recording.TranscriptRepository;
@@ -146,6 +147,13 @@ public class AnalysisService {
                 || !sessionId.equals(recording.getSessionId())
                 || !questionId.equals(recording.getQuestionId())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "전사 대상 녹음 참조가 올바르지 않습니다.", "recording, session, question을 확인하세요.");
+        }
+        if (recording.getDurationMs() == null
+                || recording.getDurationMs() > RecordingService.MAX_ANSWER_RECORDING_DURATION_MS) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "답변 녹음은 60초를 초과할 수 없습니다.",
+                    "duration_ms가 60초 이하인 녹음만 전사할 수 있습니다.");
         }
         TranscriptEntity existing = transcriptRepository.findByRecordingId(recordingId).orElse(null);
         if (existing != null) {
@@ -263,14 +271,29 @@ public class AnalysisService {
                 && !acousticAnalysisRepository.existsById(request.acousticAnalysisId())) {
             throw new ResourceNotFoundException("AST 분석 결과를 찾을 수 없습니다.");
         }
-        QuestionEntity question = null;
-        if (request.questionId() != null) {
-            question = questionRepository.findById(request.questionId())
-                    .filter(QuestionEntity::isActive)
-                    .orElseThrow(() -> new ResourceNotFoundException("질문을 찾을 수 없습니다."));
-            if (!question.getQuestionType().equals(request.questionType())) {
-                throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "질문 유형이 일치하지 않습니다.", "question_type을 확인하세요.");
-            }
+        UUID recordedQuestionId = recording.getQuestionId();
+        QuestionEntity recordedQuestion = recordedQuestionId == null ? null : questionRepository
+                .findById(recordedQuestionId)
+                .filter(QuestionEntity::isActive)
+                .orElseThrow(() -> new ResourceNotFoundException("녹음에 연결된 질문 원문을 찾을 수 없습니다."));
+        boolean cistQuestion = recordedQuestion != null && "cist".equals(recordedQuestion.getSessionType());
+        if (cistQuestion && request.questionId() == null) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "CIST 분석에는 question_id가 필요합니다.",
+                    "question_id를 확인하세요.");
+        }
+        if (request.questionId() != null && !request.questionId().equals(recordedQuestionId)) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "녹음 문항과 분석 문항이 일치하지 않습니다.",
+                    "question_id를 확인하세요.");
+        }
+        if (recordedQuestion == null) {
+            throw new ResourceNotFoundException("녹음에 연결된 질문 원문을 찾을 수 없습니다.");
+        }
+        if (!recordedQuestion.getQuestionType().equals(request.questionType())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "질문 유형이 일치하지 않습니다.", "question_type을 확인하세요.");
         }
         String fusionMode = request.fusionMode() == null || request.fusionMode().isBlank()
                 ? "none" : request.fusionMode();
@@ -279,13 +302,13 @@ public class AnalysisService {
         }
 
         CognitiveAnalysisClient.CognitiveResult providerResult = null;
-        boolean cistQuestion = question != null && "cist".equals(question.getSessionType());
         if (cognitiveAnalysisClient.isConfigured()) {
             providerResult = cognitiveAnalysisClient.analyze(
-                    question == null ? null : question.getContent(),
+                    recordedQuestion.getId(),
+                    recordedQuestion.getContent(),
                     transcript,
                     request.questionType(),
-                    "v1");
+                    externalApiProperties.kcElectraModel());
         } else if (cistQuestion || !externalApiProperties.allowFallback()) {
             throw new ExternalServiceUnavailableException("KcELECTRA provider 설정이 없습니다.");
         }

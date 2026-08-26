@@ -22,6 +22,7 @@ public record ExternalApiProperties(
         String googleSttLocation,
         String googleSttModel,
         String googleSttLanguageCode,
+        boolean googleSttAutomaticPunctuation,
         String googleTtsBaseUrl,
         String googleTtsProjectId,
         String googleTtsLanguageCode,

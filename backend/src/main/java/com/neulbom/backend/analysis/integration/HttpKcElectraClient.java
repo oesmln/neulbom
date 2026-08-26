@@ -1,6 +1,7 @@
 package com.neulbom.backend.analysis.integration;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,9 +40,16 @@ public class HttpKcElectraClient implements CognitiveAnalysisClient {
     }
 
     @Override
-    public CognitiveResult analyze(String question, String transcript, String questionType, String modelVersion) {
+    public CognitiveResult analyze(
+            UUID questionId,
+            String question,
+            String transcript,
+            String questionType,
+            String modelVersion
+    ) {
         String version = version(modelVersion);
         var requestBody = objectMapper.createObjectNode();
+        requestBody.put("question_id", questionId.toString());
         if (StringUtils.hasText(question)) {
             requestBody.put("question", question);
         }

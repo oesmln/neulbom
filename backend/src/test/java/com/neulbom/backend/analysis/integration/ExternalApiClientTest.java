@@ -1,6 +1,7 @@
 package com.neulbom.backend.analysis.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -13,6 +14,7 @@ import java.time.Duration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.config.ExternalApiExecutor;
 import com.neulbom.backend.config.ExternalApiProperties;
+import com.neulbom.backend.common.exception.EmptyTranscriptException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -74,7 +76,7 @@ class ExternalApiClientTest {
                 "google", "", "neulbom-test");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("https://asia-northeast1-speech.googleapis.com/v2/projects/neulbom-test/locations/asia-northeast1/recognizers/_:recognize"))
+        server.expect(requestTo("https://us-speech.googleapis.com/v2/projects/neulbom-test/locations/us/recognizers/_:recognize"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer test-token"))
                 .andExpect(header("x-goog-user-project", "neulbom-test"))
@@ -94,6 +96,24 @@ class ExternalApiClientTest {
         assertThat(result.confidence()).isEqualByComparingTo("0.91");
         assertThat(result.language()).isEqualTo("ko-KR");
         assertThat(result.modelName()).isEqualTo("chirp_3");
+        server.verify();
+    }
+
+    @Test
+    void googleSttV2MapsAnEmptyResultToTheDomainError() {
+        ExternalApiProperties properties = sttProperties("google", "", "neulbom-test");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://us-speech.googleapis.com/v2/projects/neulbom-test/locations/us/recognizers/_:recognize"))
+                .andRespond(withSuccess("{\"results\":[]}", MediaType.APPLICATION_JSON));
+
+        GoogleCloudSpeechToTextClient client = new GoogleCloudSpeechToTextClient(
+                builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper(),
+                () -> "test-token");
+
+        assertThatThrownBy(() -> client.transcribe(
+                new SpeechToTextClient.AudioFile(new byte[]{1}, "sample.webm", "audio/webm")))
+                .isInstanceOf(EmptyTranscriptException.class);
         server.verify();
     }
 
@@ -148,9 +168,11 @@ class ExternalApiClientTest {
         ExternalApiProperties properties = properties("", "", "http://kc.test/analyze", "");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        java.util.UUID questionId = java.util.UUID.randomUUID();
         server.expect(requestTo("http://kc.test/analyze"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("앞서 들은 단어를 기억해 보세요.")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(questionId.toString())))
                 .andRespond(withSuccess("""
                         {"language_reference_score":0.68,"cognitive_flags":{"memory":true},"domain_scores":{"memory":{"correct":1,"total":2}},"model_breakdown":{"provider":"kc"},"model_name":"KcELECTRA","model_version":"kc-v3"}
                         """, MediaType.APPLICATION_JSON));
@@ -158,6 +180,7 @@ class ExternalApiClientTest {
         HttpKcElectraClient client = new HttpKcElectraClient(
                 builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper());
         CognitiveAnalysisClient.CognitiveResult result = client.analyze(
+                questionId,
                 "앞서 들은 단어를 기억해 보세요.", "오늘은 가족을 만났어요.", "memory", "kc-v3");
 
         assertThat(result.languageReferenceScore()).isEqualByComparingTo("0.68");
@@ -181,9 +204,10 @@ class ExternalApiClientTest {
                 "whisper-1",
                 "",
                 "",
-                "asia-northeast1",
+                "us",
                 "chirp_3",
                 "ko-KR",
+                true,
                 "https://texttospeech.googleapis.com",
                 "neulbom-tts-test",
                 "ko-KR",
@@ -215,9 +239,10 @@ class ExternalApiClientTest {
                 "local-model",
                 "",
                 googleProjectId,
-                "asia-northeast1",
+                "us",
                 "chirp_3",
                 "ko-KR",
+                true,
                 "https://texttospeech.googleapis.com",
                 "neulbom-tts-test",
                 "ko-KR",

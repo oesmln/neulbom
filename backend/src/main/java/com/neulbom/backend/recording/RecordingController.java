@@ -50,6 +50,7 @@ public class RecordingController {
             @RequestParam(name = "session_id", required = false) UUID sessionId,
             @RequestParam(name = "question_id", required = false) UUID questionId,
             @RequestParam(name = "recorded_at") Instant recordedAt,
+            @RequestParam(name = "duration_ms", required = false) Integer durationMs,
             @RequestParam(name = "device_status", required = false) String deviceStatus
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -62,6 +63,7 @@ public class RecordingController {
                         sessionId,
                         questionId,
                         recordedAt,
+                        durationMs,
                         deviceStatus));
     }
 

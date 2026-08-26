@@ -3,6 +3,7 @@ package com.neulbom.backend.common.exception;
 import java.util.stream.Collectors;
 
 import com.neulbom.backend.common.api.ApiErrorResponse;
+import com.neulbom.backend.common.api.EmptyTranscriptErrorResponse;
 import com.neulbom.backend.common.filter.RequestIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -31,6 +32,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiErrorResponse> handleApiException(ApiException exception, HttpServletRequest request) {
         return response(exception.status(), exception.error(), exception.detail(), request);
+    }
+
+    @ExceptionHandler(EmptyTranscriptException.class)
+    public ResponseEntity<EmptyTranscriptErrorResponse> handleEmptyTranscript() {
+        return ResponseEntity.unprocessableEntity().body(new EmptyTranscriptErrorResponse(
+                EmptyTranscriptException.CODE,
+                EmptyTranscriptException.USER_MESSAGE));
     }
 
     @ExceptionHandler(RateLimitExceededException.class)

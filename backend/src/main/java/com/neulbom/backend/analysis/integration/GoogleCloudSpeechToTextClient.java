@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
+import com.neulbom.backend.common.exception.EmptyTranscriptException;
 import com.neulbom.backend.config.ExternalApiExecutor;
 import com.neulbom.backend.config.ExternalApiProperties;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,7 +92,9 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
         ArrayNode languages = config.putArray("languageCodes");
         languages.add(languageCode());
         config.put("model", model());
-        config.putObject("features").put("enableAutomaticPunctuation", true);
+        config.putObject("features").put(
+                "enableAutomaticPunctuation",
+                properties.googleSttAutomaticPunctuation());
         root.put("content", Base64.getEncoder().encodeToString(audioFile.content()));
         return root;
     }
@@ -129,7 +132,7 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
             }
         }
         if (transcript.isEmpty()) {
-            throw new ExternalServiceUnavailableException("Google STT provider가 빈 전사 결과를 반환했습니다.");
+            throw new EmptyTranscriptException();
         }
         BigDecimal confidence = confidenceCount == 0
                 ? null : confidenceTotal.divide(BigDecimal.valueOf(confidenceCount), 4, java.math.RoundingMode.HALF_UP);
@@ -169,7 +172,7 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
 
     private String location() {
         return StringUtils.hasText(properties.googleSttLocation())
-                ? properties.googleSttLocation().trim() : "asia-northeast1";
+                ? properties.googleSttLocation().trim() : "us";
     }
 
     private String model() {

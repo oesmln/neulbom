@@ -52,7 +52,7 @@ class GoogleCloudTextToSpeechClientTest {
                 Duration.ofSeconds(1), Duration.ofSeconds(1), 0, false,
                 "google", "", "https://api.openai.com", "whisper-1",
                 "", "", "whisper-1", "", "neulbom-stt-test",
-                "asia-northeast1", "chirp_3", "ko-KR",
+                "us", "chirp_3", "ko-KR", true,
                 "https://texttospeech.googleapis.com", "neulbom-tts-test", "ko-KR",
                 "ko-KR-Neural2-A", "ko-KR-Neural2-C",
                 "", "", "v1", "", "", "v1",
