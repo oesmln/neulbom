@@ -175,7 +175,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     const body = await parseErrorBody(response);
     throw new ApiError(
       response.status,
-      body?.error ?? `HTTP ${response.status}`,
+      body?.error ?? body?.message ?? `HTTP ${response.status}`,
       body,
     );
   }
@@ -230,7 +230,7 @@ export async function uploadMultipart<T>(
 
   if (!response.ok) {
     const body = await parseErrorBody(response);
-    throw new ApiError(response.status, body?.error ?? `HTTP ${response.status}`, body);
+    throw new ApiError(response.status, body?.error ?? body?.message ?? `HTTP ${response.status}`, body);
   }
   return readJson<T>(response);
 }

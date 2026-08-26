@@ -382,6 +382,7 @@ export interface RecordingUpload {
   sessionId?: Uuid;
   questionId?: Uuid;
   recordedAt: string;
+  durationMs: number;
   deviceStatus?: string;
   mimeType?: string;
   fileName?: string;
@@ -429,6 +430,7 @@ export const recordings = {
         session_id: input.sessionId,
         question_id: input.questionId,
         recorded_at: input.recordedAt,
+        duration_ms: input.durationMs,
         device_status: input.deviceStatus,
       },
       input.clientRecordingId,

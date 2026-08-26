@@ -32,7 +32,10 @@ type CapturedAudio = {
   recordedAt: string;
   mimeType: string;
   fileName: string;
+  durationMs: number;
 };
+
+export const MAX_ANSWER_RECORDING_DURATION_MS = 60_000;
 
 export function useAnswerRecording(
   target: AnswerRecordingTarget,
@@ -47,6 +50,9 @@ export function useAnswerRecording(
   const onUploadedRef = React.useRef(onUploaded);
   const onTranscribedRef = React.useRef(onTranscribed);
   const activeRef = React.useRef(false);
+  const stoppingRef = React.useRef(false);
+  const autoStopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopAndUploadRef = React.useRef<(atLimit?: boolean) => Promise<void>>(async () => undefined);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [syncStatus, setSyncStatus] = React.useState<RecordingQueueStatus | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -140,6 +146,7 @@ export function useAnswerRecording(
 
   React.useEffect(
     () => () => {
+      if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
       if (!activeRef.current) return;
       activeRef.current = false;
       void recorder
@@ -186,22 +193,39 @@ export function useAnswerRecording(
       await recorder.prepareToRecordAsync();
       recorder.record();
       activeRef.current = true;
+      autoStopTimerRef.current = setTimeout(() => {
+        void stopAndUploadRef.current(true);
+      }, MAX_ANSWER_RECORDING_DURATION_MS);
     } catch (cause) {
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       throw cause;
     }
   }, [recorder, target.questionId, target.sessionId, target.userId]);
 
-  const stopAndUpload = React.useCallback(async () => {
+  const stopAndUpload = React.useCallback(async (atLimit = false) => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    const durationMs = atLimit
+      ? MAX_ANSWER_RECORDING_DURATION_MS
+      : Math.round(recorderState.durationMillis);
     try {
       await recorder.stop();
     } finally {
       activeRef.current = false;
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      stoppingRef.current = false;
+    }
+    if (durationMs > MAX_ANSWER_RECORDING_DURATION_MS) {
+      setError("답변 녹음은 최대 60초까지 가능합니다. 다시 녹음해 주세요.");
+      return;
     }
     if (!recorder.uri) {
       setError("녹음 파일을 만들지 못했습니다. 다시 녹음해 주세요.");
-      return null;
+      return;
     }
 
     const web = Platform.OS === "web";
@@ -211,9 +235,12 @@ export function useAnswerRecording(
       recordedAt: new Date().toISOString(),
       mimeType: web ? "audio/webm" : "audio/mp4",
       fileName: web ? "answer.webm" : "answer.m4a",
+      durationMs,
     };
     await uploadCaptured();
-  }, [recorder, uploadCaptured]);
+  }, [recorder, recorderState.durationMillis, uploadCaptured]);
+
+  stopAndUploadRef.current = stopAndUpload;
 
   const toggle = React.useCallback(async () => {
     if (syncStatus === "uploading" || recordingId) return;

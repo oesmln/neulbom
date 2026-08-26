@@ -10,7 +10,7 @@ import type { ApiErrorBody } from "./types";
  */
 export class ApiError extends Error {
   readonly status: number;
-  readonly code: number | null;
+  readonly code: number | "EMPTY_TRANSCRIPT" | null;
   readonly detail: string | null;
   readonly requestId: string | null;
 
@@ -76,6 +76,7 @@ export function apiErrorMessage(error: unknown): string {
     case 413:
       return "파일이 너무 커요. 다시 녹음해 주세요.";
     case 422:
+      if (error.code === "EMPTY_TRANSCRIPT") return error.message;
       return error.detail ?? "입력하신 내용을 처리할 수 없어요. 다시 확인해 주세요.";
     case 429:
       return "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.";
