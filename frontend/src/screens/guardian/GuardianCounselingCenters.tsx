@@ -120,7 +120,8 @@ function Dropdown({
                 style={[
                   styles.option,
                   {
-                    backgroundColor: on ? guardian.blueLight : colors.white,
+                    // `colors.card` so the dropdown rows follow dark mode.
+                    backgroundColor: on ? guardian.blueLight : colors.card,
                     borderTopWidth: i > 0 ? 1 : 0,
                   },
                 ]}
@@ -247,7 +248,8 @@ export default function GuardianCounselingCentersScreen() {
                 style={[
                   styles.typeFilter,
                   {
-                    backgroundColor: on ? guardian.blue : colors.white,
+                    // `colors.card` so unselected filters stay legible in dark.
+                    backgroundColor: on ? guardian.blue : colors.card,
                     borderColor: on ? guardian.blue : colors.border,
                   },
                 ]}

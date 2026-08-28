@@ -1,7 +1,11 @@
 import React from "react";
 import { LogBox } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  DefaultTheme,
+  type NavigationState,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -59,7 +63,18 @@ const linking = {
 };
 
 function AppContent() {
-  useDisplaySettings();
+  const { settings } = useDisplaySettings();
+
+  // Remount the navigation tree whenever the display settings change.
+  // `refreshRuntimeStyles` rewrites registered style sheets in place, but
+  // screens that are already mounted (an inactive tab, a screen further down
+  // the stack) never re-render, so they kept the previous palette until the
+  // user happened to revisit them. The remount repaints everything at once;
+  // `initialState` restores the captured navigation state so the user stays
+  // exactly where they were.
+  const displayKey = `${settings.darkMode ? "dark" : "light"}-${settings.fontScale}`;
+  const lastNavState = React.useRef<NavigationState | undefined>(undefined);
+
   const navTheme = {
     ...DefaultTheme,
     colors: {
@@ -75,7 +90,16 @@ function AppContent() {
   return (
     <SafeAreaProvider>
       <AppProvider>
-        <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
+        <NavigationContainer
+          key={displayKey}
+          ref={navigationRef}
+          theme={navTheme}
+          linking={linking}
+          initialState={lastNavState.current}
+          onStateChange={(state) => {
+            lastNavState.current = state;
+          }}
+        >
           <StatusBar style={isDarkApplied() ? "light" : "dark"} />
           <Stack.Navigator initialRouteName="Splash" screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Splash" component={SplashScreen} />

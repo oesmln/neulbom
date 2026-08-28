@@ -28,6 +28,21 @@ function audioSource(base64: string, contentType: string): TemporaryAudio {
   return { uri: file.uri, file };
 }
 
+/**
+ * expo-audio releases the shared player object when the owning screen
+ * unmounts, and a `pause()` that races that release throws ("Cannot use
+ * shared object that was already released") instead of no-opping. That error
+ * escapes React's render phase and blanks the whole tree, so every pause on
+ * a possibly-released player goes through here.
+ */
+function pauseQuietly(player: { pause: () => void }) {
+  try {
+    player.pause();
+  } catch {
+    // Already released — nothing left to pause.
+  }
+}
+
 function removeFile(file: File | null) {
   if (!file?.exists) return;
   try {
@@ -49,14 +64,14 @@ export function useSpeechPlayback(line: string | null) {
 
   const stop = React.useCallback(() => {
     requestSequence.current += 1;
-    player.pause();
+    pauseQuietly(player);
     void player.seekTo(0).catch(() => undefined);
     setLoading(false);
   }, [player]);
 
   const play = React.useCallback(async (text: string) => {
     const sequence = ++requestSequence.current;
-    player.pause();
+    pauseQuietly(player);
     setLoading(true);
     setError(null);
     try {
@@ -87,7 +102,7 @@ export function useSpeechPlayback(line: string | null) {
 
   React.useEffect(() => () => {
     requestSequence.current += 1;
-    player.pause();
+    pauseQuietly(player);
     removeFile(temporaryFile.current);
   }, [player]);
 

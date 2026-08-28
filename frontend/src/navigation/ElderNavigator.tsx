@@ -8,7 +8,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ElderStackParamList, ElderTabParamList } from "@/navigation/types";
+import {
+  ElderMyPageStackParamList,
+  ElderStackParamList,
+  ElderTabParamList,
+} from "@/navigation/types";
 import { colors, fontWeight, sizes } from "@/theme";
 
 import ElderHomeScreen from "@/screens/elder/ElderHome";
@@ -28,6 +32,21 @@ import ElderGameConsonantScreen from "@/screens/elder/games/ElderGameConsonant";
 
 const Tab = createBottomTabNavigator<ElderTabParamList>();
 const Stack = createNativeStackNavigator<ElderStackParamList>();
+const MyPageStack = createNativeStackNavigator<ElderMyPageStackParamList>();
+
+/**
+ * 마이 탭 안의 스택. 앱 설정·비밀번호 변경을 탭 위로 push하면 하단 탭바가
+ * 사라지므로, 마이 탭 내부에서 열어 탭바를 유지한다.
+ */
+function ElderMyPageStackNavigator() {
+  return (
+    <MyPageStack.Navigator initialRouteName="ElderMyPageMain" screenOptions={{ headerShown: false }}>
+      <MyPageStack.Screen name="ElderMyPageMain" component={ElderMyPageScreen} />
+      <MyPageStack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
+      <MyPageStack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
+    </MyPageStack.Navigator>
+  );
+}
 
 type TabKey = keyof ElderTabParamList;
 
@@ -105,7 +124,7 @@ function ElderTabs() {
       <Tab.Screen name="ElderCalendar" component={ElderCalendarScreen} />
       <Tab.Screen name="ElderHome" component={ElderHomeScreen} />
       <Tab.Screen name="ElderGameHub" component={ElderGameHubScreen} />
-      <Tab.Screen name="ElderMyPage" component={ElderMyPageScreen} />
+      <Tab.Screen name="ElderMyPage" component={ElderMyPageStackNavigator} />
     </Tab.Navigator>
   );
 }
@@ -120,8 +139,6 @@ export default function ElderNavigator() {
       <Stack.Screen name="ElderResult" component={ElderResultScreen} />
       <Stack.Screen name="ElderNotifications" component={ElderNotificationsScreen} />
       <Stack.Screen name="ElderCampaign" component={ElderCampaignScreen} />
-      <Stack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
-      <Stack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
       <Stack.Screen name="ElderGameCardMatch" component={ElderGameCardMatchScreen} />
       <Stack.Screen name="ElderGameColor" component={ElderGameColorScreen} />
       <Stack.Screen name="ElderGameConsonant" component={ElderGameConsonantScreen} />

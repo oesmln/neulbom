@@ -148,7 +148,9 @@ export default function UserTypeScreen() {
               accessibilityLabel={`${opt.title}. ${opt.sub}`}
               style={[
                 styles.option,
-                { borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.secondary : colors.white },
+                // `colors.card`, not `colors.white`: white stays white in dark
+                // mode while the title text switches to the light foreground.
+                { borderColor: on ? colors.primary : colors.border, backgroundColor: on ? colors.secondary : colors.card },
               ]}
             >
               <View style={styles.optionTitleRow}>
@@ -160,7 +162,7 @@ export default function UserTypeScreen() {
                 {opt.tags.map((tag) => (
                   <View
                     key={tag}
-                    style={[styles.tag, { backgroundColor: on ? "#D6EAD9" : colors.muted }]}
+                    style={[styles.tag, { backgroundColor: on ? colors.successLight : colors.muted }]}
                   >
                     <Text
                       style={[
