@@ -31,7 +31,7 @@
 | Frontend | React Native |
 | Backend | Spring Boot (Java) |
 | Database | PostgreSQL |
-| STT | Whisper API |
+| STT | Google Cloud Speech-to-Text V2 (Chirp 3) |
 | Text Classification | KcELECTRA |
 | Text Generation / Summary | Gemini API |
 | Audio Analysis | AST(Audio Spectrogram Transformer) |

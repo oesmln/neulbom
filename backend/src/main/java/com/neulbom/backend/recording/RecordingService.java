@@ -30,6 +30,8 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class RecordingService {
 
+    public static final int MAX_ANSWER_RECORDING_DURATION_MS = 60_000;
+
     private static final Set<String> PURPOSES = Set.of(RecordingEntity.ANSWER, RecordingEntity.DIARY);
     private static final Set<String> DEVICE_STATUSES = Set.of("device_saved", "server_pending");
 
@@ -81,6 +83,7 @@ public class RecordingService {
             UUID sessionId,
             UUID questionId,
             Instant recordedAt,
+            Integer durationMs,
             String deviceStatus
     ) {
         if (!authenticatedUserId.equals(requestedUserId)) {
@@ -96,6 +99,7 @@ public class RecordingService {
         }
 
         validatePurpose(purpose, sessionId, questionId);
+        validateDuration(purpose, durationMs);
         if (deviceStatus != null && !DEVICE_STATUSES.contains(deviceStatus)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "device_status 허용값을 확인하세요.");
         }
@@ -120,6 +124,7 @@ public class RecordingService {
                 metadata(audioFile),
                 audioFile.getContentType(),
                 audioFile.getSize(),
+                durationMs,
                 recordedAt,
                 now);
         recordingRepository.save(recording);
@@ -168,6 +173,24 @@ public class RecordingService {
         }
         if (RecordingEntity.DIARY.equals(purpose) && (sessionId != null || questionId != null)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "음성 일기 녹음 정보가 올바르지 않습니다.", "diary 목적에는 session_id와 question_id를 보내지 않습니다.");
+        }
+    }
+
+    private void validateDuration(String purpose, Integer durationMs) {
+        if (!RecordingEntity.ANSWER.equals(purpose)) {
+            if (durationMs != null && durationMs <= 0) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "녹음 시간이 올바르지 않습니다.", "duration_ms는 0보다 커야 합니다.");
+            }
+            return;
+        }
+        if (durationMs == null || durationMs <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "답변 녹음 시간이 필요합니다.", "duration_ms를 확인하세요.");
+        }
+        if (durationMs > MAX_ANSWER_RECORDING_DURATION_MS) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "답변 녹음은 60초를 초과할 수 없습니다.",
+                    "60초 이하로 다시 녹음해 주세요.");
         }
     }
 

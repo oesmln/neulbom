@@ -19,6 +19,7 @@ export type RecordingQueueItem = {
   recordedAt: string;
   mimeType: string;
   fileName: string;
+  durationMs: number;
   localUri: string;
   status: RecordingQueueStatus;
   attempts: number;
@@ -225,6 +226,7 @@ export async function enqueueRecording(input: CapturedRecording): Promise<Record
       recordedAt: input.recordedAt,
       mimeType: input.mimeType,
       fileName: input.fileName,
+      durationMs: input.durationMs,
       localUri,
       status: "pending",
       attempts: 0,
@@ -371,6 +373,7 @@ async function performSync(activeUserId: Uuid): Promise<void> {
         sessionId: uploading.sessionId,
         questionId: uploading.questionId,
         recordedAt: uploading.recordedAt,
+        durationMs: uploading.durationMs,
         deviceStatus: "device_saved",
         mimeType: uploading.mimeType,
         fileName: uploading.fileName,

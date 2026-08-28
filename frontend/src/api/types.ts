@@ -24,10 +24,11 @@ export type Role = "elder" | "guardian";
 
 /** `common/api/ApiErrorResponse` */
 export interface ApiErrorBody {
-  error: string;
-  code: number;
-  detail: string | null;
-  request_id: string | null;
+  error?: string;
+  code: number | "EMPTY_TRANSCRIPT";
+  detail?: string | null;
+  request_id?: string | null;
+  message?: string;
 }
 
 /* ── auth ───────────────────────────────────────────────────────────────── */

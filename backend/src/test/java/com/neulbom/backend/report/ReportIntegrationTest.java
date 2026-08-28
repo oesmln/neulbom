@@ -66,7 +66,8 @@ class ReportIntegrationTest {
         sessionRepository.save(completedEmotional);
         sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "emotional_qa", 5, "{}", false, analyzedAt));
         RecordingEntity recording = recordingRepository.save(new RecordingEntity(uuidGenerator.generate(), uuidGenerator.generate(), elder.getId(),
-                RecordingEntity.ANSWER, session.getId(), QUESTION_ID, "recordings/report.wav", "report.wav", "{}", "audio/wav", 4, analyzedAt, analyzedAt));
+                RecordingEntity.ANSWER, session.getId(), QUESTION_ID, "recordings/report.wav", "report.wav", "{}", "audio/wav", 4,
+                1_000, analyzedAt, analyzedAt));
         TranscriptEntity transcript = transcriptRepository.save(new TranscriptEntity(uuidGenerator.generate(), recording.getId(), "오늘은 좋은 하루입니다.",
                 BigDecimal.ONE, new BigDecimal("0.8"), "ko", "test", "v1", "completed", analyzedAt, analyzedAt, analyzedAt));
         cognitiveAnalysisRepository.save(new CognitiveAnalysisEntity(uuidGenerator.generate(), transcript.getId(), null, elder.getId(), session.getId(),

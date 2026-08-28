@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import com.neulbom.backend.common.id.UuidGenerator;
+import com.neulbom.backend.common.exception.EmptyTranscriptException;
 import com.neulbom.backend.analysis.integration.SpeechToTextClient;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
@@ -53,6 +54,9 @@ class RecordingIntegrationTest {
     private SessionRepository sessionRepository;
 
     @Autowired
+    private TranscriptRepository transcriptRepository;
+
+    @Autowired
     private UuidGenerator uuidGenerator;
 
     @MockitoBean
@@ -82,6 +86,7 @@ class RecordingIntegrationTest {
                         .param("session_id", sessionId.toString())
                         .param("question_id", QUESTION_ID.toString())
                         .param("recorded_at", recordedAt)
+                        .param("duration_ms", "1000")
                         .param("device_status", "server_pending"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.recording_id").isNotEmpty())
@@ -134,7 +139,8 @@ class RecordingIntegrationTest {
                         .param("purpose", "answer")
                         .param("session_id", sessionId.toString())
                         .param("question_id", QUESTION_ID.toString())
-                        .param("recorded_at", recordedAt))
+                        .param("recorded_at", recordedAt)
+                        .param("duration_ms", "1000"))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         UUID recordingId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
@@ -145,6 +151,54 @@ class RecordingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recording_id").value(recordingId.toString()))
                 .andExpect(jsonPath("$.transcript").isNotEmpty());
+    }
+
+    @Test
+    void answerRecordingLongerThanSixtySecondsIsRejectedBeforeStt() throws Exception {
+        UserEntity elder = saveUser("recording-too-long");
+        UUID sessionId = saveSession(elder.getId());
+
+        mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("too-long.wav"))
+                        .with(jwtFor(elder))
+                        .param("client_recording_id", UUID.randomUUID().toString())
+                        .param("user_id", elder.getId().toString())
+                        .param("purpose", "answer")
+                        .param("session_id", sessionId.toString())
+                        .param("question_id", QUESTION_ID.toString())
+                        .param("recorded_at", Instant.now().minusSeconds(1).toString())
+                        .param("duration_ms", "60001"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value("60초 이하로 다시 녹음해 주세요."));
+    }
+
+    @Test
+    void emptyTranscriptReturnsAStable422ErrorCode() throws Exception {
+        UserEntity elder = saveUser("recording-empty-transcript");
+        UUID sessionId = saveSession(elder.getId());
+        when(speechToTextClient.transcribe(any())).thenThrow(new EmptyTranscriptException());
+
+        String uploadBody = mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("empty.wav"))
+                        .with(jwtFor(elder))
+                        .param("client_recording_id", UUID.randomUUID().toString())
+                        .param("user_id", elder.getId().toString())
+                        .param("purpose", "answer")
+                        .param("session_id", sessionId.toString())
+                        .param("question_id", QUESTION_ID.toString())
+                        .param("recorded_at", Instant.now().minusSeconds(1).toString())
+                        .param("duration_ms", "1000"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID recordingId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(uploadBody).get("recording_id").asText());
+
+        mockMvc.perform(post("/api/v1/recordings/{recordingId}/transcribe", recordingId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("EMPTY_TRANSCRIPT"))
+                .andExpect(jsonPath("$.message").value("음성이 인식되지 않았습니다. 다시 답변해 주세요."));
+        org.assertj.core.api.Assertions.assertThat(transcriptRepository.findByRecordingId(recordingId)).isEmpty();
     }
 
     @Test

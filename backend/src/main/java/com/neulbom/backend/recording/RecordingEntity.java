@@ -54,6 +54,9 @@ public class RecordingEntity {
     @Column(name = "file_size_bytes", nullable = false)
     private long fileSizeBytes;
 
+    @Column(name = "duration_ms")
+    private Integer durationMs;
+
     @Column(name = "sync_status", nullable = false, length = 30)
     private String syncStatus;
 
@@ -87,6 +90,7 @@ public class RecordingEntity {
             String fileMetadata,
             String mimeType,
             long fileSizeBytes,
+            Integer durationMs,
             Instant recordedAt,
             Instant createdAt
     ) {
@@ -101,6 +105,7 @@ public class RecordingEntity {
         this.fileMetadata = fileMetadata;
         this.mimeType = mimeType;
         this.fileSizeBytes = fileSizeBytes;
+        this.durationMs = durationMs;
         this.syncStatus = SERVER_UPLOADED;
         this.transcriptStatus = PENDING;
         this.analysisStatus = PENDING;
@@ -151,6 +156,10 @@ public class RecordingEntity {
 
     public long getFileSizeBytes() {
         return fileSizeBytes;
+    }
+
+    public Integer getDurationMs() {
+        return durationMs;
     }
 
     public String getSyncStatus() {

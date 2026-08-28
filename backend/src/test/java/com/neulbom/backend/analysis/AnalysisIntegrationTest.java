@@ -21,6 +21,8 @@ import com.neulbom.backend.analysis.integration.SpeechToTextClient;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
 import com.neulbom.backend.recording.RecordingStorage;
+import com.neulbom.backend.recording.TranscriptEntity;
+import com.neulbom.backend.recording.TranscriptRepository;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -38,6 +40,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest
@@ -61,6 +66,9 @@ class AnalysisIntegrationTest {
 
     @Autowired
     private RecordingStorage recordingStorage;
+
+    @Autowired
+    private TranscriptRepository transcriptRepository;
 
     @Autowired
     private UuidGenerator uuidGenerator;
@@ -88,7 +96,7 @@ class AnalysisIntegrationTest {
         when(cognitiveAnalysisClient.isConfigured()).thenReturn(true);
         var domainScores = JsonNodeFactory.instance.objectNode();
         domainScores.putObject("orientation").put("correct", 1).put("total", 1).put("score_rate", 0.8);
-        when(cognitiveAnalysisClient.analyze(any(), any(), any(), any()))
+        when(cognitiveAnalysisClient.analyze(any(), any(), any(), any(), any()))
                 .thenReturn(new CognitiveAnalysisClient.CognitiveResult(
                         new BigDecimal("0.8"), JsonNodeFactory.instance.objectNode(),
                         domainScores, JsonNodeFactory.instance.objectNode(),
@@ -107,6 +115,7 @@ class AnalysisIntegrationTest {
         RecordingEntity recording = recordingRepository.save(new RecordingEntity(
                 recordingId, uuidGenerator.generate(), elder.getId(), RecordingEntity.ANSWER,
                 session.getId(), QUESTION_ID, storageKey, "analysis.wav", "{}", "audio/wav", 1,
+                1_000,
                 now.minusSeconds(1), now));
 
         String transcriptBody = mockMvc.perform(multipart("/api/v1/voice/transcribe")
@@ -163,6 +172,12 @@ class AnalysisIntegrationTest {
                 .andExpect(jsonPath("$.domain_scores.orientation.total").value(1))
                 .andReturn().getResponse().getContentAsString();
         org.assertj.core.api.Assertions.assertThat(cognitiveBody).contains("risk_level");
+        verify(cognitiveAnalysisClient).analyze(
+                eq(QUESTION_ID),
+                eq("오늘은 몇 년도인지 말씀해 주세요."),
+                eq("2026년입니다."),
+                eq("orientation"),
+                eq("kcelectra-cist-v1"));
 
         mockMvc.perform(post("/api/v1/summary/session")
                         .with(serverJwt(elder))
@@ -211,6 +226,54 @@ class AnalysisIntegrationTest {
                                 {"recording_id":"%s","user_id":"%s","session_id":"%s"}
                                 """.formatted(UUID.randomUUID(), elder.getId(), UUID.randomUUID())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cistCognitiveAnalysisRequiresTheRecordingQuestionId() throws Exception {
+        UserEntity elder = saveUser("analysis-question-id");
+        Instant now = Instant.now();
+        SessionEntity session = sessionRepository.save(new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "cist", 5, "{}", false, now));
+        RecordingEntity recording = recordingRepository.save(new RecordingEntity(
+                uuidGenerator.generate(), uuidGenerator.generate(), elder.getId(), RecordingEntity.ANSWER,
+                session.getId(), QUESTION_ID, "recordings/question.wav", "question.wav", "{}", "audio/wav", 1,
+                1_000, now.minusSeconds(1), now));
+        TranscriptEntity transcript = transcriptRepository.save(new TranscriptEntity(
+                uuidGenerator.generate(), recording.getId(), "2026년입니다.", BigDecimal.ONE, BigDecimal.ONE,
+                "ko-KR", "chirp_3", "v2", "completed", now, now, now));
+
+        String requestWithoutQuestionId = """
+                {
+                  "transcript_id": "%s",
+                  "user_id": "%s",
+                  "session_id": "%s",
+                  "question_type": "orientation"
+                }
+                """.formatted(transcript.getId(), elder.getId(), session.getId());
+        mockMvc.perform(post("/api/v1/analysis/cognitive")
+                        .with(serverJwt(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestWithoutQuestionId))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value("question_id를 확인하세요."));
+
+        String requestWithWrongQuestionId = """
+                {
+                  "transcript_id": "%s",
+                  "user_id": "%s",
+                  "session_id": "%s",
+                  "question_id": "%s",
+                  "question_type": "orientation"
+                }
+                """.formatted(transcript.getId(), elder.getId(), session.getId(), UUID.randomUUID());
+        mockMvc.perform(post("/api/v1/analysis/cognitive")
+                        .with(serverJwt(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestWithWrongQuestionId))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.error").value("녹음 문항과 분석 문항이 일치하지 않습니다."));
+
+        verify(cognitiveAnalysisClient, never()).analyze(any(), any(), any(), any(), any());
     }
 
     private UserEntity saveUser(String prefix) {

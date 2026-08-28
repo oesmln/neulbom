@@ -85,6 +85,7 @@
 - [ ] 문항 유형 분기 — 음성 답변형 / 듣기형(단어 등록)
 - [ ] 마이크 권한 요청 및 거부 시 대체 흐름
 - [ ] 녹음 UI — 파형, 경과 시간, 녹음/완료 상태 (대형 원형 버튼)
+- [x] 답변 녹음을 최대 60초에 자동 종료하고 `duration_ms`를 업로드한다. (#123)
 - [x] `POST /recordings` multipart 업로드 (`purpose`, `session_id`, `question_id`)
 - [x] **오프라인 큐** — 기기 저장 후 재전송 (#61)
       상태 전이 `device_saved → server_pending → server_uploaded → analysis_completed`, 실패 시 `failed`

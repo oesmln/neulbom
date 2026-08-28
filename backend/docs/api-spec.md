@@ -74,6 +74,15 @@
 }
 ```
 
+Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우는 외부 서비스 장애와 구분해 HTTP `422`와 다음 전용 오류를 반환한다.
+
+```json
+{
+  "code": "EMPTY_TRANSCRIPT",
+  "message": "음성이 인식되지 않았습니다. 다시 답변해 주세요."
+}
+```
+
 | HTTP 상태 | 의미 |
 | --- | --- |
 | `400` | 잘못된 요청, enum·날짜·필수값 오류 |
@@ -1301,6 +1310,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `session_id` | string | 조건부 | `purpose=answer`일 때 세션 ID |
 | `question_id` | string | 조건부 | `purpose=answer`일 때 문항 ID |
 | `recorded_at` | string | Y | 기기 녹음 일시 |
+| `duration_ms` | integer | 조건부 | `purpose=answer`일 때 필수인 실제 녹음 길이(ms), `1~60000` |
 | `device_status` | enum | N | `device_saved`, `server_pending` |
 
 `purpose=diary`이면 `session_id`, `question_id`를 받지 않으며 STT 완료 후 `POST /diaries`의 `source_type=voice`, `recording_id`로 연결한다. 답변 녹음과 음성 일기는 같은 멱등성·파일 검증·보존 정책을 사용하되 분석 파이프라인과 접근 권한은 목적별로 분리한다.
@@ -1331,6 +1341,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 #### 구현 권한·동기화 규칙
 
 - 녹음 업로드는 고령자 본인만 수행한다. `purpose=answer`는 본인 소유 세션·활성 질문의 `session_id`와 `question_id`를 함께 받아야 하고, `purpose=diary`는 두 필드를 받지 않는다.
+- 답변 녹음은 앱에서 60초에 자동 종료하고 서버도 `duration_ms`가 60,000을 초과하면 STT 호출 전에 `422`로 거부한다. 장시간 음성용 BatchRecognize는 사용하지 않는다.
 - 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, 최대 25MB이며 MIME type도 함께 검증한다.
 - 동일 `client_recording_id`를 본인이 재전송하면 기존 `recording_id`와 처리 상태를 `deduplicated=true`로 반환한다. 다른 사용자가 해당 ID를 사용하면 `403`이다.
 - 상태 조회는 본인 또는 활성 보호자 연결의 `screening`(답변)·`diary`(음성 일기) scope만 허용한다. STT·AST·KcELECTRA 결과 ID는 처리 완료 시 adapter가 채우며 초기 업로드 응답에서는 `pending`이다.
@@ -1369,11 +1380,13 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 사용자 JWT는 본인 녹음에만 사용할 수 있으며, 일기 녹음이나 다른 사용자의 녹음은 거부한다.
 
+전사 결과가 비어 있으면 transcript를 생성하거나 KcELECTRA를 호출하지 않고 `EMPTY_TRANSCRIPT` 오류를 반환한다. 앱은 사용자에게 재녹음을 요청한다.
+
 ### 7.3 `POST /voice/transcribe` - 선택한 STT provider
 
 서버 작업 큐에서 `recording_id`를 기준으로 호출하는 것을 권장한다. 기존 클라이언트 직접 호출이 필요한 경우에도 동일한 메타데이터를 전송한다.
 
-STT provider는 `STT_PROVIDER`로 선택하며 앱 기본값은 `google`이다. `google`은 Google Cloud Speech-to-Text V2를 사용한다. `openai`, `local`, `auto`는 로컬 진단·이전 환경 호환을 위해 유지하고 `none`은 외부 STT를 사용하지 않는다.
+STT provider는 `STT_PROVIDER`로 선택하며 앱 기본값은 `google`이다. 운영 Google STT는 V2, `location=us`, `model=chirp_3`, `language=ko-KR`, 자동 문장부호 사용으로 고정한다. `openai`, `local`, `auto`는 로컬 진단·이전 환경 호환을 위해 유지하고 `none`은 외부 STT를 사용하지 않는다.
 
 로컬 Whisper 서버는 `POST /v1/audio/transcriptions` multipart 계약(`file`, `model`, `language`, `response_format`)을 제공해야 한다. Google Cloud STT는 서버의 Application Default Credentials(로컬 `gcloud auth application-default login`, 운영 서비스 계정 또는 workload identity)를 사용하며 앱에 provider credential을 노출하지 않는다.
 
@@ -1463,16 +1476,18 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. CIST 문�
 
 | 필드 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
-| `transcript_id` | string | Y | Whisper 전사 ID |
+| `transcript_id` | string | Y | 저장된 STT 전사 ID |
 | `transcript` | string | N | 하위 호환용 입력. 서버는 `transcript_id`로 저장된 STT 전사문을 사용하며 이 값을 신뢰하지 않는다 |
 | `user_id` | string | Y | 고령자 ID |
 | `session_id` | string | Y | 세션 ID |
-| `question_id` | string | N | 문항 ID |
+| `question_id` | string | 조건부 | CIST 분석에서는 필수인 문항 ID |
 | `question_type` | enum | Y | `orientation`, `memory`, `attention`, `language`, `emotion` |
 | `acoustic_analysis_id` | string | N | AST 분석 결과 ID |
 | `fusion_mode` | enum | N | `none`, `average`, `weighted_average`; 실험 설정용 |
 
 `question_type`의 `language`는 보고서의 `유창성` 범주와 동일한 canonical code다. CIST의 네 상위 질문범주는 `orientation(지남력)`, `memory(기억력)`, `attention(주의력)`, `language(유창성)`으로 고정한다.
+
+CIST 분석에서는 요청의 `question_id`가 전사문에 연결된 녹음의 `question_id`와 같아야 한다. 서버는 해당 ID로 활성 질문 원문을 직접 조회하며, ID가 다르거나 질문 원문을 찾지 못하면 KcELECTRA를 호출하지 않는다. 백엔드는 `question_id`, `question`, `transcript`, `question_type`, `model_version`을 별도 JSON 필드로 전달하고 AI 추론 서버가 `[질문] {question}\n[답변] {transcript}` 형식으로 결합한다.
 
 #### Response `200`
 
@@ -1747,10 +1762,10 @@ KcELECTRA는 고령자가 **무슨 말을 했는지**를 분석한다. CIST 문�
 | --- | --- | --- | --- |
 | STT | OpenAI 호스팅 Whisper | `STT_PROVIDER=openai`, `WHISPER_API_KEY`, `WHISPER_API_BASE_URL`, `WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
 | STT | 로컬 Whisper | `STT_PROVIDER=local`, `LOCAL_WHISPER_API_BASE_URL`, `LOCAL_WHISPER_API_KEY`(선택), `LOCAL_WHISPER_MODEL` | `POST {base_url}/v1/audio/transcriptions` multipart `file`, `model`, `language=ko`, `response_format=verbose_json` |
-| STT | Google Cloud Speech-to-Text V2 | `STT_PROVIDER=google`, `GOOGLE_STT_PROJECT_ID`, `GOOGLE_STT_LOCATION`, `GOOGLE_STT_MODEL`, `GOOGLE_STT_LANGUAGE_CODE`, ADC credential | `POST /v2/projects/{project}/locations/{location}/recognizers/_:recognize` JSON `config.autoDecodingConfig`, `languageCodes`, `model`, base64 `content` |
+| STT | Google Cloud Speech-to-Text V2 | `STT_PROVIDER=google`, `GOOGLE_STT_PROJECT_ID`, `GOOGLE_STT_LOCATION=us`, `GOOGLE_STT_MODEL=chirp_3`, `GOOGLE_STT_LANGUAGE=ko-KR`, `GOOGLE_STT_AUTOMATIC_PUNCTUATION=true`, ADC credential | `POST https://us-speech.googleapis.com/v2/projects/{project}/locations/us/recognizers/_:recognize` JSON `config.autoDecodingConfig`, `languageCodes`, `model`, `features.enableAutomaticPunctuation`, base64 `content` |
 | TTS | Google Cloud Text-to-Speech v1 | `GOOGLE_TTS_PROJECT_ID`(미지정 시 STT project), `GOOGLE_TTS_LANGUAGE_CODE`, `GOOGLE_TTS_DEFAULT_VOICE`, `GOOGLE_TTS_CLEAR_VOICE`, ADC credential | `POST /v1/text:synthesize` JSON `input.text`, `voice`, `audioConfig`; MP3 base64 응답 |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
-| 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `question`, `transcript`, `question_type`, `model_version` |
+| 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `question_id`, `question`, `transcript`, `question_type`, `model_version` |
 | 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.

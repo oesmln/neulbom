@@ -83,9 +83,10 @@ app:
     local-whisper-model: ${LOCAL_WHISPER_MODEL:whisper-1}
     google-stt-base-url: ${GOOGLE_STT_BASE_URL:}
     google-stt-project-id: ${GOOGLE_STT_PROJECT_ID:}
-    google-stt-location: ${GOOGLE_STT_LOCATION:asia-northeast1}
+    google-stt-location: ${GOOGLE_STT_LOCATION:us}
     google-stt-model: ${GOOGLE_STT_MODEL:chirp_3}
-    google-stt-language-code: ${GOOGLE_STT_LANGUAGE_CODE:ko-KR}
+    google-stt-language-code: ${GOOGLE_STT_LANGUAGE:${GOOGLE_STT_LANGUAGE_CODE:ko-KR}}
+    google-stt-automatic-punctuation: ${GOOGLE_STT_AUTOMATIC_PUNCTUATION:true}
     google-tts-base-url: ${GOOGLE_TTS_BASE_URL:https://texttospeech.googleapis.com}
     google-tts-project-id: ${GOOGLE_TTS_PROJECT_ID:}
     google-tts-language-code: ${GOOGLE_TTS_LANGUAGE_CODE:ko-KR}
@@ -96,7 +97,7 @@ app:
     ast-model: ${AST_MODEL:v1}
     kc-electra-api-url: ${KCELECTRA_API_URL:}
     kc-electra-api-key: ${KCELECTRA_API_KEY:}
-    kc-electra-model: ${KCELECTRA_MODEL:v1}
+    kc-electra-model: ${KCELECTRA_MODEL:kcelectra-cist-v1}
     gemini-api-key: ${GEMINI_API_KEY:}
     gemini-base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
     gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
