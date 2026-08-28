@@ -41,8 +41,23 @@ const TAB_ROUTES: (keyof ElderTabParamList)[] = [
   "ElderMyPage",
 ];
 
+/**
+ * The server sends path-style routes ("/ai", "/games/memory", "/diary" — see
+ * backend ReportService.todayTasks), while the fixtures use tab names. Both
+ * must resolve, or the card renders without an onPress and silently ignores
+ * taps — which is exactly how the 기억력 게임 card shipped broken.
+ */
+const PATH_ROUTES: Record<string, keyof ElderTabParamList> = {
+  "/ai": "ElderAiChat",
+  "/diary": "ElderCalendar",
+};
+
 function tabRoute(target: string | null): keyof ElderTabParamList | null {
-  return TAB_ROUTES.find((r) => r === target) ?? null;
+  if (!target) return null;
+  const tab = TAB_ROUTES.find((r) => r === target);
+  if (tab) return tab;
+  if (target.startsWith("/games")) return "ElderGameHub";
+  return PATH_ROUTES[target] ?? null;
 }
 
 function taskBadge(task: DashboardTask): { label: string; color: string; background: string } {
