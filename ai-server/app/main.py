@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.errors import register_exception_handlers
 from app.api.routes.health import router as health_router
 from app.core.runtime import RuntimeState, lifespan
 
@@ -13,8 +14,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # lifespan 실행 전에도 health 라우터가 안전하게 접근할 수 있게 한다.
     application.state.runtime_state = RuntimeState()
+
+    register_exception_handlers(application)
     application.include_router(health_router)
 
     return application

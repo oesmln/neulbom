@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     log_level: LogLevel = "INFO"
     contracts_dir: Path = PROJECT_ROOT / "contracts"
     artifacts_dir: Path = PROJECT_ROOT / "artifacts" / "models"
+    service_token: SecretStr | None = None
 
     @field_validator("log_level", mode="before")
     @classmethod
