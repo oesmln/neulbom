@@ -1,0 +1,653 @@
+{
+  "schema_version": "cist-question-set-schema-v1",
+  "question_set_version": "cist-v1",
+  "locale": "ko-KR",
+  "timezone": "Asia/Seoul",
+  "scoring_rule_version": "wrong-event-v1",
+  "normalization_rule_version": "korean-answer-normalization-v1",
+  "session_context_requirements": [
+    "assessment_local_date",
+    "timezone"
+  ],
+  "core_categories": [
+    "orientation",
+    "memory",
+    "attention",
+    "language"
+  ],
+  "status_semantics": {
+    "scoring_status_not_scored": "The item has no formal correct/incorrect item score. Auxiliary wrong_event usage is controlled independently by feature_usage.wrong_event.",
+    "vad_status_no_response": "No usable speech response was detected. This is independent of scoring_status.",
+    "conditional_not_applicable": "The conditional item was not selected by the Q11 recognition plan and is not considered missing."
+  },
+  "administration": {
+    "always_required_question_codes": [
+      "orientation_year",
+      "orientation_month",
+      "orientation_day",
+      "orientation_weekday",
+      "orientation_place",
+      "memory_registration_first",
+      "memory_registration_second",
+      "attention_digit_span_4",
+      "attention_digit_span_5",
+      "attention_word_reverse",
+      "memory_delayed_free_recall",
+      "language_semantic_fluency"
+    ],
+    "conditional_question_codes": [
+      "memory_recognition_person",
+      "memory_recognition_transport",
+      "memory_recognition_place",
+      "memory_recognition_time",
+      "memory_recognition_activity"
+    ],
+    "conditional_source_question_code": "memory_delayed_free_recall",
+    "completeness_policy": {
+      "required_question_codes": "always_required_question_codes plus the question codes selected in recognition_plan",
+      "unselected_conditional_status": "not_applicable",
+      "missing_required_result": {
+        "analysis_status": "needs_retry",
+        "reason_code": "INCOMPLETE_ASSESSMENT"
+      }
+    },
+    "recognition_planning": {
+      "source_question_code": "memory_delayed_free_recall",
+      "selection_rule": "Select the recognition question for each memory-story unit not recalled in Q11.",
+      "do_not_assume_all_units_missed_on_failure": true,
+      "on_no_response": {
+        "analysis_status": "needs_retry",
+        "reason_code": "INCOMPLETE_ASSESSMENT"
+      },
+      "on_unusable_stt": {
+        "analysis_status": "needs_retry",
+        "reason_code": "UNSCORABLE_STT"
+      }
+    }
+  },
+  "memory_story": {
+    "canonical_text": "민수는 자전거를 타고 공원에 가서 11시부터 야구를 했다",
+    "units": [
+      {
+        "unit_code": "person",
+        "expected_answer": "민수",
+        "recognition_question_code": "memory_recognition_person"
+      },
+      {
+        "unit_code": "transport",
+        "expected_answer": "자전거",
+        "recognition_question_code": "memory_recognition_transport"
+      },
+      {
+        "unit_code": "place",
+        "expected_answer": "공원",
+        "recognition_question_code": "memory_recognition_place"
+      },
+      {
+        "unit_code": "time",
+        "expected_answer": "11시",
+        "recognition_question_code": "memory_recognition_time"
+      },
+      {
+        "unit_code": "activity",
+        "expected_answer": "야구",
+        "recognition_question_code": "memory_recognition_activity"
+      }
+    ]
+  },
+  "questions": [
+    {
+      "legacy_question_id": "Q01",
+      "question_code": "orientation_year",
+      "variant_id": "orientation-year-fixed-v1",
+      "order": 1,
+      "question_type": "orientation",
+      "canonical_question": "올해는 몇 년도입니까?",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "current_year",
+        "expected_source": "session_context.assessment_local_date.year",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q02",
+      "question_code": "orientation_month",
+      "variant_id": "orientation-month-fixed-v1",
+      "order": 2,
+      "question_type": "orientation",
+      "canonical_question": "지금은 몇 월입니까?",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "current_month",
+        "expected_source": "session_context.assessment_local_date.month",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q03",
+      "question_code": "orientation_day",
+      "variant_id": "orientation-day-fixed-v1",
+      "order": 3,
+      "question_type": "orientation",
+      "canonical_question": "오늘은 며칠입니까?",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "current_day_of_month",
+        "expected_source": "session_context.assessment_local_date.day",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q04",
+      "question_code": "orientation_weekday",
+      "variant_id": "orientation-weekday-fixed-v1",
+      "order": 4,
+      "question_type": "orientation",
+      "canonical_question": "오늘은 무슨 요일입니까?",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "current_weekday",
+        "expected_source": "session_context.assessment_local_date.weekday",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q05",
+      "question_code": "orientation_place",
+      "variant_id": "orientation-place-fixed-v1",
+      "order": 5,
+      "question_type": "orientation",
+      "canonical_question": "지금 대상자님이 계신 여기는 어디인가요? 이 장소가 어디인지 말씀해 주세요.",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "unscored_context",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": false,
+        "item_score": false,
+        "final_fusion": true
+      },
+      "answer_spec": null,
+      "result_policy": {
+        "scoring_status": "not_scored",
+        "answer_status": null,
+        "wrong_event": null,
+        "no_response_counts_as_wrong_event": false
+      }
+    },
+    {
+      "legacy_question_id": "Q06",
+      "question_code": "memory_registration_first",
+      "variant_id": "memory-registration-first-fixed-v1",
+      "order": 6,
+      "question_type": "memory",
+      "canonical_question": "지금부터 외우셔야 하는 문장을 하나 불러 드리겠습니다. 끝까지 잘 듣고 따라 해 보세요: 민수는 자전거를 타고 공원에 가서 11시부터 야구를 했다",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "unscored_context",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": false,
+        "final_fusion": true
+      },
+      "wrong_event_mode": "explicit_failure_event",
+      "answer_spec": {
+        "answer_type": "story_repeat",
+        "expected_unit_codes": [
+          "person",
+          "transport",
+          "place",
+          "time",
+          "activity"
+        ],
+        "order_policy": "defined_by_scoring_rule",
+        "used_for_item_score": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      },
+      "result_policy": {
+        "scoring_status": "not_scored",
+        "answer_status": null,
+        "wrong_event_source": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q07",
+      "question_code": "memory_registration_second",
+      "variant_id": "memory-registration-second-fixed-v1",
+      "order": 7,
+      "question_type": "memory",
+      "canonical_question": "다시 한번 불러 드리겠습니다. 이번에도 다시 여쭈어 볼테니 잘 듣고 따라 해 보세요: 민수는 자전거를 타고 공원에 가서 11시부터 야구를 했다",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "unscored_context",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": false,
+        "final_fusion": true
+      },
+      "wrong_event_mode": "explicit_failure_event",
+      "answer_spec": {
+        "answer_type": "story_repeat",
+        "expected_unit_codes": [
+          "person",
+          "transport",
+          "place",
+          "time",
+          "activity"
+        ],
+        "order_policy": "defined_by_scoring_rule",
+        "used_for_item_score": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      },
+      "result_policy": {
+        "scoring_status": "not_scored",
+        "answer_status": null,
+        "wrong_event_source": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q08",
+      "question_code": "attention_digit_span_4",
+      "variant_id": "attention-digit-span-4-fixed-v1",
+      "order": 8,
+      "question_type": "attention",
+      "canonical_question": "제가 불러드리는 숫자를 그대로 따라 해 주세요: 6 - 9 - 7 - 3",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "exact_sequence",
+        "expected_units": [
+          "6",
+          "9",
+          "7",
+          "3"
+        ],
+        "order_required": true,
+        "allow_extra_units": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q09",
+      "question_code": "attention_digit_span_5",
+      "variant_id": "attention-digit-span-5-fixed-v1",
+      "order": 9,
+      "question_type": "attention",
+      "canonical_question": "제가 불러드리는 숫자를 그대로 따라 해 주세요: 5 - 7 - 2 - 8 - 4",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "exact_sequence",
+        "expected_units": [
+          "5",
+          "7",
+          "2",
+          "8",
+          "4"
+        ],
+        "order_required": true,
+        "allow_extra_units": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q10",
+      "question_code": "attention_word_reverse",
+      "variant_id": "attention-word-reverse-fixed-v1",
+      "order": 10,
+      "question_type": "attention",
+      "canonical_question": "제가 불러 드리는 말을 끝에서부터 거꾸로 따라해 주세요: 금수강산",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "exact_sequence",
+        "stimulus": "금수강산",
+        "expected_answer": "산강수금",
+        "expected_units": [
+          "산",
+          "강",
+          "수",
+          "금"
+        ],
+        "order_required": true,
+        "allow_extra_units": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q11",
+      "question_code": "memory_delayed_free_recall",
+      "variant_id": "memory-delayed-free-recall-fixed-v1",
+      "order": 11,
+      "question_type": "memory",
+      "canonical_question": "제가 조금 전에 외우라고 불러드렸던 문장을 다시 한번 말씀해 주세요.",
+      "response_mode": "spoken_answer",
+      "administration_mode": "always",
+      "scoring_mode": "unscored_context",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": false,
+        "final_fusion": true
+      },
+      "wrong_event_mode": "explicit_failure_event",
+      "answer_spec": {
+        "answer_type": "story_free_recall",
+        "expected_unit_codes": [
+          "person",
+          "transport",
+          "place",
+          "time",
+          "activity"
+        ],
+        "order_required": false,
+        "produces_recognition_plan": true,
+        "used_for_item_score": false,
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      },
+      "result_policy": {
+        "scoring_status": "not_scored",
+        "answer_status": null,
+        "wrong_event_source": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q12",
+      "question_code": "memory_recognition_person",
+      "variant_id": "memory-recognition-person-fixed-v1",
+      "order": 12,
+      "question_type": "memory",
+      "canonical_question": "제가 아까 어떤 사람의 이름을 말했는데 누구일까요? 영수, 민수, 진수",
+      "response_mode": "spoken_answer",
+      "administration_mode": "conditional",
+      "condition": {
+        "source_question_code": "memory_delayed_free_recall",
+        "administer_if_unit_not_recalled": "person"
+      },
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "multiple_choice_recognition",
+        "target_unit": "person",
+        "options": [
+          "영수",
+          "민수",
+          "진수"
+        ],
+        "expected_answer": "민수",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q13",
+      "question_code": "memory_recognition_transport",
+      "variant_id": "memory-recognition-transport-fixed-v1",
+      "order": 13,
+      "question_type": "memory",
+      "canonical_question": "무엇을 타고 갔습니까? 버스, 오토바이, 자전거",
+      "response_mode": "spoken_answer",
+      "administration_mode": "conditional",
+      "condition": {
+        "source_question_code": "memory_delayed_free_recall",
+        "administer_if_unit_not_recalled": "transport"
+      },
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "multiple_choice_recognition",
+        "target_unit": "transport",
+        "options": [
+          "버스",
+          "오토바이",
+          "자전거"
+        ],
+        "expected_answer": "자전거",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q14",
+      "question_code": "memory_recognition_place",
+      "variant_id": "memory-recognition-place-fixed-v1",
+      "order": 14,
+      "question_type": "memory",
+      "canonical_question": "어디에 갔습니까? 공원, 놀이터, 운동장",
+      "response_mode": "spoken_answer",
+      "administration_mode": "conditional",
+      "condition": {
+        "source_question_code": "memory_delayed_free_recall",
+        "administer_if_unit_not_recalled": "place"
+      },
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "multiple_choice_recognition",
+        "target_unit": "place",
+        "options": [
+          "공원",
+          "놀이터",
+          "운동장"
+        ],
+        "expected_answer": "공원",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q15",
+      "question_code": "memory_recognition_time",
+      "variant_id": "memory-recognition-time-fixed-v1",
+      "order": 15,
+      "question_type": "memory",
+      "canonical_question": "몇 시부터 했습니까? 10시, 11시, 12시",
+      "response_mode": "spoken_answer",
+      "administration_mode": "conditional",
+      "condition": {
+        "source_question_code": "memory_delayed_free_recall",
+        "administer_if_unit_not_recalled": "time"
+      },
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "multiple_choice_recognition",
+        "target_unit": "time",
+        "options": [
+          "10시",
+          "11시",
+          "12시"
+        ],
+        "expected_answer": "11시",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q16",
+      "question_code": "memory_recognition_activity",
+      "variant_id": "memory-recognition-activity-fixed-v1",
+      "order": 16,
+      "question_type": "memory",
+      "canonical_question": "무엇을 했습니까? 농구, 축구, 야구",
+      "response_mode": "spoken_answer",
+      "administration_mode": "conditional",
+      "condition": {
+        "source_question_code": "memory_delayed_free_recall",
+        "administer_if_unit_not_recalled": "activity"
+      },
+      "scoring_mode": "rule_based",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": true,
+        "item_score": true,
+        "final_fusion": true
+      },
+      "answer_spec": {
+        "answer_type": "multiple_choice_recognition",
+        "target_unit": "activity",
+        "options": [
+          "농구",
+          "축구",
+          "야구"
+        ],
+        "expected_answer": "야구",
+        "normalization_rule_version": "korean-answer-normalization-v1",
+        "scoring_rule_version": "wrong-event-v1"
+      }
+    },
+    {
+      "legacy_question_id": "Q17",
+      "question_code": "language_semantic_fluency",
+      "variant_id": "language-semantic-fluency-fixed-v1",
+      "order": 17,
+      "question_type": "language",
+      "canonical_question": "지금부터 제가 그만이라고 말할 때까지 과일이나 채소를 최대한 많이 이야기해 주세요. 준비되셨지요? 자, 과일이나 채소 이름을 말씀해 주세요. 시작!",
+      "response_mode": "timed_open_speech",
+      "time_limit_sec": 60,
+      "administration_mode": "always",
+      "scoring_mode": "unscored_context",
+      "feature_usage": {
+        "ast": true,
+        "kcelectra": true,
+        "response_delay": true,
+        "wrong_event": false,
+        "item_score": false,
+        "final_fusion": true
+      },
+      "answer_spec": null,
+      "result_policy": {
+        "scoring_status": "not_scored",
+        "answer_status": null,
+        "wrong_event": null,
+        "no_response_counts_as_wrong_event": false,
+        "on_no_response": {
+          "analysis_status": "needs_retry",
+          "reason_code": "INCOMPLETE_ASSESSMENT"
+        },
+        "on_unusable_stt": {
+          "analysis_status": "needs_retry",
+          "reason_code": "UNSCORABLE_STT"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,264 @@
+{
+  "schema_version": "wrong-event-rule-schema-v1",
+  "wrong_event_rule_version": "wrong-event-v1",
+  "question_set_version": "cist-v1",
+  "normalization_rule_version": "korean-answer-normalization-v1",
+  "purpose": "Define the auxiliary wrong-event feature used by the final fusion model. This is not an official CIST score and is not a diagnosis.",
+  "semantics": {
+    "wrong_event_1": "One auxiliary failure event was detected.",
+    "wrong_event_0": "No auxiliary failure event was detected from an evaluable response.",
+    "wrong_event_null": "The item is excluded, not applicable, incomplete, or not evaluable. Null is never added to the event count.",
+    "independent_from_item_scoring": true,
+    "not_scored_items_may_produce_wrong_event": true
+  },
+  "historical_training_contract": {
+    "source_clip_table": "metadata/음성파일_클립표.csv",
+    "source_category_features": "artifacts/metadata/fusion_features/category_metadata_features.csv",
+    "source_subject_features": "artifacts/metadata/fusion_features/subject_metadata_features.csv",
+    "event_unit": "manually_segmented_clip_row",
+    "included_categories": [
+      "지남력",
+      "기억력",
+      "주의력",
+      "유창성"
+    ],
+    "excluded_categories": [
+      "기타"
+    ],
+    "category_aliases": {
+      "지남력": "지남력",
+      "기억력": "기억력",
+      "주의력": "주의력",
+      "유창성": "유창성",
+      "집행": "유창성",
+      "집행기능": "유창성"
+    },
+    "note_preprocessing": {
+      "null_to_empty_string": true,
+      "trim_whitespace": true
+    },
+    "note_pattern": "틀린\\s*(?:답|대답)|못한다고|모른다고|기억 안 난다고",
+    "pattern_engine": "Python re.search via pandas.Series.str.contains",
+    "case_sensitive": true,
+    "clip_event_rule": "wrong_event = 1 when the normalized note matches note_pattern; otherwise wrong_event = 0",
+    "aggregation": {
+      "group_by": [
+        "subject_id",
+        "core_category"
+      ],
+      "explicit_wrong_event_count": "sum(wrong_event)",
+      "wrong_event_count_cap": 2,
+      "category_wrong_event_score_formula": "min(explicit_wrong_event_count, 2) / 2",
+      "subject_wrong_event_score_formula": "mean(category_wrong_event_score for orientation, memory, attention, language)",
+      "all_four_categories_required": true,
+      "category_with_zero_events_score": 0.0,
+      "output_feature_name": "category_balanced_wrong_event_score"
+    },
+    "reference_dataset_checks": {
+      "subjects": 21,
+      "core_category_rows": 84,
+      "core_clip_rows": 371,
+      "explicit_wrong_event_count": 119,
+      "category_event_counts": {
+        "orientation": 29,
+        "memory": 52,
+        "attention": 38,
+        "language": 0
+      },
+      "question_event_counts": {
+        "Q05": 0,
+        "Q06": 3,
+        "Q07": 1,
+        "Q11": 17,
+        "Q17": 0
+      },
+      "p002_category_balanced_wrong_event_score": 0.375,
+      "subject_feature_matches_final_fusion_artifact": true
+    }
+  },
+  "operational_runtime_contract": {
+    "event_unit": "administered_question_result",
+    "maximum_wrong_event_per_question_result": 1,
+    "required_inputs": [
+      "question_code",
+      "administration_status",
+      "vad_status",
+      "raw_transcript",
+      "stt_status",
+      "assessment_local_date"
+    ],
+    "evaluation_precedence": [
+      "administration_status",
+      "vad_status",
+      "stt_status",
+      "question_policy"
+    ],
+    "state_rules": {
+      "not_applicable": {
+        "wrong_event": null,
+        "add_to_event_count": false
+      },
+      "excluded_by_question_policy": {
+        "wrong_event": null,
+        "add_to_event_count": false
+      },
+      "no_response_default": {
+        "wrong_event": null,
+        "add_to_event_count": false,
+        "analysis_status": "needs_retry",
+        "reason_code": "INCOMPLETE_ASSESSMENT"
+      },
+      "orientation_place_no_response_exception": {
+        "question_code": "orientation_place",
+        "wrong_event": null,
+        "add_to_event_count": false,
+        "scoring_status": "not_scored"
+      },
+      "unusable_stt": {
+        "wrong_event": null,
+        "add_to_event_count": false,
+        "analysis_status": "needs_retry",
+        "reason_code": "UNSCORABLE_STT"
+      },
+      "spoken_dont_know": {
+        "treat_as_usable_response": true,
+        "do_not_retry": true,
+        "evaluate_with_question_policy": true
+      }
+    },
+    "objective_answer_policy": {
+      "applies_to_question_codes": [
+        "orientation_year",
+        "orientation_month",
+        "orientation_day",
+        "orientation_weekday",
+        "attention_digit_span_4",
+        "attention_digit_span_5",
+        "attention_word_reverse",
+        "memory_recognition_person",
+        "memory_recognition_transport",
+        "memory_recognition_place",
+        "memory_recognition_time",
+        "memory_recognition_activity"
+      ],
+      "comparison_input": "normalized copy of raw_transcript",
+      "preserve_raw_transcript": true,
+      "correct_result": {
+        "scoring_status": "scored",
+        "answer_status": "correct",
+        "wrong_event": 0
+      },
+      "incorrect_result": {
+        "scoring_status": "scored",
+        "answer_status": "incorrect",
+        "wrong_event": 1
+      },
+      "date_answer_source": "session_context.assessment_local_date in Asia/Seoul",
+      "exact_sequence_requires_order": true,
+      "exact_sequence_allows_extra_units": false,
+      "conditional_item_evaluated_only_when_selected": true
+    },
+    "explicit_failure_event_policy": {
+      "applies_to_question_codes": [
+        "memory_registration_first",
+        "memory_registration_second",
+        "memory_delayed_free_recall"
+      ],
+      "formal_item_scoring": false,
+      "scoring_status": "not_scored",
+      "answer_status": null,
+      "memory_unit_codes": [
+        "person",
+        "transport",
+        "place",
+        "time",
+        "activity"
+      ],
+      "memory_unit_values": {
+        "person": [
+          "민수"
+        ],
+        "transport": [
+          "자전거"
+        ],
+        "place": [
+          "공원"
+        ],
+        "time": [
+          "11시",
+          "11 시",
+          "열한시",
+          "열한 시"
+        ],
+        "activity": [
+          "야구"
+        ]
+      },
+      "explicit_failure_expression_patterns": [
+        "모르(?:겠|겠어|겠어요|겠네|겠는데|겠다|겠다고|네|나요|는데)?",
+        "몰라",
+        "기억(?:이|은|도)?\\s*안\\s*나",
+        "생각(?:이|은|도)?\\s*안\\s*나",
+        "못\\s*(?:하|하겠|해|한다고)",
+        "할\\s*수\\s*없",
+        "잊어버렸",
+        "다\\s*잊"
+      ],
+      "wrong_event_1_when_any": [
+        "an explicit_failure_expression_pattern matches the normalized participant transcript",
+        "the participant transcript is usable and contains zero recognized memory-story units"
+      ],
+      "wrong_event_0_when_all": [
+        "the participant transcript is usable",
+        "no explicit failure expression matches",
+        "at least one memory-story unit is recognized"
+      ],
+      "partial_recall_is_not_formal_incorrect": true,
+      "q11_recognition_plan": "Independently select the Q12-Q16 question for every memory-story unit not recalled in Q11.",
+      "speaker_contamination_policy": "If participant-only content cannot be separated from examiner speech, return UNSCORABLE_STT instead of inferring a memory unit or wrong event."
+    },
+    "excluded_question_policy": {
+      "question_codes": [
+        "orientation_place",
+        "language_semantic_fluency"
+      ],
+      "scoring_status": "not_scored",
+      "answer_status": null,
+      "wrong_event": null,
+      "add_to_event_count": false
+    },
+    "aggregation": {
+      "initialize_all_core_category_event_counts_to_zero": true,
+      "category_mapping": {
+        "orientation": "orientation",
+        "memory": "memory",
+        "attention": "attention",
+        "language": "language"
+      },
+      "conditional_not_applicable_items_are_excluded": true,
+      "null_wrong_events_are_not_added": true,
+      "wrong_event_count_cap_per_category": 2,
+      "category_wrong_event_score_formula": "min(sum(wrong_event == 1), 2) / 2",
+      "category_balanced_wrong_event_score_formula": "mean(orientation_score, memory_score, attention_score, language_score)",
+      "required_category_count": 4,
+      "do_not_run_fusion_when_analysis_status_is_needs_retry": true
+    }
+  },
+  "compatibility": {
+    "historical_source": "manual free-text note annotations on manually segmented clips",
+    "runtime_source": "automatic inference from question-level STT, VAD, dynamic answers, exact sequences, and memory-unit extraction",
+    "compatibility_level": "semantic_best_effort",
+    "exact_row_level_reproduction_guaranteed": false,
+    "reason": "Manual note labels and historical clip boundaries do not exist in the live service. The operational rules above freeze a deterministic replacement contract.",
+    "model_change_policy": "Changing question eligibility, failure-expression rules, the zero-memory-unit rule, category cap, or four-category averaging requires a new wrong-event rule version and fusion re-evaluation."
+  },
+  "result_fields": {
+    "question_code": "string",
+    "scoring_status": "scored | not_scored",
+    "answer_status": "correct | incorrect | null",
+    "wrong_event": "0 | 1 | null",
+    "wrong_event_reason": "OBJECTIVE_INCORRECT | EXPLICIT_FAILURE_EXPRESSION | NO_RELEVANT_MEMORY_UNIT | null",
+    "wrong_event_rule_version": "wrong-event-v1",
+    "recognized_memory_units": "object | null"
+  }
+}
