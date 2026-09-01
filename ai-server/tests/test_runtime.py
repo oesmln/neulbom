@@ -1,0 +1,74 @@
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+import app.core.runtime as runtime_module
+from app.core.config import Settings
+from app.core.runtime import RuntimeState
+from app.main import create_app
+
+
+def test_contract_bundle_is_loaded_on_startup() -> None:
+    app = create_app()
+
+    with TestClient(app):
+        runtime_state: RuntimeState = (
+            app.state.runtime_state
+        )
+
+        assert runtime_state.is_ready is True
+        assert runtime_state.contract_bundle is not None
+        assert runtime_state.contract_error is None
+        assert (
+            runtime_state
+            .contract_bundle
+            .cist
+            .question_set_version
+            == "cist-v1"
+        )
+
+
+def test_readiness_returns_503_when_contracts_are_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_contracts_settings = Settings(
+        _env_file=None,
+        contracts_dir=tmp_path,
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "get_settings",
+        lambda: missing_contracts_settings,
+    )
+
+    app = create_app()
+
+    with TestClient(app) as client:
+        readiness_response = client.get(
+            "/health/ready",
+        )
+        liveness_response = client.get(
+            "/health/live",
+        )
+
+        runtime_state: RuntimeState = (
+            app.state.runtime_state
+        )
+
+        assert readiness_response.status_code == 503
+        assert readiness_response.json() == {
+            "status": "not_ready",
+            "reason": "CONTRACTS_UNAVAILABLE",
+        }
+
+        assert liveness_response.status_code == 200
+        assert liveness_response.json() == {
+            "status": "ok",
+        }
+
+        assert runtime_state.is_ready is False
+        assert runtime_state.contract_bundle is None
+        assert runtime_state.contract_error is not None

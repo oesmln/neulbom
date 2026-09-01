@@ -1,22 +1,61 @@
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/health", tags=["health"])
+from app.core.runtime import RuntimeState
+
+router = APIRouter(
+    prefix="/health",
+    tags=["health"],
+)
 
 
-class HealthResponse(BaseModel):
+class LivenessResponse(BaseModel):
     status: Literal["ok"]
 
 
-@router.get("/live", response_model=HealthResponse)
-def liveness() -> HealthResponse:
-    """프로세스가 요청을 처리할 수 있는지 확인한다."""
-    return HealthResponse(status="ok")
+class ReadinessResponse(BaseModel):
+    status: Literal["ok", "not_ready"]
+    reason: Literal["CONTRACTS_UNAVAILABLE"] | None = None
 
 
-@router.get("/ready", response_model=HealthResponse)
-def readiness() -> HealthResponse:
-    """서비스가 요청을 받을 준비가 되었는지 확인한다."""
-    return HealthResponse(status="ok")
+@router.get(
+    "/live",
+    response_model=LivenessResponse,
+)
+def liveness() -> LivenessResponse:
+    """서버 프로세스가 요청을 처리할 수 있는지 확인한다."""
+    return LivenessResponse(status="ok")
+
+
+@router.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    response_model_exclude_none=True,
+    responses={
+        503: {
+            "model": ReadinessResponse,
+            "description": "AI 서버가 분석 요청을 받을 준비가 되지 않음",
+        },
+    },
+)
+def readiness(
+    request: Request,
+) -> ReadinessResponse | JSONResponse:
+    """분석에 필요한 기준 계약이 준비되었는지 확인한다."""
+    runtime_state: RuntimeState = (
+        request.app.state.runtime_state
+    )
+
+    if runtime_state.is_ready:
+        return ReadinessResponse(status="ok")
+
+    return JSONResponse(
+        status_code=503,
+        content={
+            "status": "not_ready",
+            "reason": "CONTRACTS_UNAVAILABLE",
+        },
+    )
