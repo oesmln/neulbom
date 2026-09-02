@@ -13,13 +13,14 @@ dependencies = [
     "httpx>=0.28.1,<1.0.0",
     "numpy>=1.26.0,<3.0.0",
     "pydantic-settings>=2.15.0,<3.0.0",
+    "silero-vad[onnx-cpu]==6.2.1",
+    "torch==2.13.0",
     "uvicorn[standard]>=0.52.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.1.0,<10.0.0",
-    "silero-vad[onnx-cpu]==6.2.1",
 ]
 
 [tool.setuptools.packages.find]
