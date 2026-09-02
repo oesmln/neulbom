@@ -5,6 +5,9 @@ from app.api.middleware.request_logging import (
     RequestLoggingMiddleware,
 )
 from app.api.routes.health import router as health_router
+from app.api.routes.recognition_plan import (
+    router as recognition_plan_router,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.runtime import RuntimeState, lifespan
@@ -30,6 +33,9 @@ def create_app() -> FastAPI:
         RequestLoggingMiddleware,
     )
     application.include_router(health_router)
+    application.include_router(
+        recognition_plan_router,
+    )
 
     return application
 

@@ -1,6 +1,9 @@
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import (
+    Awaitable,
+    Callable,
+)
 from dataclasses import dataclass
 from typing import Any
 
@@ -46,19 +49,134 @@ class IdempotencyService:
                 idempotency_key,
             )
         )
+        request_hash = self._prepare_request(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_body=request_body,
+        )
 
-        if not normalized_scope:
+        replay_response = self._reserve(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_hash=request_hash,
+        )
+
+        if replay_response is not None:
+            return IdempotentExecutionResult(
+                response=replay_response,
+                replayed=True,
+            )
+
+        try:
+            response = operation()
+        except Exception:
+            self._abandon(
+                scope=normalized_scope,
+                idempotency_key=normalized_key,
+                request_hash=request_hash,
+            )
+            raise
+
+        self._complete(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_hash=request_hash,
+            response=response,
+        )
+
+        return IdempotentExecutionResult(
+            response=response,
+            replayed=False,
+        )
+
+    async def execute_async(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        request_body: Any,
+        operation: Callable[
+            [],
+            Awaitable[StoredHttpResponse],
+        ],
+    ) -> IdempotentExecutionResult:
+        normalized_scope = scope.strip()
+        normalized_key = (
+            _normalize_idempotency_key(
+                idempotency_key,
+            )
+        )
+        request_hash = self._prepare_request(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_body=request_body,
+        )
+
+        replay_response = self._reserve(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_hash=request_hash,
+        )
+
+        if replay_response is not None:
+            return IdempotentExecutionResult(
+                response=replay_response,
+                replayed=True,
+            )
+
+        try:
+            response = await operation()
+        except Exception:
+            self._abandon(
+                scope=normalized_scope,
+                idempotency_key=normalized_key,
+                request_hash=request_hash,
+            )
+            raise
+
+        self._complete(
+            scope=normalized_scope,
+            idempotency_key=normalized_key,
+            request_hash=request_hash,
+            response=response,
+        )
+
+        return IdempotentExecutionResult(
+            response=response,
+            replayed=False,
+        )
+
+    def _prepare_request(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        request_body: Any,
+    ) -> str:
+        if not scope:
             raise ValueError(
                 "idempotency scope는 비어 있을 수 없습니다.",
             )
 
-        request_hash = create_request_hash(
+        if not idempotency_key:
+            raise ValueError(
+                "idempotency key는 비어 있을 수 없습니다.",
+            )
+
+        return create_request_hash(
             request_body,
         )
 
+    def _reserve(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> StoredHttpResponse | None:
         reservation = self._repository.reserve(
-            scope=normalized_scope,
-            idempotency_key=normalized_key,
+            scope=scope,
+            idempotency_key=idempotency_key,
             request_hash=request_hash,
         )
 
@@ -92,37 +210,45 @@ class IdempotencyService:
                 details={},
             )
 
-        if reservation.outcome == ReservationOutcome.REPLAY:
+        if (
+            reservation.outcome
+            == ReservationOutcome.REPLAY
+        ):
             if reservation.response is None:
                 raise RuntimeError(
                     "재사용할 멱등 응답이 없습니다.",
                 )
 
-            return IdempotentExecutionResult(
-                response=reservation.response,
-                replayed=True,
-            )
+            return reservation.response
 
-        try:
-            response = operation()
-        except Exception:
-            self._repository.abandon(
-                scope=normalized_scope,
-                idempotency_key=normalized_key,
-                request_hash=request_hash,
-            )
-            raise
+        return None
 
+    def _complete(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        request_hash: str,
+        response: StoredHttpResponse,
+    ) -> None:
         self._repository.complete(
-            scope=normalized_scope,
-            idempotency_key=normalized_key,
+            scope=scope,
+            idempotency_key=idempotency_key,
             request_hash=request_hash,
             response=response,
         )
 
-        return IdempotentExecutionResult(
-            response=response,
-            replayed=False,
+    def _abandon(
+        self,
+        *,
+        scope: str,
+        idempotency_key: str,
+        request_hash: str,
+    ) -> None:
+        self._repository.abandon(
+            scope=scope,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
         )
 
 
