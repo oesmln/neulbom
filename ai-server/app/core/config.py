@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     contracts_dir: Path = PROJECT_ROOT / "contracts"
     artifacts_dir: Path = PROJECT_ROOT / "artifacts" / "models"
     service_token: SecretStr | None = None
+    idempotency_db_path: Path = (
+        PROJECT_ROOT
+        / "data"
+        / "idempotency.sqlite3"
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -38,7 +43,7 @@ class Settings(BaseSettings):
             return value.upper()
         return value
 
-    @field_validator("contracts_dir", "artifacts_dir", mode="after")
+    @field_validator("contracts_dir", "artifacts_dir", "idempotency_db_path", mode="after")
     @classmethod
     def resolve_project_path(cls, value: Path) -> Path:
         if value.is_absolute():

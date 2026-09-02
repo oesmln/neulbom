@@ -17,6 +17,7 @@ artifacts/models/
 tmp/
 temp/
 logs/
+data/
 
 *.wav
 *.mp3

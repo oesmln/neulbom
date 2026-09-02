@@ -15,6 +15,11 @@ def test_default_settings() -> None:
         PROJECT_ROOT / "artifacts" / "models"
     ).resolve()
     assert settings.service_token is None
+    assert settings.idempotency_db_path == (
+        PROJECT_ROOT
+        / "data"
+        / "idempotency.sqlite3"
+    ).resolve()
 
 
 def test_environment_variables_override_defaults(
@@ -44,6 +49,14 @@ def test_environment_variables_override_defaults(
         "AI_SERVER_SERVICE_TOKEN",
         service_token,
     )
+    
+    idempotency_db_path = (
+        tmp_path / "idempotency.sqlite3"
+    )
+    monkeypatch.setenv(
+        "AI_SERVER_IDEMPOTENCY_DB_PATH",
+        str(idempotency_db_path),
+    )
 
     settings = Settings(_env_file=None)
 
@@ -60,3 +73,6 @@ def test_environment_variables_override_defaults(
         == service_token
     )
     assert service_token not in repr(settings)
+    assert settings.idempotency_db_path == (
+        idempotency_db_path.resolve()
+    )
