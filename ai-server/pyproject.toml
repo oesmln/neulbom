@@ -8,8 +8,10 @@ version = "0.1.0"
 description = "늘봄 음성·텍스트 기반 위험도 분석 서버"
 requires-python = ">=3.11,<3.14"
 dependencies = [
+    "av>=14.0.0,<17.0.0",
     "fastapi>=0.136.0,<1.0.0",
     "httpx>=0.28.1,<1.0.0",
+    "numpy>=1.26.0,<3.0.0",
     "pydantic-settings>=2.15.0,<3.0.0",
     "uvicorn[standard]>=0.52.0,<1.0.0",
 ]
