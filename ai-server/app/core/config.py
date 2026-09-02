@@ -35,6 +35,8 @@ class Settings(BaseSettings):
         / "data"
         / "idempotency.sqlite3"
     )
+    audio_download_timeout_seconds: float = 30.0
+    max_audio_download_bytes: int = 32 * 1024 * 1024
 
     @field_validator("log_level", mode="before")
     @classmethod
