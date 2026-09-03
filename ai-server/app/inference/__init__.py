@@ -7,6 +7,13 @@ from app.inference.ast import (
     AstInferenceService,
     AstSeedRuntime,
 )
+from app.inference.fusion import (
+    FUSION_THRESHOLD_VERSION,
+    FusionFeatures,
+    FusionInferenceError,
+    FusionInferenceResult,
+    FusionInferenceService,
+)
 from app.inference.kcelectra import (
     KcElectraCategoryResult,
     KcElectraClipInput,
@@ -26,6 +33,11 @@ __all__ = [
     "AstInferenceResult",
     "AstInferenceService",
     "AstSeedRuntime",
+    "FUSION_THRESHOLD_VERSION",
+    "FusionFeatures",
+    "FusionInferenceError",
+    "FusionInferenceResult",
+    "FusionInferenceService",
     "KcElectraCategoryResult",
     "KcElectraClipInput",
     "KcElectraClipResult",
