@@ -1,3 +1,13 @@
+from app.services.analysis_worker import (
+    AnalysisAlreadyQueuedError,
+    AnalysisCompleted,
+    AnalysisModelUnavailableError,
+    AnalysisNeedsRetry,
+    AnalysisProcessingOutcome,
+    AnalysisProcessor,
+    AnalysisWorkerNotStartedError,
+    SingleAnalysisWorker,
+)
 from app.services.assessment_completeness import (
     AssessmentCompletenessError,
     AssessmentCompletenessResult,
@@ -15,6 +25,13 @@ from app.services.recognition_plan_workflow import (
 )
 
 __all__ = [
+    "AnalysisAlreadyQueuedError",
+    "AnalysisCompleted",
+    "AnalysisModelUnavailableError",
+    "AnalysisNeedsRetry",
+    "AnalysisProcessingOutcome",
+    "AnalysisProcessor",
+    "AnalysisWorkerNotStartedError",
     "AssessmentCompletenessError",
     "AssessmentCompletenessResult",
     "AssessmentCompletenessService",
@@ -24,4 +41,5 @@ __all__ = [
     "RecognitionPlanService",
     "RecognitionPlanWorkflow",
     "RecognitionPlanWorkflowResponse",
+    "SingleAnalysisWorker",
 ]
