@@ -7,6 +7,16 @@ from app.inference.ast import (
     AstInferenceService,
     AstSeedRuntime,
 )
+from app.inference.kcelectra import (
+    KcElectraCategoryResult,
+    KcElectraClipInput,
+    KcElectraClipResult,
+    KcElectraInferenceError,
+    KcElectraInferenceResult,
+    KcElectraInferenceService,
+    KcElectraSeedRuntime,
+    build_kcelectra_input,
+)
 
 __all__ = [
     "AstCategoryResult",
@@ -16,4 +26,12 @@ __all__ = [
     "AstInferenceResult",
     "AstInferenceService",
     "AstSeedRuntime",
+    "KcElectraCategoryResult",
+    "KcElectraClipInput",
+    "KcElectraClipResult",
+    "KcElectraInferenceError",
+    "KcElectraInferenceResult",
+    "KcElectraInferenceService",
+    "KcElectraSeedRuntime",
+    "build_kcelectra_input",
 ]
