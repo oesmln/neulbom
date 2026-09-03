@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from app.core.config import PROJECT_ROOT, Settings
+from app.core.config import (
+    PROJECT_ROOT,
+    Settings,
+)
 
 
 def test_default_settings() -> None:
@@ -12,7 +15,9 @@ def test_default_settings() -> None:
         PROJECT_ROOT / "contracts"
     ).resolve()
     assert settings.artifacts_dir == (
-        PROJECT_ROOT / "artifacts" / "models"
+        PROJECT_ROOT
+        / "artifacts"
+        / "models"
     ).resolve()
     assert settings.service_token is None
     assert settings.idempotency_db_path == (
@@ -20,13 +25,11 @@ def test_default_settings() -> None:
         / "data"
         / "idempotency.sqlite3"
     ).resolve()
-    assert (
-        settings.audio_download_timeout_seconds
-        == 30.0
-    )
-    assert settings.max_audio_download_bytes == (
-        32 * 1024 * 1024
-    )
+    assert settings.analysis_db_path == (
+        PROJECT_ROOT
+        / "data"
+        / "analyses.sqlite3"
+    ).resolve()
 
 
 def test_environment_variables_override_defaults(
@@ -34,9 +37,14 @@ def test_environment_variables_override_defaults(
     tmp_path: Path,
 ) -> None:
     artifacts_dir = tmp_path / "models"
-    service_token = "test-service-token-value"
     idempotency_db_path = (
         tmp_path / "idempotency.sqlite3"
+    )
+    analysis_db_path = (
+        tmp_path / "analyses.sqlite3"
+    )
+    service_token = (
+        "test-service-token-value"
     )
 
     monkeypatch.setenv(
@@ -64,12 +72,8 @@ def test_environment_variables_override_defaults(
         str(idempotency_db_path),
     )
     monkeypatch.setenv(
-        "AI_SERVER_AUDIO_DOWNLOAD_TIMEOUT_SECONDS",
-        "15",
-    )
-    monkeypatch.setenv(
-        "AI_SERVER_MAX_AUDIO_DOWNLOAD_BYTES",
-        "1048576",
+        "AI_SERVER_ANALYSIS_DB_PATH",
+        str(analysis_db_path),
     )
 
     settings = Settings(_env_file=None)
@@ -82,19 +86,17 @@ def test_environment_variables_override_defaults(
     assert settings.artifacts_dir == (
         artifacts_dir.resolve()
     )
+
     assert settings.service_token is not None
     assert (
         settings.service_token.get_secret_value()
         == service_token
     )
     assert service_token not in repr(settings)
+
     assert settings.idempotency_db_path == (
         idempotency_db_path.resolve()
     )
-    assert (
-        settings.audio_download_timeout_seconds
-        == 15.0
-    )
-    assert settings.max_audio_download_bytes == (
-        1048576
+    assert settings.analysis_db_path == (
+        analysis_db_path.resolve()
     )
