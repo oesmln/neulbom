@@ -1,1 +1,17 @@
-"""AI 서버 API 요청·응답 스키마 패키지."""
+from app.api.schemas.analysis import (
+    AdministeredQuestionResponse,
+    AnalysisAcceptedResponse,
+    AnalysisCreateRequest,
+    NotApplicableQuestionResponse,
+    QuestionResponseInput,
+    RecognitionPlanSnapshot,
+)
+
+__all__ = [
+    "AdministeredQuestionResponse",
+    "AnalysisAcceptedResponse",
+    "AnalysisCreateRequest",
+    "NotApplicableQuestionResponse",
+    "QuestionResponseInput",
+    "RecognitionPlanSnapshot",
+]

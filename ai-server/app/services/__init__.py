@@ -1,3 +1,8 @@
+from app.services.assessment_completeness import (
+    AssessmentCompletenessError,
+    AssessmentCompletenessResult,
+    AssessmentCompletenessService,
+)
 from app.services.recognition_plan import (
     RecognitionPlanCompletedDecision,
     RecognitionPlanDecision,
@@ -10,6 +15,9 @@ from app.services.recognition_plan_workflow import (
 )
 
 __all__ = [
+    "AssessmentCompletenessError",
+    "AssessmentCompletenessResult",
+    "AssessmentCompletenessService",
     "RecognitionPlanCompletedDecision",
     "RecognitionPlanDecision",
     "RecognitionPlanNeedsRetryDecision",
