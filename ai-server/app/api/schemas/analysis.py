@@ -143,6 +143,115 @@ class AnalysisAcceptedResponse(APIModel):
         "processing",
     ]
     created_at: datetime
+    
+class ReissueAudioUrlItem(APIModel):
+    question_code: QuestionCode
+    retry_action: Literal[
+        "REISSUE_AUDIO_URL"
+    ]
+    recording_id: UUID
+    response_id: UUID
+    audio: AudioResource
+
+
+class ReplaceResponseItem(APIModel):
+    question_code: QuestionCode
+    retry_action: Literal[
+        "REPLACE_RESPONSE"
+    ]
+    variant_id: str = Field(
+        min_length=1,
+    )
+    recording_id: UUID
+    response_id: UUID
+    audio: AudioResource
+    stt: SttInput
+    timing: ResponseTiming
+
+
+AnalysisRetryItem = Annotated[
+    ReissueAudioUrlItem
+    | ReplaceResponseItem,
+    Field(
+        discriminator="retry_action",
+    ),
+]
+
+
+class AnalysisRetryRequest(APIModel):
+    reason_code: RetryReasonCode
+    items: list[
+        AnalysisRetryItem
+    ] = Field(
+        min_length=1,
+        max_length=17,
+    )
+
+    @model_validator(mode="after")
+    def validate_retry_items(
+        self,
+    ) -> "AnalysisRetryRequest":
+        question_codes = [
+            item.question_code
+            for item in self.items
+        ]
+
+        if len(question_codes) != len(
+            set(question_codes),
+        ):
+            raise ValueError(
+                "재시도 문항 코드가 "
+                "중복되었습니다.",
+            )
+
+        recording_ids = [
+            item.recording_id
+            for item in self.items
+        ]
+
+        if len(recording_ids) != len(
+            set(recording_ids),
+        ):
+            raise ValueError(
+                "재시도 recording_id가 "
+                "중복되었습니다.",
+            )
+
+        response_ids = [
+            item.response_id
+            for item in self.items
+        ]
+
+        if len(response_ids) != len(
+            set(response_ids),
+        ):
+            raise ValueError(
+                "재시도 response_id가 "
+                "중복되었습니다.",
+            )
+
+        if self.reason_code in {
+            "INCOMPLETE_ASSESSMENT",
+            "UNSCORABLE_STT",
+            "UNSUPPORTED_AUDIO_FORMAT",
+        }:
+            invalid_items = [
+                item.question_code
+                for item in self.items
+                if (
+                    item.retry_action
+                    != "REPLACE_RESPONSE"
+                )
+            ]
+
+            if invalid_items:
+                raise ValueError(
+                    "현재 재시도 사유는 "
+                    "REPLACE_RESPONSE만 허용합니다: "
+                    f"{invalid_items}",
+                )
+
+        return self
 
 
 class RetryItem(APIModel):
