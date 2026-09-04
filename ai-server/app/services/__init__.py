@@ -1,3 +1,7 @@
+from app.services.analysis_runtime import (
+    AnalysisProcessorFactory,
+    LazySessionAnalysisProcessor,
+)
 from app.services.analysis_worker import (
     AnalysisAlreadyQueuedError,
     AnalysisCompleted,
@@ -34,10 +38,12 @@ __all__ = [
     "AnalysisNeedsRetry",
     "AnalysisProcessingOutcome",
     "AnalysisProcessor",
+    "AnalysisProcessorFactory",
     "AnalysisWorkerNotStartedError",
     "AssessmentCompletenessError",
     "AssessmentCompletenessResult",
     "AssessmentCompletenessService",
+    "LazySessionAnalysisProcessor",
     "RecognitionPlanCompletedDecision",
     "RecognitionPlanDecision",
     "RecognitionPlanNeedsRetryDecision",
