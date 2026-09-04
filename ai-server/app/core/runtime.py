@@ -5,13 +5,28 @@ from dataclasses import dataclass
 
 from fastapi import FastAPI
 
+from app.audio.downloader import (
+    SignedAudioDownloader,
+    create_audio_http_client,
+)
 from app.contracts.loader import (
     ContractLoadError,
     load_contract_bundle,
 )
 from app.contracts.models import ContractBundle
-from app.contracts.validator import ContractValidationError
+from app.contracts.validator import (
+    ContractValidationError,
+)
 from app.core.config import get_settings
+from app.repositories.analysis import (
+    SQLiteAnalysisRepository,
+)
+from app.services.analysis_runtime import (
+    LazySessionAnalysisProcessor,
+)
+from app.services.analysis_worker import (
+    SingleAnalysisWorker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +37,24 @@ class RuntimeState:
 
     contract_bundle: ContractBundle | None = None
     contract_error: str | None = None
+    analysis_repository: (
+        SQLiteAnalysisRepository | None
+    ) = None
+    analysis_worker: (
+        SingleAnalysisWorker | None
+    ) = None
+    analysis_runtime_error: str | None = None
 
     @property
     def is_ready(self) -> bool:
         return (
             self.contract_bundle is not None
             and self.contract_error is None
+            and self.analysis_repository
+            is not None
+            and self.analysis_worker is not None
+            and self.analysis_worker.is_running
+            and self.analysis_runtime_error is None
         )
 
 
@@ -40,6 +67,8 @@ async def lifespan(
     app.state.runtime_state = runtime_state
 
     settings = get_settings()
+    audio_client = None
+    worker: SingleAnalysisWorker | None = None
 
     try:
         runtime_state.contract_bundle = (
@@ -51,12 +80,82 @@ async def lifespan(
         ContractLoadError,
         ContractValidationError,
     ) as error:
-        runtime_state.contract_error = str(error)
+        runtime_state.contract_error = str(
+            error,
+        )
         logger.exception(
             "기준 계약 파일을 로딩하지 못했습니다.",
         )
 
+    if runtime_state.contract_bundle is not None:
+        try:
+            audio_client = (
+                create_audio_http_client(
+                    timeout_seconds=(
+                        settings
+                        .audio_download_timeout_seconds
+                    ),
+                )
+            )
+            audio_downloader = (
+                SignedAudioDownloader(
+                    client=audio_client,
+                    max_size_bytes=(
+                        settings
+                        .max_audio_download_bytes
+                    ),
+                )
+            )
+            repository = (
+                SQLiteAnalysisRepository(
+                    settings.analysis_db_path,
+                )
+            )
+            processor = (
+                LazySessionAnalysisProcessor(
+                    contracts=(
+                        runtime_state
+                        .contract_bundle
+                    ),
+                    audio_downloader=(
+                        audio_downloader
+                    ),
+                    artifacts_dir=(
+                        settings.artifacts_dir
+                    ),
+                )
+            )
+            worker = SingleAnalysisWorker(
+                repository=repository,
+                processor=processor,
+            )
+
+            await worker.start()
+
+            runtime_state.analysis_repository = (
+                repository
+            )
+            runtime_state.analysis_worker = (
+                worker
+            )
+        except Exception as error:
+            runtime_state.analysis_runtime_error = (
+                str(error)
+            )
+            logger.exception(
+                "비동기 분석 런타임을 "
+                "초기화하지 못했습니다.",
+            )
+
     try:
         yield
     finally:
+        if worker is not None:
+            await worker.stop()
+
+        if audio_client is not None:
+            await audio_client.aclose()
+
+        runtime_state.analysis_worker = None
+        runtime_state.analysis_repository = None
         runtime_state.contract_bundle = None

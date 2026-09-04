@@ -18,7 +18,10 @@ class LivenessResponse(BaseModel):
 
 class ReadinessResponse(BaseModel):
     status: Literal["ok", "not_ready"]
-    reason: Literal["CONTRACTS_UNAVAILABLE"] | None = None
+    reason: Literal[
+        "CONTRACTS_UNAVAILABLE",
+        "ANALYSIS_RUNTIME_UNAVAILABLE",
+    ] | None = None
 
 
 @router.get(
@@ -37,25 +40,36 @@ def liveness() -> LivenessResponse:
     responses={
         503: {
             "model": ReadinessResponse,
-            "description": "AI 서버가 분석 요청을 받을 준비가 되지 않음",
+            "description": (
+                "AI 서버가 분석 요청을 "
+                "받을 준비가 되지 않음"
+            ),
         },
     },
 )
 def readiness(
     request: Request,
 ) -> ReadinessResponse | JSONResponse:
-    """분석에 필요한 기준 계약이 준비되었는지 확인한다."""
     runtime_state: RuntimeState = (
         request.app.state.runtime_state
     )
 
     if runtime_state.is_ready:
-        return ReadinessResponse(status="ok")
+        return ReadinessResponse(
+            status="ok",
+        )
+
+    reason = (
+        "CONTRACTS_UNAVAILABLE"
+        if runtime_state.contract_bundle
+        is None
+        else "ANALYSIS_RUNTIME_UNAVAILABLE"
+    )
 
     return JSONResponse(
         status_code=503,
         content={
             "status": "not_ready",
-            "reason": "CONTRACTS_UNAVAILABLE",
+            "reason": reason,
         },
     )
