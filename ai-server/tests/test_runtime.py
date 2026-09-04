@@ -9,7 +9,26 @@ from app.core.runtime import RuntimeState
 from app.main import create_app
 
 
-def test_contract_bundle_is_loaded_on_startup() -> None:
+def test_contract_bundle_is_loaded_on_startup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        analysis_db_path=(
+            tmp_path / "analyses.sqlite3"
+        ),
+        idempotency_db_path=(
+            tmp_path / "idempotency.sqlite3"
+        ),
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "get_settings",
+        lambda: settings,
+    )
+
     app = create_app()
 
     with TestClient(app):
@@ -72,3 +91,42 @@ def test_readiness_returns_503_when_contracts_are_missing(
         assert runtime_state.is_ready is False
         assert runtime_state.contract_bundle is None
         assert runtime_state.contract_error is not None
+
+def test_runtime_applies_analysis_processing_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    settings = Settings(
+        _env_file=None,
+        analysis_db_path=(
+            tmp_path / "analyses.sqlite3"
+        ),
+        idempotency_db_path=(
+            tmp_path / "idempotency.sqlite3"
+        ),
+        analysis_processing_timeout_seconds=(
+            123.0
+        ),
+    )
+
+    monkeypatch.setattr(
+        runtime_module,
+        "get_settings",
+        lambda: settings,
+    )
+
+    app = create_app()
+
+    with TestClient(app):
+        runtime_state: RuntimeState = (
+            app.state.runtime_state
+        )
+        worker = (
+            runtime_state.analysis_worker
+        )
+
+        assert worker is not None
+        assert (
+            worker.processing_timeout_seconds
+            == 123.0
+        )

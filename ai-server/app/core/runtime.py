@@ -131,6 +131,10 @@ async def lifespan(
             worker = SingleAnalysisWorker(
                 repository=repository,
                 processor=processor,
+                processing_timeout_seconds=(
+                    settings
+                    .analysis_processing_timeout_seconds
+                ),
             )
 
             await worker.start()
@@ -153,10 +157,6 @@ async def lifespan(
                         ),
                     },
                 )
-
-            runtime_state.analysis_repository = (
-                repository
-            )
 
             runtime_state.analysis_repository = (
                 repository

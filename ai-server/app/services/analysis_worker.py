@@ -105,6 +105,14 @@ class SingleAnalysisWorker:
             and not self._task.done()
         )
 
+    @property
+    def processing_timeout_seconds(
+        self,
+    ) -> float:
+        return (
+            self._processing_timeout_seconds
+        )
+
     async def start(self) -> None:
         if self.is_running:
             return
@@ -244,6 +252,24 @@ class SingleAnalysisWorker:
 
             raise TypeError(
                 "지원하지 않는 분석 처리 결과입니다.",
+            )
+
+        except TimeoutError:
+            logger.error(
+                "Analysis processing timed out",
+                extra={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                    "timeout_seconds": (
+                        self
+                        ._processing_timeout_seconds
+                    ),
+                },
+            )
+            self._mark_failed_safely(
+                analysis_id=analysis_id,
+                reason_code="INTERNAL_ERROR",
             )
 
         except AnalysisModelUnavailableError:
