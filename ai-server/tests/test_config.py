@@ -30,6 +30,11 @@ def test_default_settings() -> None:
         / "data"
         / "analyses.sqlite3"
     ).resolve()
+    assert (
+        settings
+        .analysis_processing_timeout_seconds
+        == 300.0
+    )
 
 
 def test_environment_variables_override_defaults(
@@ -75,6 +80,10 @@ def test_environment_variables_override_defaults(
         "AI_SERVER_ANALYSIS_DB_PATH",
         str(analysis_db_path),
     )
+    monkeypatch.setenv(
+        "AI_SERVER_ANALYSIS_PROCESSING_TIMEOUT_SECONDS",
+        "120",
+    )
 
     settings = Settings(_env_file=None)
 
@@ -99,4 +108,9 @@ def test_environment_variables_override_defaults(
     )
     assert settings.analysis_db_path == (
         analysis_db_path.resolve()
+    )
+    assert (
+        settings
+        .analysis_processing_timeout_seconds
+        == 120.0
     )

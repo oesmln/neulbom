@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     max_audio_download_bytes: int = (
         32 * 1024 * 1024
     )
+    analysis_processing_timeout_seconds: float = (
+        300.0
+    )
 
     @field_validator(
         "log_level",

@@ -111,6 +111,9 @@ async def lifespan(
                     settings.analysis_db_path,
                 )
             )
+            recovered_analysis_ids = (
+                repository.recover_incomplete()
+            )
             processor = (
                 LazySessionAnalysisProcessor(
                     contracts=(
@@ -131,6 +134,29 @@ async def lifespan(
             )
 
             await worker.start()
+
+            for analysis_id in (
+                recovered_analysis_ids
+            ):
+                await worker.enqueue(
+                    analysis_id,
+                )
+
+            if recovered_analysis_ids:
+                logger.info(
+                    "Recovered incomplete analyses",
+                    extra={
+                        "recovered_analysis_count": (
+                            len(
+                                recovered_analysis_ids,
+                            )
+                        ),
+                    },
+                )
+
+            runtime_state.analysis_repository = (
+                repository
+            )
 
             runtime_state.analysis_repository = (
                 repository

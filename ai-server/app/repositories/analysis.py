@@ -140,6 +140,10 @@ class AnalysisRepository(Protocol):
     ]:
         ...
 
+    def recover_incomplete(
+        self,
+    ) -> tuple[UUID, ...]:
+        ...
 
 class SQLiteAnalysisRepository:
     """비동기 분석 작업을 저장하는 SQLite 저장소."""
@@ -417,6 +421,48 @@ class SQLiteAnalysisRepository:
 
         return tuple(
             _row_to_archived_attempt(row)
+            for row in rows
+        )
+
+    def recover_incomplete(
+        self,
+    ) -> tuple[UUID, ...]:
+        """
+        서버 종료로 중단된 processing 작업을 pending으로 복구하고
+        다시 처리해야 할 모든 pending 작업 ID를 반환한다.
+        """
+        timestamp = _current_timestamp()
+
+        with self._connection() as connection:
+            connection.execute(
+                "BEGIN IMMEDIATE",
+            )
+            connection.execute(
+                """
+                UPDATE analysis_jobs
+                SET
+                    status = 'pending',
+                    retryable = 0,
+                    reason_code = NULL,
+                    retry_items = '[]',
+                    result_body = NULL,
+                    updated_at = ?
+                WHERE status = 'processing'
+                """,
+                (timestamp,),
+            )
+
+            rows = connection.execute(
+                """
+                SELECT analysis_id
+                FROM analysis_jobs
+                WHERE status = 'pending'
+                ORDER BY created_at, analysis_id
+                """,
+            ).fetchall()
+
+        return tuple(
+            UUID(row["analysis_id"])
             for row in rows
         )
 

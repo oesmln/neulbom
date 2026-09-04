@@ -75,9 +75,19 @@ class SingleAnalysisWorker:
         *,
         repository: AnalysisRepository,
         processor: AnalysisProcessor,
+        processing_timeout_seconds: float = 300.0,
     ) -> None:
+        if processing_timeout_seconds <= 0:
+            raise ValueError(
+                "분석 처리 제한 시간은 "
+                "0초보다 커야 합니다.",
+            )
+
         self._repository = repository
         self._processor = processor
+        self._processing_timeout_seconds = (
+            processing_timeout_seconds
+        )
         self._queue: asyncio.Queue[
             UUID | None
         ] = asyncio.Queue()
@@ -196,8 +206,13 @@ class SingleAnalysisWorker:
                 )
             )
 
-            outcome = await self._processor.process(
-                analysis,
+            outcome = await asyncio.wait_for(
+                self._processor.process(
+                    analysis,
+                ),
+                timeout=(
+                    self._processing_timeout_seconds
+                ),
             )
 
             if isinstance(
