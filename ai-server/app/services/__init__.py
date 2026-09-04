@@ -1,3 +1,7 @@
+from app.services.analysis_retry import (
+    AnalysisRetryService,
+    AnalysisRetryValidationError,
+)
 from app.services.analysis_runtime import (
     AnalysisProcessorFactory,
     LazySessionAnalysisProcessor,
@@ -39,6 +43,8 @@ __all__ = [
     "AnalysisProcessingOutcome",
     "AnalysisProcessor",
     "AnalysisProcessorFactory",
+    "AnalysisRetryService",
+    "AnalysisRetryValidationError",
     "AnalysisWorkerNotStartedError",
     "AssessmentCompletenessError",
     "AssessmentCompletenessResult",
