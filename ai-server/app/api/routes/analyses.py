@@ -154,6 +154,7 @@ def get_analysis_idempotency_service(
     "/analyses",
     response_model=AnalysisAcceptedResponse,
     status_code=202,
+    operation_id="createAnalysis",
 )
 async def create_analysis(
     request_body: AnalysisCreateRequest,
@@ -282,6 +283,7 @@ async def create_analysis(
     "/analyses/{analysis_id}/retry",
     response_model=AnalysisAcceptedResponse,
     status_code=202,
+    operation_id="retryAnalysis",
 )
 async def retry_analysis(
     analysis_id: UUID,
@@ -461,6 +463,7 @@ async def retry_analysis(
     "/analyses/{analysis_id}",
     response_model=AnalysisStatusResponse,
     status_code=200,
+    operation_id="getAnalysis",
 )
 def get_analysis(
     analysis_id: UUID,

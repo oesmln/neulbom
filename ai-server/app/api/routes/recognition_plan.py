@@ -130,6 +130,7 @@ def get_recognition_plan_workflow(
     "/assessments/{assessment_id}/recognition-plan",
     response_model=RecognitionPlanResponse,
     status_code=200,
+    operation_id="createRecognitionPlan",
 )
 async def create_recognition_plan(
     assessment_id: UUID,
