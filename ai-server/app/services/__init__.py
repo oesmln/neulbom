@@ -23,6 +23,9 @@ from app.services.recognition_plan_workflow import (
     RecognitionPlanWorkflow,
     RecognitionPlanWorkflowResponse,
 )
+from app.services.session_analysis import (
+    SessionAnalysisProcessor,
+)
 
 __all__ = [
     "AnalysisAlreadyQueuedError",
@@ -41,5 +44,6 @@ __all__ = [
     "RecognitionPlanService",
     "RecognitionPlanWorkflow",
     "RecognitionPlanWorkflowResponse",
+    "SessionAnalysisProcessor",
     "SingleAnalysisWorker",
 ]
