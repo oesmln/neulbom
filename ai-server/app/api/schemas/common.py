@@ -201,4 +201,86 @@ class QuestionAnalysisResult(APIModel):
         default=None,
         ge=0,
     )
-    recognized_memory_units: MemoryUnitMap | None
+    recognized_memory_units: (
+        MemoryUnitMap | None
+    )
+
+    @model_validator(mode="after")
+    def validate_result_state(
+        self,
+    ) -> "QuestionAnalysisResult":
+        if (
+            self.administration_status
+            == "not_applicable"
+        ):
+            values = (
+                self.recording_id,
+                self.response_id,
+                self.vad_status,
+                self.scoring_status,
+                self.answer_status,
+                self.wrong_event,
+                self.wrong_event_reason,
+                self.response_delay_ms,
+                self.recognized_memory_units,
+            )
+
+            if any(
+                value is not None
+                for value in values
+            ):
+                raise ValueError(
+                    "not_applicable 문항의 분석 "
+                    "필드는 모두 null이어야 합니다.",
+                )
+
+            return self
+
+        if (
+            self.recording_id is None
+            or self.response_id is None
+            or self.vad_status is None
+            or self.scoring_status is None
+        ):
+            raise ValueError(
+                "administered 문항에는 녹음·응답 "
+                "식별자와 VAD·채점 상태가 필요합니다.",
+            )
+
+        if self.vad_status == "no_response":
+            if self.response_delay_ms is not None:
+                raise ValueError(
+                    "no_response 문항에는 "
+                    "응답 지연이 없어야 합니다.",
+                )
+        elif self.response_delay_ms is None:
+            raise ValueError(
+                "speech_detected 문항에는 "
+                "응답 지연이 필요합니다.",
+            )
+
+        if self.scoring_status == "scored":
+            if self.answer_status is None:
+                raise ValueError(
+                    "scored 문항에는 "
+                    "answer_status가 필요합니다.",
+                )
+        elif self.answer_status is not None:
+            raise ValueError(
+                "not_scored 문항의 "
+                "answer_status는 null이어야 합니다.",
+            )
+
+        if self.wrong_event == 1:
+            if self.wrong_event_reason is None:
+                raise ValueError(
+                    "wrong_event=1이면 "
+                    "사유가 필요합니다.",
+                )
+        elif self.wrong_event_reason is not None:
+            raise ValueError(
+                "wrong_event가 1이 아니면 "
+                "사유는 null이어야 합니다.",
+            )
+
+        return self
