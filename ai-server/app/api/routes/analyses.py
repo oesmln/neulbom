@@ -19,6 +19,7 @@ from app.api.errors import (
 from app.api.schemas.analysis import (
     AnalysisAcceptedResponse,
     AnalysisCreateRequest,
+    AnalysisRetryRequest,
     AnalysisStatusResponse,
 )
 from app.api.schemas.common import (
@@ -33,6 +34,8 @@ from app.core.runtime import RuntimeState
 from app.repositories.analysis import (
     AnalysisAlreadyExistsError,
     AnalysisRepository,
+    AnalysisStatus,
+    InvalidAnalysisStateError,
     SQLiteAnalysisRepository,
 )
 from app.repositories.idempotency import (
@@ -41,6 +44,10 @@ from app.repositories.idempotency import (
 )
 from app.services.analysis_worker import (
     SingleAnalysisWorker,
+)
+from app.services.analysis_retry import (
+    AnalysisRetryService,
+    AnalysisRetryValidationError,
 )
 from app.services.assessment_completeness import (
     AssessmentCompletenessError,
@@ -117,6 +124,16 @@ def get_completeness_service(
         .from_contract_bundle(contracts)
     )
 
+def get_analysis_retry_service(
+    contracts: Annotated[
+        ContractBundle,
+        Depends(get_contract_bundle),
+    ],
+) -> AnalysisRetryService:
+    return (
+        AnalysisRetryService
+        .from_contract_bundle(contracts)
+    )
 
 def get_analysis_idempotency_service(
     settings: Annotated[
@@ -261,6 +278,184 @@ async def create_analysis(
         headers=execution.response.headers,
     )
 
+@router.post(
+    "/analyses/{analysis_id}/retry",
+    response_model=AnalysisAcceptedResponse,
+    status_code=202,
+)
+async def retry_analysis(
+    analysis_id: UUID,
+    request_body: AnalysisRetryRequest,
+    idempotency_key: Annotated[
+        IdempotencyKey,
+        Header(alias="Idempotency-Key"),
+    ],
+    repository: Annotated[
+        AnalysisRepository,
+        Depends(get_analysis_repository),
+    ],
+    worker: Annotated[
+        SingleAnalysisWorker,
+        Depends(get_analysis_worker),
+    ],
+    retry_service: Annotated[
+        AnalysisRetryService,
+        Depends(get_analysis_retry_service),
+    ],
+    idempotency_service: Annotated[
+        IdempotencyService,
+        Depends(
+            get_analysis_idempotency_service,
+        ),
+    ],
+) -> JSONResponse:
+    async def operation() -> StoredHttpResponse:
+        stored = repository.get(
+            analysis_id,
+        )
+
+        if stored is None:
+            raise APIError(
+                status_code=404,
+                code="ANALYSIS_NOT_FOUND",
+                message=(
+                    "The requested analysis "
+                    "does not exist."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                },
+            )
+
+        if (
+            stored.status
+            != AnalysisStatus.NEEDS_RETRY
+            or not stored.retryable
+        ):
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message=(
+                    "Only an analysis in the "
+                    "needs_retry state can be resumed."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                    "status": (
+                        stored.status.value
+                    ),
+                },
+            )
+
+        try:
+            updated_request = (
+                retry_service.merge_request(
+                    analysis=stored,
+                    retry_request=request_body,
+                )
+            )
+        except (
+            AnalysisRetryValidationError
+        ) as error:
+            raise APIError(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message=(
+                    "The retry request does not "
+                    "match the required retry items."
+                ),
+                retryable=False,
+                details={
+                    "fields": [
+                        "reason_code",
+                        "items",
+                    ],
+                },
+            ) from error
+
+        try:
+            resumed = (
+                repository.resume_with_request(
+                    analysis_id=analysis_id,
+                    updated_request_body=(
+                        updated_request.model_dump(
+                            mode="json",
+                        )
+                    ),
+                )
+            )
+        except InvalidAnalysisStateError as error:
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message=(
+                    "The analysis state changed "
+                    "before the retry was applied."
+                ),
+                retryable=True,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                },
+            ) from error
+
+        await worker.enqueue(
+            analysis_id,
+        )
+
+        accepted = AnalysisAcceptedResponse(
+            analysis_id=resumed.analysis_id,
+            assessment_id=(
+                resumed.assessment_id
+            ),
+            status="pending",
+            created_at=resumed.created_at,
+        )
+
+        return StoredHttpResponse(
+            status_code=202,
+            body=accepted.model_dump(
+                mode="json",
+            ),
+            headers={
+                "Location": (
+                    "/v1/analyses/"
+                    f"{analysis_id}"
+                ),
+                "Retry-After": "2",
+            },
+        )
+
+    execution = (
+        await idempotency_service.execute_async(
+            scope=(
+                "analysis-retry:"
+                f"{analysis_id}"
+            ),
+            idempotency_key=idempotency_key,
+            request_body=(
+                request_body.model_dump(
+                    mode="json",
+                )
+            ),
+            operation=operation,
+        )
+    )
+
+    return JSONResponse(
+        status_code=(
+            execution.response.status_code
+        ),
+        content=execution.response.body,
+        headers=execution.response.headers,
+    )
 
 @router.get(
     "/analyses/{analysis_id}",
