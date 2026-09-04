@@ -30,6 +30,23 @@ class StoredAnalysis:
     created_at: datetime
     updated_at: datetime
 
+@dataclass(frozen=True, slots=True)
+class ArchivedAnalysisAttempt:
+    analysis_id: UUID
+    attempt_number: int
+    status: AnalysisStatus
+    request_body: dict[str, Any]
+    retryable: bool
+    reason_code: str | None
+    retry_items: tuple[
+        dict[str, Any],
+        ...,
+    ]
+    result_body: dict[str, Any] | None
+    created_at: datetime
+    updated_at: datetime
+    archived_at: datetime
+
 
 class AnalysisRepositoryError(RuntimeError):
     """분석 작업 저장소 처리 중 발생하는 오류."""
@@ -101,6 +118,26 @@ class AnalysisRepository(Protocol):
         analysis_id: UUID,
         reason_code: str,
     ) -> StoredAnalysis:
+        ...
+
+    def resume_with_request(
+        self,
+        *,
+        analysis_id: UUID,
+        updated_request_body: dict[
+            str,
+            Any,
+        ],
+    ) -> StoredAnalysis:
+        ...
+
+    def list_archived_attempts(
+        self,
+        analysis_id: UUID,
+    ) -> tuple[
+        ArchivedAnalysisAttempt,
+        ...,
+    ]:
         ...
 
 
@@ -202,6 +239,186 @@ class SQLiteAnalysisRepository:
             return None
 
         return _row_to_analysis(row)
+
+    def resume_with_request(
+        self,
+        *,
+        analysis_id: UUID,
+        updated_request_body: dict[
+            str,
+            Any,
+        ],
+    ) -> StoredAnalysis:
+        try:
+            serialized_request = (
+                _serialize_json(
+                    updated_request_body,
+                )
+            )
+        except (TypeError, ValueError) as error:
+            raise AnalysisRepositoryError(
+                "갱신된 분석 요청을 JSON으로 "
+                "저장할 수 없습니다.",
+            ) from error
+
+        timestamp = _current_timestamp()
+
+        with self._connection() as connection:
+            connection.execute(
+                "BEGIN IMMEDIATE",
+            )
+
+            row = connection.execute(
+                """
+                SELECT
+                    analysis_id,
+                    assessment_id,
+                    status,
+                    request_body,
+                    retryable,
+                    reason_code,
+                    retry_items,
+                    result_body,
+                    created_at,
+                    updated_at
+                FROM analysis_jobs
+                WHERE analysis_id = ?
+                """,
+                (str(analysis_id),),
+            ).fetchone()
+
+            if row is None:
+                raise AnalysisNotFoundError(
+                    "분석 작업을 찾을 수 없습니다.",
+                )
+
+            if (
+                row["status"]
+                != AnalysisStatus.NEEDS_RETRY.value
+            ):
+                raise InvalidAnalysisStateError(
+                    "needs_retry 상태의 분석만 "
+                    "재시도할 수 있습니다: "
+                    f"status={row['status']}",
+                )
+
+            attempt_row = connection.execute(
+                """
+                SELECT COALESCE(
+                    MAX(attempt_number),
+                    0
+                ) AS maximum_attempt
+                FROM analysis_attempt_history
+                WHERE analysis_id = ?
+                """,
+                (str(analysis_id),),
+            ).fetchone()
+
+            attempt_number = (
+                int(
+                    attempt_row[
+                        "maximum_attempt"
+                    ],
+                )
+                + 1
+            )
+
+            connection.execute(
+                """
+                INSERT INTO analysis_attempt_history (
+                    analysis_id,
+                    attempt_number,
+                    status,
+                    request_body,
+                    retryable,
+                    reason_code,
+                    retry_items,
+                    result_body,
+                    created_at,
+                    updated_at,
+                    archived_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    row["analysis_id"],
+                    attempt_number,
+                    row["status"],
+                    row["request_body"],
+                    row["retryable"],
+                    row["reason_code"],
+                    row["retry_items"],
+                    row["result_body"],
+                    row["created_at"],
+                    row["updated_at"],
+                    timestamp,
+                ),
+            )
+
+            cursor = connection.execute(
+                """
+                UPDATE analysis_jobs
+                SET
+                    status = 'pending',
+                    request_body = ?,
+                    retryable = 0,
+                    reason_code = NULL,
+                    retry_items = '[]',
+                    result_body = NULL,
+                    updated_at = ?
+                WHERE analysis_id = ?
+                  AND status = 'needs_retry'
+                """,
+                (
+                    serialized_request,
+                    timestamp,
+                    str(analysis_id),
+                ),
+            )
+
+            if cursor.rowcount != 1:
+                raise InvalidAnalysisStateError(
+                    "분석 재시도 상태 전이에 "
+                    "실패했습니다.",
+                )
+
+        return self._require_analysis(
+            analysis_id,
+        )
+
+    def list_archived_attempts(
+        self,
+        analysis_id: UUID,
+    ) -> tuple[
+        ArchivedAnalysisAttempt,
+        ...,
+    ]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    analysis_id,
+                    attempt_number,
+                    status,
+                    request_body,
+                    retryable,
+                    reason_code,
+                    retry_items,
+                    result_body,
+                    created_at,
+                    updated_at,
+                    archived_at
+                FROM analysis_attempt_history
+                WHERE analysis_id = ?
+                ORDER BY attempt_number
+                """,
+                (str(analysis_id),),
+            ).fetchall()
+
+        return tuple(
+            _row_to_archived_attempt(row)
+            for row in rows
+        )
 
     def mark_processing(
         self,
@@ -424,6 +641,53 @@ class SQLiteAnalysisRepository:
             )
             connection.execute(
                 """
+                CREATE TABLE IF NOT EXISTS
+                    analysis_attempt_history (
+                        analysis_id TEXT NOT NULL,
+                        attempt_number INTEGER NOT NULL,
+                        status TEXT NOT NULL CHECK (
+                            status IN (
+                                'pending',
+                                'processing',
+                                'needs_retry',
+                                'completed',
+                                'failed'
+                            )
+                        ),
+                        request_body TEXT NOT NULL,
+                        retryable INTEGER NOT NULL CHECK (
+                            retryable IN (0, 1)
+                        ),
+                        reason_code TEXT,
+                        retry_items TEXT NOT NULL,
+                        result_body TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        archived_at TEXT NOT NULL,
+                        PRIMARY KEY (
+                            analysis_id,
+                            attempt_number
+                        ),
+                        FOREIGN KEY (analysis_id)
+                            REFERENCES analysis_jobs (
+                                analysis_id
+                            )
+                            ON DELETE CASCADE
+                    )
+                """,
+            )
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS
+                    idx_analysis_attempt_history_id
+                ON analysis_attempt_history (
+                    analysis_id,
+                    attempt_number
+                )
+                """,
+            )
+            connection.execute(
+                """
                 CREATE INDEX IF NOT EXISTS
                     idx_analysis_jobs_assessment_id
                 ON analysis_jobs (assessment_id)
@@ -446,6 +710,9 @@ class SQLiteAnalysisRepository:
             timeout=30,
         )
         connection.row_factory = sqlite3.Row
+        connection.execute(
+            "PRAGMA foreign_keys = ON",
+        )
 
         try:
             yield connection
@@ -525,6 +792,83 @@ def _row_to_analysis(
         ),
     )
 
+def _row_to_archived_attempt(
+    row: sqlite3.Row,
+) -> ArchivedAnalysisAttempt:
+    try:
+        request_body = json.loads(
+            row["request_body"],
+        )
+        retry_items = json.loads(
+            row["retry_items"],
+        )
+        result_body = (
+            json.loads(row["result_body"])
+            if row["result_body"] is not None
+            else None
+        )
+    except json.JSONDecodeError as error:
+        raise AnalysisRepositoryError(
+            "저장된 분석 시도 이력이 "
+            "손상되었습니다.",
+        ) from error
+
+    if not isinstance(request_body, dict):
+        raise AnalysisRepositoryError(
+            "분석 시도 요청 형식이 "
+            "올바르지 않습니다.",
+        )
+
+    if (
+        not isinstance(retry_items, list)
+        or not all(
+            isinstance(item, dict)
+            for item in retry_items
+        )
+    ):
+        raise AnalysisRepositoryError(
+            "분석 시도의 재시도 항목 형식이 "
+            "올바르지 않습니다.",
+        )
+
+    if (
+        result_body is not None
+        and not isinstance(result_body, dict)
+    ):
+        raise AnalysisRepositoryError(
+            "분석 시도의 결과 형식이 "
+            "올바르지 않습니다.",
+        )
+
+    return ArchivedAnalysisAttempt(
+        analysis_id=UUID(
+            row["analysis_id"],
+        ),
+        attempt_number=int(
+            row["attempt_number"],
+        ),
+        status=AnalysisStatus(
+            row["status"],
+        ),
+        request_body=request_body,
+        retryable=bool(
+            row["retryable"],
+        ),
+        reason_code=row["reason_code"],
+        retry_items=tuple(
+            retry_items,
+        ),
+        result_body=result_body,
+        created_at=datetime.fromisoformat(
+            row["created_at"],
+        ),
+        updated_at=datetime.fromisoformat(
+            row["updated_at"],
+        ),
+        archived_at=datetime.fromisoformat(
+            row["archived_at"],
+        ),
+    )
 
 def _serialize_json(
     value: Any,
