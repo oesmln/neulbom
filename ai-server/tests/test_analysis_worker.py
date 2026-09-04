@@ -472,3 +472,124 @@ def test_non_pending_analysis_cannot_be_queued(
         await worker.stop()
 
     asyncio.run(scenario())
+
+def test_retry_can_be_queued_while_previous_attempt_finishes(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        repository = create_repository(
+            tmp_path,
+        )
+        analysis_id = create_pending_analysis(
+            repository,
+        )
+
+        class TwoAttemptProcessor:
+            def __init__(self) -> None:
+                self.call_count = 0
+                self.first_started = (
+                    asyncio.Event()
+                )
+                self.release_first = (
+                    asyncio.Event()
+                )
+
+            async def process(
+                self,
+                analysis: StoredAnalysis,
+            ) -> AnalysisProcessingOutcome:
+                del analysis
+
+                self.call_count += 1
+                attempt_number = (
+                    self.call_count
+                )
+
+                if attempt_number == 1:
+                    self.first_started.set()
+                    await self.release_first.wait()
+
+                return AnalysisCompleted(
+                    result_body={
+                        "attempt": (
+                            attempt_number
+                        ),
+                    },
+                )
+
+        processor = TwoAttemptProcessor()
+        worker = SingleAnalysisWorker(
+            repository=repository,
+            processor=processor,
+        )
+
+        await worker.start()
+        await worker.enqueue(
+            analysis_id,
+        )
+
+        await processor.first_started.wait()
+
+        processing = repository.get(
+            analysis_id,
+        )
+
+        assert processing is not None
+        assert processing.status == (
+            AnalysisStatus.PROCESSING
+        )
+
+        repository.mark_needs_retry(
+            analysis_id=analysis_id,
+            reason_code="AUDIO_URL_EXPIRED",
+            retry_items=(
+                {
+                    "question_code": (
+                        "orientation_year"
+                    ),
+                    "reason_code": (
+                        "AUDIO_URL_EXPIRED"
+                    ),
+                    "required_action": (
+                        "REISSUE_AUDIO_URL"
+                    ),
+                },
+            ),
+        )
+
+        needs_retry = repository.get(
+            analysis_id,
+        )
+
+        assert needs_retry is not None
+
+        repository.resume_with_request(
+            analysis_id=analysis_id,
+            updated_request_body=(
+                needs_retry.request_body
+            ),
+        )
+
+        await worker.enqueue(
+            analysis_id,
+        )
+
+        processor.release_first.set()
+
+        await worker.join()
+        await worker.stop()
+
+        stored = repository.get(
+            analysis_id,
+        )
+
+        assert stored is not None
+        assert stored.status == (
+            AnalysisStatus.COMPLETED
+        )
+        assert stored.result_body == {
+            "attempt": 2,
+        }
+        assert processor.call_count == 2
+
+    asyncio.run(scenario())

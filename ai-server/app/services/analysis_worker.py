@@ -176,9 +176,16 @@ class SingleAnalysisWorker:
         self._queued_analysis_ids.add(
             analysis_id,
         )
-        await self._queue.put(
-            analysis_id,
-        )
+
+        try:
+            self._queue.put_nowait(
+                analysis_id,
+            )
+        except Exception:
+            self._queued_analysis_ids.discard(
+                analysis_id,
+            )
+            raise
 
     async def join(self) -> None:
         """현재 대기 중인 작업이 모두 끝날 때까지 기다린다."""
@@ -188,6 +195,11 @@ class SingleAnalysisWorker:
         while True:
             analysis_id = await self._queue.get()
 
+            if analysis_id is not None:
+                self._queued_analysis_ids.discard(
+                    analysis_id,
+                )
+
             try:
                 if analysis_id is None:
                     return
@@ -196,11 +208,6 @@ class SingleAnalysisWorker:
                     analysis_id,
                 )
             finally:
-                if analysis_id is not None:
-                    self._queued_analysis_ids.discard(
-                        analysis_id,
-                    )
-
                 self._queue.task_done()
 
     async def _process_one(
