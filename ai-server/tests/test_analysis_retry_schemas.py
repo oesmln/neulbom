@@ -231,29 +231,44 @@ def test_rejects_duplicate_response_ids() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    "reason_code",
-    [
-        "INCOMPLETE_ASSESSMENT",
-        "UNSCORABLE_STT",
-        "UNSUPPORTED_AUDIO_FORMAT",
-    ],
-)
-def test_non_audio_url_reason_requires_replacement(
-    reason_code: str,
-) -> None:
-    with pytest.raises(
-        ValidationError,
-        match="REPLACE_RESPONSE",
-    ):
+def test_accepts_mixed_retry_actions() -> None:
+    replacement = replacement_item_payload()
+    reissue = reissue_item_payload()
+
+    reissue["question_code"] = (
+        "orientation_month"
+    )
+
+    request = (
         AnalysisRetryRequest.model_validate(
             {
-                "reason_code": reason_code,
+                "reason_code": (
+                    "INCOMPLETE_ASSESSMENT"
+                ),
                 "items": [
-                    reissue_item_payload(),
+                    replacement,
+                    reissue,
                 ],
             },
         )
+    )
+
+    assert len(request.items) == 2
+    assert isinstance(
+        request.items[0],
+        ReplaceResponseItem,
+    )
+    assert isinstance(
+        request.items[1],
+        ReissueAudioUrlItem,
+    )
+    assert [
+        item.retry_action
+        for item in request.items
+    ] == [
+        "REPLACE_RESPONSE",
+        "REISSUE_AUDIO_URL",
+    ]
 
 
 def test_reissue_rejects_replacement_fields() -> None:

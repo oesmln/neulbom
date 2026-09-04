@@ -680,3 +680,82 @@ def test_expired_url_requests_reissue(
         }
 
     asyncio.run(scenario())
+
+
+def test_mixed_retry_reasons_return_all_actions(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        contracts = load_contracts()
+        request_body = create_request_body(
+            contracts,
+        )
+        analysis = create_stored_analysis(
+            tmp_path,
+            request_body,
+        )
+
+        downloader = FakeDownloader(
+            failure_call=2,
+            failure=AudioDownloadError(
+                reason_code=(
+                    AudioDownloadReason
+                    .AUDIO_URL_EXPIRED
+                ),
+                message="expired",
+                retryable=True,
+            ),
+        )
+
+        (
+            processor,
+            _ast,
+            _kcelectra,
+            _fusion,
+        ) = create_processor(
+            contracts,
+            downloader=downloader,
+            vad_service=FakeVadService(
+                no_speech_call=1,
+            ),
+        )
+
+        outcome = await processor.process(
+            analysis,
+        )
+
+        assert isinstance(
+            outcome,
+            AnalysisNeedsRetry,
+        )
+
+        assert outcome.reason_code == (
+            "INCOMPLETE_ASSESSMENT"
+        )
+
+        assert outcome.retry_items == (
+            {
+                "question_code": (
+                    "orientation_year"
+                ),
+                "reason_code": (
+                    "INCOMPLETE_ASSESSMENT"
+                ),
+                "required_action": (
+                    "REPLACE_RESPONSE"
+                ),
+            },
+            {
+                "question_code": (
+                    "orientation_month"
+                ),
+                "reason_code": (
+                    "AUDIO_URL_EXPIRED"
+                ),
+                "required_action": (
+                    "REISSUE_AUDIO_URL"
+                ),
+            },
+        )
+
+    asyncio.run(scenario())

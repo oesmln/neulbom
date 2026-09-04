@@ -230,27 +230,6 @@ class AnalysisRetryRequest(APIModel):
                 "중복되었습니다.",
             )
 
-        if self.reason_code in {
-            "INCOMPLETE_ASSESSMENT",
-            "UNSCORABLE_STT",
-            "UNSUPPORTED_AUDIO_FORMAT",
-        }:
-            invalid_items = [
-                item.question_code
-                for item in self.items
-                if (
-                    item.retry_action
-                    != "REPLACE_RESPONSE"
-                )
-            ]
-
-            if invalid_items:
-                raise ValueError(
-                    "현재 재시도 사유는 "
-                    "REPLACE_RESPONSE만 허용합니다: "
-                    f"{invalid_items}",
-                )
-
         return self
 
 
