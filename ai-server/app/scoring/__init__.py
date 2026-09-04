@@ -13,6 +13,11 @@ from app.scoring.objective import (
     ObjectiveScore,
     ObjectiveScoringService,
 )
+from app.scoring.response_delay import (
+    ResponseDelayAggregationResult,
+    ResponseDelayAggregationService,
+    ResponseDelayObservation,
+)
 
 __all__ = [
     "MemoryFailureCompletedDecision",
@@ -21,6 +26,9 @@ __all__ = [
     "MemoryFailureScoringService",
     "ObjectiveScore",
     "ObjectiveScoringService",
+    "ResponseDelayAggregationResult",
+    "ResponseDelayAggregationService",
+    "ResponseDelayObservation",
     "WrongEventAggregationResult",
     "WrongEventAggregationService",
     "WrongEventObservation",
