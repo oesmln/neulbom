@@ -29,6 +29,11 @@ def client(
         "get_settings",
         lambda: settings,
     )
+    monkeypatch.setattr(
+        runtime_module,
+        "discover_model_artifacts",
+        lambda _artifacts_dir: None,
+    )
 
     app = create_app()
 

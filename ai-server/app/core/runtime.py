@@ -18,6 +18,10 @@ from app.contracts.validator import (
     ContractValidationError,
 )
 from app.core.config import get_settings
+from app.inference.artifacts import (
+    ArtifactValidationError,
+    discover_model_artifacts,
+)
 from app.repositories.analysis import (
     SQLiteAnalysisRepository,
 )
@@ -37,6 +41,7 @@ class RuntimeState:
 
     contract_bundle: ContractBundle | None = None
     contract_error: str | None = None
+    artifact_error: str | None = None
     analysis_repository: (
         SQLiteAnalysisRepository | None
     ) = None
@@ -50,6 +55,7 @@ class RuntimeState:
         return (
             self.contract_bundle is not None
             and self.contract_error is None
+            and self.artifact_error is None
             and self.analysis_repository
             is not None
             and self.analysis_worker is not None
@@ -88,6 +94,26 @@ async def lifespan(
         )
 
     if runtime_state.contract_bundle is not None:
+        try:
+            discover_model_artifacts(
+                settings.artifacts_dir,
+            )
+        except (
+            ArtifactValidationError,
+            OSError,
+        ) as error:
+            runtime_state.artifact_error = str(
+                error,
+            )
+            logger.exception(
+                "모델 아티팩트 사전 검증에 "
+                "실패했습니다.",
+            )
+
+    if (
+        runtime_state.contract_bundle is not None
+        and runtime_state.artifact_error is None
+    ):
         try:
             audio_client = (
                 create_audio_http_client(

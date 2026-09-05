@@ -20,6 +20,7 @@ class ReadinessResponse(BaseModel):
     status: Literal["ok", "not_ready"]
     reason: Literal[
         "CONTRACTS_UNAVAILABLE",
+        "MODEL_ARTIFACTS_UNAVAILABLE",
         "ANALYSIS_RUNTIME_UNAVAILABLE",
     ] | None = None
 
@@ -59,12 +60,16 @@ def readiness(
             status="ok",
         )
 
-    reason = (
-        "CONTRACTS_UNAVAILABLE"
-        if runtime_state.contract_bundle
-        is None
-        else "ANALYSIS_RUNTIME_UNAVAILABLE"
-    )
+    if runtime_state.contract_bundle is None:
+        reason = "CONTRACTS_UNAVAILABLE"
+    elif runtime_state.artifact_error is not None:
+        reason = (
+            "MODEL_ARTIFACTS_UNAVAILABLE"
+        )
+    else:
+        reason = (
+            "ANALYSIS_RUNTIME_UNAVAILABLE"
+        )
 
     return JSONResponse(
         status_code=503,
