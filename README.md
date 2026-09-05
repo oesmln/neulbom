@@ -30,6 +30,7 @@
 | --- | --- |
 | Frontend | React Native |
 | Backend | Spring Boot (Java) |
+| AI Server | FastAPI, PyTorch, Transformers, scikit-learn |
 | Database | PostgreSQL |
 | STT | Google Cloud Speech-to-Text V2 (Chirp 3) |
 | Text Classification | KcELECTRA |
@@ -44,6 +45,7 @@
 .
 ├── frontend/          # React Native 애플리케이션
 ├── backend/           # Spring Boot 서버 및 API
+├── ai-server/         # 음성·텍스트 기반 AI 분석 서버
 ├── docs/              # 협업 규칙과 개발 문서
 ├── .gitignore
 └── README.md
@@ -78,6 +80,14 @@ cd backend
 
 백엔드 실행 전 PostgreSQL 데이터베이스와 외부 API 키를 프로젝트 설정에 맞게 등록해야 합니다.
 
+### AI Server
+
+```powershell
+cd ai-server
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
 ## 협업 가이드
 
 - [브랜치 전략](docs/branch-strategy.md)
@@ -87,7 +97,8 @@ cd backend
 
 기본 개발 브랜치는 `develop`입니다. 작업은 Issue를 생성한 뒤 `develop`에서 작업 브랜치를 만들고, 작업 완료 후 `develop`을 대상으로 Pull Request를 생성합니다.
 
-## Frontend / Backend 문서
+## 서비스별 문서
 
 - [Frontend README](frontend/README.md)
 - [Backend README](backend/README.md)
+- [AI Server README](ai-server/README.md)

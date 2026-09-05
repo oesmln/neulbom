@@ -1,0 +1,23 @@
+{
+  "schema_version": "vad-runtime-config-v1",
+  "config_version": "vad-v1",
+  "model": {
+    "name": "silero-vad",
+    "package_version": "6.2.1",
+    "runtime": "onnx-cpu",
+    "opset_version": 16
+  },
+  "audio": {
+    "sample_rate_hz": 16000
+  },
+  "detection": {
+    "threshold": 0.2,
+    "min_speech_duration_ms": 100,
+    "min_silence_duration_ms": 100,
+    "speech_pad_ms": 0
+  },
+  "response_delay": {
+    "onset_bias_correction_ms": 24
+  },
+  "calibration_report": "validation/vad-calibration-v1.json"
+}

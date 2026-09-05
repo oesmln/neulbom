@@ -1,0 +1,43 @@
+services:
+  ai-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: neulbom-ai-server:local
+    restart: unless-stopped
+    init: true
+
+    environment:
+      AI_SERVER_APP_ENV: production
+      AI_SERVER_LOG_LEVEL: "${AI_SERVER_LOG_LEVEL:-INFO}"
+      AI_SERVER_CONTRACTS_DIR: /app/contracts
+      AI_SERVER_ARTIFACTS_DIR: /app/artifacts/models
+      AI_SERVER_ANALYSIS_DB_PATH: /app/data/analyses.sqlite3
+      AI_SERVER_IDEMPOTENCY_DB_PATH: /app/data/idempotency.sqlite3
+      AI_SERVER_SERVICE_TOKEN: "${AI_SERVER_SERVICE_TOKEN:?AI_SERVER_SERVICE_TOKEN must be set}"
+      AI_SERVER_AUDIO_DOWNLOAD_TIMEOUT_SECONDS: "${AI_SERVER_AUDIO_DOWNLOAD_TIMEOUT_SECONDS:-30}"
+      AI_SERVER_MAX_AUDIO_DOWNLOAD_BYTES: "${AI_SERVER_MAX_AUDIO_DOWNLOAD_BYTES:-33554432}"
+      AI_SERVER_ANALYSIS_PROCESSING_TIMEOUT_SECONDS: "${AI_SERVER_ANALYSIS_PROCESSING_TIMEOUT_SECONDS:-300}"
+
+    ports:
+      - "${AI_SERVER_PORT:-8000}:8000"
+
+    volumes:
+      - type: bind
+        source: "${AI_SERVER_MODEL_ARTIFACTS_HOST_PATH:?AI_SERVER_MODEL_ARTIFACTS_HOST_PATH must be set}"
+        target: /app/artifacts/models
+        read_only: true
+      - type: volume
+        source: ai-server-data
+        target: /app/data
+
+    security_opt:
+      - no-new-privileges:true
+
+    cap_drop:
+      - ALL
+
+    stop_grace_period: 30s
+
+volumes:
+  ai-server-data:

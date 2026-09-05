@@ -1,0 +1,1351 @@
+openapi: 3.1.0
+
+info:
+  title: Neulbom CIST AI Server API
+  version: 1.0.0
+  description: >-
+    Contract for Q11 recognition planning and asynchronous session-level CIST AI
+    analysis. The AI result is an auxiliary cognitive-risk signal, not an official
+    CIST score, a diagnosis, or a clinical probability.
+  x-contract-id: ai-server-openapi-v1
+  x-question-set-version: cist-v1
+  x-wrong-event-rule-version: wrong-event-v1
+  x-default-threshold: 0.5
+  x-threshold-version: fusion-threshold-v1
+
+servers:
+  - url: https://ai-server.example.internal
+    description: Deployment-specific internal AI server URL
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Recognition Plan
+    description: Q11 memory-unit extraction and Q12-Q16 selection
+  - name: Analyses
+    description: Session-level asynchronous AI analysis
+
+paths:
+  /v1/assessments/{assessment_id}/recognition-plan:
+    post:
+      tags:
+        - Recognition Plan
+      operationId: createRecognitionPlan
+      summary: Create the Q12-Q16 recognition plan from Q11
+      description: >-
+        Synchronously evaluates the administered Q11 response. A domain-level
+        needs_retry result is returned with HTTP 200. HTTP 422 is reserved for a
+        malformed request body or schema validation failure.
+      x-timeout-ms: 15000
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecognitionPlanRequest'
+            examples:
+              q11SuccessInput:
+                summary: Q11 response with two missing memory units
+                value:
+                  question_set_version: cist-v1
+                  wrong_event_rule_version: wrong-event-v1
+                  assessment_local_date: '2026-09-01'
+                  timezone: Asia/Seoul
+                  stt_config:
+                    provider: google
+                    api_version: v2
+                    location: us
+                    model: chirp_3
+                    language: ko-KR
+                    automatic_punctuation: true
+                  response:
+                    question_code: memory_delayed_free_recall
+                    variant_id: memory-delayed-free-recall-fixed-v1
+                    administration_status: administered
+                    recording_id: 0f47ac10-b72d-4f1e-9c0d-a1300939a641
+                    response_id: 5d2cab69-e905-4f7b-8612-c71caa05b7f2
+                    audio:
+                      signed_url: https://storage.example/q11.m4a?signature=redacted
+                      expires_at: '2026-09-01T10:30:00Z'
+                      content_type: audio/mp4
+                      size_bytes: 123456
+                    stt:
+                      status: success
+                      raw_transcript: 민수는 공원에 가서 야구를 했어요
+                    timing:
+                      prompt_end_to_recording_start_ms: 180
+                      recording_duration_ms: 4250
+      responses:
+        '200':
+          description: Recognition plan completed or a domain-level retry is required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/RecognitionPlanCompletedResponse'
+                  - $ref: '#/components/schemas/RecognitionPlanNeedsRetryResponse'
+              examples:
+                completed:
+                  value:
+                    assessment_id: 550e8400-e29b-41d4-a716-446655440000
+                    status: completed
+                    question_set_version: cist-v1
+                    wrong_event_rule_version: wrong-event-v1
+                    recalled_units:
+                      person: true
+                      transport: false
+                      place: true
+                      time: false
+                      activity: true
+                    next_question_codes:
+                      - memory_recognition_transport
+                      - memory_recognition_time
+                    q11_result:
+                      question_code: memory_delayed_free_recall
+                      administration_status: administered
+                      recording_id: 0f47ac10-b72d-4f1e-9c0d-a1300939a641
+                      response_id: 5d2cab69-e905-4f7b-8612-c71caa05b7f2
+                      vad_status: speech_detected
+                      scoring_status: not_scored
+                      answer_status: null
+                      wrong_event: 0
+                      wrong_event_reason: null
+                      response_delay_ms: 640
+                      recognized_memory_units:
+                        person: true
+                        transport: false
+                        place: true
+                        time: false
+                        activity: true
+                needsRetry:
+                  value:
+                    assessment_id: 550e8400-e29b-41d4-a716-446655440000
+                    status: needs_retry
+                    question_set_version: cist-v1
+                    wrong_event_rule_version: wrong-event-v1
+                    reason_code: UNSCORABLE_STT
+                    retryable: true
+                    retry_question_codes:
+                      - memory_delayed_free_recall
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
+  /v1/analyses:
+    post:
+      tags:
+        - Analyses
+      operationId: createAnalysis
+      summary: Create an asynchronous session-level analysis
+      description: >-
+        Creates or idempotently returns a session-level analysis job. The request
+        must contain all 17 cist-v1 question codes exactly once. Unselected Q12-Q16
+        items must be included with administration_status=not_applicable.
+      x-timeout-ms: 5000
+      x-processing-timeout-ms: 300000
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisCreateRequest'
+      responses:
+        '202':
+          description: Analysis accepted for asynchronous processing
+          headers:
+            Location:
+              description: Status resource for this analysis
+              schema:
+                type: string
+                example: /v1/analyses/85eae4a5-50fb-4de2-a7f7-c9ba61d52af9
+            Retry-After:
+              description: Recommended initial polling delay in seconds
+              schema:
+                type: integer
+                const: 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
+  /v1/analyses/{analysis_id}:
+    get:
+      tags:
+        - Analyses
+      operationId: getAnalysis
+      summary: Get analysis status or final result
+      x-timeout-ms: 5000
+      parameters:
+        - $ref: '#/components/parameters/AnalysisId'
+      responses:
+        '200':
+          description: Current analysis state
+          headers:
+            Retry-After:
+              description: Suggested next polling delay for non-terminal states
+              schema:
+                type: integer
+                minimum: 2
+                maximum: 15
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/analyses/{analysis_id}/retry:
+    post:
+      tags:
+        - Analyses
+      operationId: retryAnalysis
+      summary: Resume an existing analysis with replacement input
+      description: >-
+        Reuses the existing analysis_id. Use REISSUE_AUDIO_URL to replace only an
+        expired or inaccessible signed URL. Use REPLACE_RESPONSE after a user
+        re-records a response. A new analysis record must not be created.
+      x-timeout-ms: 5000
+      parameters:
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisRetryRequest'
+      responses:
+        '202':
+          description: Replacement input accepted and the existing job resumed
+          headers:
+            Location:
+              description: Status resource for this analysis
+              schema:
+                type: string
+            Retry-After:
+              description: Recommended initial polling delay in seconds
+              schema:
+                type: integer
+                const: 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: AI_SERVICE_TOKEN
+      description: Service-to-service token supplied through a server secret
+
+  parameters:
+    AssessmentId:
+      name: assessment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Backend-owned assessment UUID; this is the same value as the Spring Boot session_id
+
+    AnalysisId:
+      name: analysis_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Backend-generated analysis UUID retained across every retry of the same analysis
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 200
+      description: >-
+        Unique key for one logical POST operation. Analysis creation, retry 1, and
+        retry 2 must use different keys. Reuse the same key only when retransmitting
+        the identical logical request after a network failure. Reusing a key with
+        the same body returns the existing operation; reusing it with a different
+        body returns HTTP 409 IDEMPOTENCY_CONFLICT.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid service token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: Missing or invalid AI service token.
+              retryable: false
+              details: {}
+
+    NotFound:
+      description: Requested analysis resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: ANALYSIS_NOT_FOUND
+              message: The requested analysis does not exist.
+              retryable: false
+              details: {}
+
+    Conflict:
+      description: Version mismatch, invalid state transition, or idempotency conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            questionSetMismatch:
+              value:
+                error:
+                  code: QUESTION_SET_MISMATCH
+                  message: Unsupported question_set_version.
+                  retryable: false
+                  details:
+                    received_version: cist-v0
+                    supported_version: cist-v1
+            idempotencyConflict:
+              value:
+                error:
+                  code: IDEMPOTENCY_CONFLICT
+                  message: The Idempotency-Key was already used with a different request body.
+                  retryable: false
+                  details: {}
+
+    ValidationError:
+      description: Request body or parameter validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Request validation failed.
+              retryable: false
+              details:
+                fields:
+                  - responses[10].question_code
+
+    InternalError:
+      description: Unexpected AI server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: INTERNAL_ERROR
+              message: An unexpected internal error occurred.
+              retryable: true
+              details: {}
+
+    ModelUnavailable:
+      description: Required AI model is temporarily unavailable
+      headers:
+        Retry-After:
+          description: Suggested retry delay in seconds
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: MODEL_UNAVAILABLE
+              message: A required model is temporarily unavailable.
+              retryable: true
+              details: {}
+
+  schemas:
+    QuestionSetVersion:
+      type: string
+      const: cist-v1
+
+    WrongEventRuleVersion:
+      type: string
+      const: wrong-event-v1
+
+    AssessmentLocalDate:
+      type: string
+      format: date
+      description: Immutable local assessment date used for Q01-Q04 dynamic answers
+
+    Timezone:
+      type: string
+      const: Asia/Seoul
+
+    AnalysisStatus:
+      type: string
+      enum:
+        - pending
+        - processing
+        - needs_retry
+        - completed
+        - failed
+
+    RetryReasonCode:
+      type: string
+      enum:
+        - INCOMPLETE_ASSESSMENT
+        - UNSCORABLE_STT
+        - AUDIO_URL_EXPIRED
+        - AUDIO_DOWNLOAD_FAILED
+        - UNSUPPORTED_AUDIO_FORMAT
+
+    ErrorCode:
+      type: string
+      enum:
+        - UNAUTHORIZED
+        - ANALYSIS_NOT_FOUND
+        - VALIDATION_ERROR
+        - QUESTION_SET_MISMATCH
+        - WRONG_EVENT_RULE_MISMATCH
+        - IDEMPOTENCY_CONFLICT
+        - INVALID_ANALYSIS_STATE
+        - MODEL_UNAVAILABLE
+        - INTERNAL_ERROR
+
+    QuestionCode:
+      type: string
+      enum:
+        - orientation_year
+        - orientation_month
+        - orientation_day
+        - orientation_weekday
+        - orientation_place
+        - memory_registration_first
+        - memory_registration_second
+        - attention_digit_span_4
+        - attention_digit_span_5
+        - attention_word_reverse
+        - memory_delayed_free_recall
+        - memory_recognition_person
+        - memory_recognition_transport
+        - memory_recognition_place
+        - memory_recognition_time
+        - memory_recognition_activity
+        - language_semantic_fluency
+
+    ConditionalQuestionCode:
+      type: string
+      enum:
+        - memory_recognition_person
+        - memory_recognition_transport
+        - memory_recognition_place
+        - memory_recognition_time
+        - memory_recognition_activity
+
+    MemoryUnitMap:
+      type: object
+      additionalProperties: false
+      required:
+        - person
+        - transport
+        - place
+        - time
+        - activity
+      properties:
+        person:
+          type: boolean
+        transport:
+          type: boolean
+        place:
+          type: boolean
+        time:
+          type: boolean
+        activity:
+          type: boolean
+
+    AudioResource:
+      type: object
+      additionalProperties: false
+      required:
+        - signed_url
+        - expires_at
+        - content_type
+        - size_bytes
+      properties:
+        signed_url:
+          type: string
+          format: uri
+          description: HTTPS signed URL with a recommended remaining lifetime of at least 30 minutes
+        expires_at:
+          type: string
+          format: date-time
+        content_type:
+          type: string
+          enum:
+            - audio/wav
+            - audio/x-wav
+            - audio/mp4
+            - audio/x-m4a
+            - audio/mpeg
+          description: Standard MIME types are audio/wav for WAV, audio/mp4 for M4A, and audio/mpeg for MP3
+        size_bytes:
+          type: integer
+          minimum: 1
+        sha256:
+          type:
+            - string
+            - 'null'
+          pattern: '^[A-Fa-f0-9]{64}$'
+          description: Optional checksum of the source audio object
+
+    SttConfig:
+      type: object
+      additionalProperties: false
+      required:
+        - provider
+        - api_version
+        - location
+        - model
+        - language
+        - automatic_punctuation
+      properties:
+        provider:
+          type: string
+          const: google
+        api_version:
+          type: string
+          const: v2
+        location:
+          type: string
+          const: us
+        model:
+          type: string
+          const: chirp_3
+        language:
+          type: string
+          const: ko-KR
+        automatic_punctuation:
+          type: boolean
+          const: true
+      description: Immutable STT configuration snapshot used for every response in the assessment
+
+    SttInput:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - raw_transcript
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+            - empty_transcript
+            - failed
+        raw_transcript:
+          type:
+            - string
+            - 'null'
+          description: Unmodified backend STT output; do not normalize or rewrite this field
+        provider_request_id:
+          type:
+            - string
+            - 'null'
+
+    ResponseTiming:
+      type: object
+      additionalProperties: false
+      required:
+        - prompt_end_to_recording_start_ms
+        - recording_duration_ms
+      properties:
+        prompt_end_to_recording_start_ms:
+          type: integer
+          minimum: 0
+          description: Client-measured monotonic interval from prompt end to recording start
+        recording_duration_ms:
+          type: integer
+          minimum: 1
+          maximum: 60000
+        client_timing_source:
+          type: string
+          enum:
+            - monotonic_clock
+          default: monotonic_clock
+
+    AdministeredQuestionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - variant_id
+        - administration_status
+        - recording_id
+        - response_id
+        - audio
+        - stt
+        - timing
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        variant_id:
+          type: string
+          minLength: 1
+        administration_status:
+          type: string
+          const: administered
+        recording_id:
+          type: string
+          format: uuid
+          description: Backend-owned identifier of the recorded audio
+        response_id:
+          type: string
+          format: uuid
+          description: Backend-owned identifier linking the question response and STT result
+        audio:
+          $ref: '#/components/schemas/AudioResource'
+        stt:
+          $ref: '#/components/schemas/SttInput'
+        timing:
+          $ref: '#/components/schemas/ResponseTiming'
+
+    NotApplicableQuestionResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - variant_id
+        - administration_status
+      properties:
+        question_code:
+          $ref: '#/components/schemas/ConditionalQuestionCode'
+        variant_id:
+          type: string
+          minLength: 1
+        administration_status:
+          type: string
+          const: not_applicable
+
+    QuestionResponseInput:
+      oneOf:
+        - $ref: '#/components/schemas/AdministeredQuestionResponse'
+        - $ref: '#/components/schemas/NotApplicableQuestionResponse'
+
+    RecognitionPlanRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - question_set_version
+        - wrong_event_rule_version
+        - assessment_local_date
+        - timezone
+        - stt_config
+        - response
+      properties:
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        assessment_local_date:
+          $ref: '#/components/schemas/AssessmentLocalDate'
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        stt_config:
+          $ref: '#/components/schemas/SttConfig'
+        response:
+          allOf:
+            - $ref: '#/components/schemas/AdministeredQuestionResponse'
+            - type: object
+              properties:
+                question_code:
+                  type: string
+                  const: memory_delayed_free_recall
+                variant_id:
+                  type: string
+                  const: memory-delayed-free-recall-fixed-v1
+
+    RecognitionPlanCompletedResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - assessment_id
+        - status
+        - question_set_version
+        - wrong_event_rule_version
+        - recalled_units
+        - next_question_codes
+        - q11_result
+      properties:
+        assessment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: completed
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        recalled_units:
+          $ref: '#/components/schemas/MemoryUnitMap'
+        next_question_codes:
+          type: array
+          uniqueItems: true
+          minItems: 0
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/ConditionalQuestionCode'
+        q11_result:
+          $ref: '#/components/schemas/QuestionAnalysisResult'
+
+    RecognitionPlanNeedsRetryResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - assessment_id
+        - status
+        - question_set_version
+        - wrong_event_rule_version
+        - reason_code
+        - retryable
+        - retry_question_codes
+      properties:
+        assessment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: needs_retry
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        reason_code:
+          $ref: '#/components/schemas/RetryReasonCode'
+        retryable:
+          type: boolean
+          const: true
+        retry_question_codes:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items:
+            type: string
+            const: memory_delayed_free_recall
+
+    RecognitionPlanSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - source_question_code
+        - recalled_units
+        - selected_question_codes
+      properties:
+        source_question_code:
+          type: string
+          const: memory_delayed_free_recall
+        recalled_units:
+          $ref: '#/components/schemas/MemoryUnitMap'
+        selected_question_codes:
+          type: array
+          uniqueItems: true
+          minItems: 0
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/ConditionalQuestionCode'
+
+    AnalysisCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_id
+        - assessment_id
+        - question_set_version
+        - wrong_event_rule_version
+        - assessment_local_date
+        - timezone
+        - stt_config
+        - recognition_plan
+        - responses
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+          description: UUID generated and owned by the backend
+        assessment_id:
+          type: string
+          format: uuid
+          description: Same UUID value as the Spring Boot session_id
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        assessment_local_date:
+          $ref: '#/components/schemas/AssessmentLocalDate'
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        stt_config:
+          $ref: '#/components/schemas/SttConfig'
+        recognition_plan:
+          $ref: '#/components/schemas/RecognitionPlanSnapshot'
+        responses:
+          type: array
+          minItems: 17
+          maxItems: 17
+          description: >-
+            Must contain every cist-v1 question_code exactly once. Q12-Q16 items not
+            selected by recognition_plan must use administration_status=not_applicable.
+          items:
+            $ref: '#/components/schemas/QuestionResponseInput'
+
+    AnalysisAcceptedResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_id
+        - assessment_id
+        - status
+        - created_at
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        assessment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+        created_at:
+          type: string
+          format: date-time
+
+    RetryAction:
+      type: string
+      enum:
+        - REISSUE_AUDIO_URL
+        - REPLACE_RESPONSE
+
+    ReissueAudioUrlItem:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - retry_action
+        - recording_id
+        - response_id
+        - audio
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        retry_action:
+          type: string
+          const: REISSUE_AUDIO_URL
+        recording_id:
+          type: string
+          format: uuid
+          description: Must equal the recording_id from the original request
+        response_id:
+          type: string
+          format: uuid
+          description: Must equal the response_id from the original request
+        audio:
+          $ref: '#/components/schemas/AudioResource'
+
+    ReplaceResponseItem:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - retry_action
+        - variant_id
+        - recording_id
+        - response_id
+        - audio
+        - stt
+        - timing
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        retry_action:
+          type: string
+          const: REPLACE_RESPONSE
+        variant_id:
+          type: string
+          minLength: 1
+        recording_id:
+          type: string
+          format: uuid
+          description: New recording UUID created for the re-recorded audio
+        response_id:
+          type: string
+          format: uuid
+          description: New response UUID created for the replacement response
+        audio:
+          $ref: '#/components/schemas/AudioResource'
+        stt:
+          $ref: '#/components/schemas/SttInput'
+        timing:
+          $ref: '#/components/schemas/ResponseTiming'
+
+    AnalysisRetryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason_code
+        - items
+      properties:
+        reason_code:
+          $ref: '#/components/schemas/RetryReasonCode'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 17
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/ReissueAudioUrlItem'
+              - $ref: '#/components/schemas/ReplaceResponseItem'
+
+    VadStatus:
+      type: string
+      enum:
+        - speech_detected
+        - no_response
+
+    ScoringStatus:
+      type: string
+      enum:
+        - scored
+        - not_scored
+
+    AnswerStatus:
+      type:
+        - string
+        - 'null'
+      enum:
+        - correct
+        - incorrect
+        - null
+
+    WrongEvent:
+      type:
+        - integer
+        - 'null'
+      enum:
+        - 0
+        - 1
+        - null
+
+    WrongEventReason:
+      type:
+        - string
+        - 'null'
+      enum:
+        - OBJECTIVE_INCORRECT
+        - EXPLICIT_FAILURE_EXPRESSION
+        - NO_RELEVANT_MEMORY_UNIT
+        - null
+
+    QuestionAnalysisResult:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - administration_status
+        - recording_id
+        - response_id
+        - vad_status
+        - scoring_status
+        - answer_status
+        - wrong_event
+        - wrong_event_reason
+        - response_delay_ms
+        - recognized_memory_units
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        administration_status:
+          type: string
+          enum:
+            - administered
+            - not_applicable
+        recording_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Required for administered results and null for not_applicable results
+        response_id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+          description: Required for administered results and null for not_applicable results
+        vad_status:
+          type:
+            - string
+            - 'null'
+          enum:
+            - speech_detected
+            - no_response
+            - null
+        scoring_status:
+          type:
+            - string
+            - 'null'
+          enum:
+            - scored
+            - not_scored
+            - null
+        answer_status:
+          $ref: '#/components/schemas/AnswerStatus'
+        wrong_event:
+          $ref: '#/components/schemas/WrongEvent'
+        wrong_event_reason:
+          $ref: '#/components/schemas/WrongEventReason'
+        response_delay_ms:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        recognized_memory_units:
+          oneOf:
+            - $ref: '#/components/schemas/MemoryUnitMap'
+            - type: 'null'
+
+    RetryItem:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - reason_code
+        - required_action
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        reason_code:
+          $ref: '#/components/schemas/RetryReasonCode'
+        required_action:
+          $ref: '#/components/schemas/RetryAction'
+
+    FusionFeatures:
+      type: object
+      additionalProperties: false
+      required:
+        - ast_logit
+        - kcelectra_logit
+        - category_balanced_wrong_event_score
+        - category_balanced_median_delay
+      properties:
+        ast_logit:
+          type: number
+          format: double
+        kcelectra_logit:
+          type: number
+          format: double
+        category_balanced_wrong_event_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        category_balanced_median_delay:
+          type: number
+          format: double
+          minimum: 0
+          description: Seconds
+
+    FinalAnalysisResult:
+      type: object
+      additionalProperties: false
+      required:
+        - question_set_version
+        - wrong_event_rule_version
+        - model_version
+        - model_score
+        - decision_threshold
+        - threshold_version
+        - risk_flag
+        - features
+        - question_results
+      properties:
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        model_version:
+          type: string
+          const: final_fusion_lr_21subjects_core4_ast_v1
+        model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Model risk score; must not be presented as a diagnosis or clinical probability
+        decision_threshold:
+          type: number
+          format: double
+          const: 0.5
+        threshold_version:
+          type: string
+          const: fusion-threshold-v1
+        risk_flag:
+          type: boolean
+          description: True exactly when model_score is greater than or equal to decision_threshold
+        features:
+          $ref: '#/components/schemas/FusionFeatures'
+        question_results:
+          type: array
+          minItems: 17
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/QuestionAnalysisResult'
+
+    AnalysisStatusResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_id
+        - assessment_id
+        - status
+        - created_at
+        - updated_at
+        - retryable
+        - reason_code
+        - retry_items
+        - result
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        assessment_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        retryable:
+          type: boolean
+        reason_code:
+          oneOf:
+            - $ref: '#/components/schemas/RetryReasonCode'
+            - type: string
+              enum:
+                - MODEL_UNAVAILABLE
+                - INTERNAL_ERROR
+            - type: 'null'
+        retry_items:
+          type: array
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/RetryItem'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/FinalAnalysisResult'
+            - type: 'null'
+      description: >-
+        result must be non-null only when status=completed. retryable must be true
+        and retry_items must be non-empty when status=needs_retry.
+
+    ErrorDetailValue:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: array
+          items: {}
+        - type: object
+        - type: 'null'
+
+    ErrorObject:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+        - details
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          minLength: 1
+        retryable:
+          type: boolean
+        details:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ErrorDetailValue'
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+
+x-business-validation-rules:
+  - id: EXACT_QUESTION_CODE_SET
+    description: >-
+      AnalysisCreateRequest.responses must contain every cist-v1 question_code
+      exactly once. Array length alone is not sufficient.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: RECOGNITION_PLAN_CONSISTENCY
+    description: >-
+      For Q12-Q16, selected_question_codes must exactly match administered items;
+      every unselected conditional item must be not_applicable.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: Q11_RECALLED_UNIT_MAPPING
+    description: >-
+      next_question_codes must contain exactly the recognition question mapped to
+      every false recalled_units value and no recognition question for a true value.
+    enforced_by:
+      - ai_server
+      - contract_test
+  - id: STT_STATUS_TRANSCRIPT_CONSISTENCY
+    description: >-
+      stt.status=success requires a non-null, non-blank raw_transcript;
+      empty_transcript requires null or blank raw_transcript; failed requires null.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: ANALYSIS_STATUS_FIELD_CONSISTENCY
+    description: >-
+      completed requires a non-null result and empty retry_items. needs_retry
+      requires retryable=true, a non-null reason_code, non-empty retry_items, and
+      a null result. pending, processing, and failed require a null result.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: RESPONSE_IDENTIFIER_CONSISTENCY
+    description: >-
+      Administered inputs and results require non-null recording_id and response_id.
+      not_applicable results require both identifiers to be null.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: RETRY_IDENTIFIER_POLICY
+    description: >-
+      REISSUE_AUDIO_URL must preserve recording_id and response_id. REPLACE_RESPONSE
+      must use newly generated recording_id and response_id values.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: IDEMPOTENCY_OPERATION_SCOPE
+    description: >-
+      Analysis creation and each logical retry use different Idempotency-Key values.
+      The same key is reused only for byte-equivalent retransmission of one logical
+      request.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: STT_CONFIG_IMMUTABILITY
+    description: >-
+      stt_config is fixed for the assessment and must be identical in Q11 planning
+      and final analysis creation.
+    enforced_by:
+      - backend
+      - ai_server
+      - contract_test
+  - id: RISK_FLAG_CONSISTENCY
+    description: risk_flag must be true exactly when model_score >= decision_threshold.
+    enforced_by:
+      - ai_server
+      - contract_test
+
+x-operational-policy:
+  identifiers:
+    assessment_id_equals_backend_session_id: true
+    analysis_id_owner: backend
+    analysis_id_retained_across_retries: true
+  idempotency:
+    unique_key_per_logical_post_operation: true
+    same_key_only_for_identical_network_retransmission: true
+    create_and_each_retry_use_different_keys: true
+  polling:
+    initial_interval_seconds: 2
+    maximum_interval_seconds: 15
+    backoff: gradual
+  retries:
+    signed_url_or_transient_download_failure_max_automatic_retries: 2
+    user_rerecording_recommended_additional_attempts: 1
+    retry_limit_owner: backend
+  signed_url:
+    recommended_minimum_remaining_lifetime_minutes: 30
+    reissue_flow: status_based_backend_orchestration
+  empty_stt:
+    backend_must_forward_audio: true
+    ai_uses_vad_to_distinguish_no_response_from_unscorable_stt: true
+  score_interpretation:
+    official_cist_score: false
+    diagnosis: false
+    clinical_probability: false
+    backend_recalculation_allowed: false

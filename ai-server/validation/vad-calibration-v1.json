@@ -1,0 +1,2277 @@
+{
+  "schema_version": "vad-calibration-report-v1",
+  "purpose": "수동 답변 시작점 기준 첫 발화 검출 오차, 비음성 오검출, 최종 fusion 응답 지연 특성의 변화를 함께 검증",
+  "method": {
+    "model": "silero-vad",
+    "model_release": "6.2.1",
+    "runtime": "onnx-cpu",
+    "sample_rate": 16000,
+    "prepended_silence_ms": 1000,
+    "speech_pad_ms": 0,
+    "maximum_clip_seconds_used": 5.0,
+    "expected_onset_definition": "수동 답변 시작점에 맞춘 클립 앞에 추가한 합성 무음의 종료 시각",
+    "bias_correction_definition": "발화 양성 자료의 VAD 검출 오차 중앙값을 운영 첫 발화 시작 시각에서 차감",
+    "delay_feature_definition": "문항별 지연의 범주 중앙값을 구한 뒤 네 핵심 범주의 평균을 계산"
+  },
+  "selection_criteria": {
+    "minimum_detection_rate": 0.99,
+    "maximum_corrected_false_early_rate": 0.01,
+    "maximum_corrected_median_absolute_error_ms": 100,
+    "maximum_corrected_p95_absolute_error_ms": 300,
+    "maximum_synthetic_nonspeech_detection_rate": 0.0,
+    "maximum_fusion_delay_p95_absolute_difference_seconds": 0.15,
+    "false_early_tolerance_ms": 100,
+    "empty_stt_audit_policy": "빈 STT는 실제 무음 정답 자료가 아니므로 후보 탈락 조건이 아닌 참고 지표로만 사용"
+  },
+  "dataset": {
+    "positive_sample_count": 352,
+    "positive_selection": "Google STT status=success and non-empty question_id",
+    "empty_stt_audit_sample_count": 19,
+    "empty_stt_audit_selection": "Google STT status=empty_transcript and non-empty question_id",
+    "category_counts": {
+      "기억력": 148,
+      "유창성": 21,
+      "주의력": 85,
+      "지남력": 98
+    },
+    "overlap_counts": {
+      "": 1,
+      "0": 210,
+      "1": 141
+    },
+    "manual_response_delay_seconds": {
+      "minimum": 0.0,
+      "median": 0.66,
+      "maximum": 11.981
+    }
+  },
+  "runtime_versions": {
+    "python": "3.11.7",
+    "numpy": "2.4.6",
+    "torch": "2.13.0",
+    "onnxruntime": "1.29.0",
+    "silero-vad": "6.2.1"
+  },
+  "candidates": [
+    {
+      "threshold": 0.2,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.2,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.25,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.25,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.3,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.3,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.35,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.35,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    },
+    {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0
+    }
+  ],
+  "synthetic_nonspeech_cases": [
+    "silence",
+    "white-noise-rms-0.0003",
+    "white-noise-rms-0.001",
+    "white-noise-rms-0.003",
+    "hum-60hz-amplitude-0.003",
+    "tone-1000hz-amplitude-0.01",
+    "impulse-click-amplitude-0.5",
+    "broadband-noise-burst-40ms-rms-0.05"
+  ],
+  "results": [
+    {
+      "candidate_id": "threshold_0_2_speech_64ms",
+      "threshold": 0.2,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 352,
+      "missed_count": 0,
+      "detection_rate": 1.0,
+      "onset_bias_correction_ms": 24,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 24.0,
+        "median_absolute_error_ms": 24.0,
+        "p95_absolute_error_ms": 198.4,
+        "within_150ms_rate": 0.866477,
+        "within_300ms_rate": 0.974432
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 174.4,
+        "within_150ms_rate": 0.911932,
+        "within_300ms_rate": 0.982955
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.033685,
+        "median_absolute_difference_seconds": 0.028,
+        "p95_absolute_difference_seconds": 0.08475,
+        "maximum_absolute_difference_seconds": 0.232
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 18,
+        "undetected_count": 1,
+        "detection_rate": 0.947368,
+        "detected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_ori-place_01",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P013_ori-time_03",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-recog_04"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": true,
+      "missed_examples": [],
+      "worst_examples": [
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 640
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1568,
+          "raw_error_ms": 568,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_att-rev_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P013_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P016_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P005_mem-recall_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1216,
+          "raw_error_ms": 216,
+          "corrected_error_ms": 192
+        },
+        {
+          "filename": "P001_ori-time_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1184,
+          "raw_error_ms": 184,
+          "corrected_error_ms": 160
+        },
+        {
+          "filename": "P001_ori-place_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1184,
+          "raw_error_ms": 184,
+          "corrected_error_ms": 160
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_2_speech_100ms",
+      "threshold": 0.2,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 352,
+      "missed_count": 0,
+      "detection_rate": 1.0,
+      "onset_bias_correction_ms": 24,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 24.0,
+        "median_absolute_error_ms": 24.0,
+        "p95_absolute_error_ms": 198.4,
+        "within_150ms_rate": 0.866477,
+        "within_300ms_rate": 0.974432
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 174.4,
+        "within_150ms_rate": 0.911932,
+        "within_300ms_rate": 0.982955
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.033685,
+        "median_absolute_difference_seconds": 0.028,
+        "p95_absolute_difference_seconds": 0.08475,
+        "maximum_absolute_difference_seconds": 0.232
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 18,
+        "undetected_count": 1,
+        "detection_rate": 0.947368,
+        "detected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_ori-place_01",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P013_ori-time_03",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-recog_04"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": true,
+      "missed_examples": [],
+      "worst_examples": [
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 640
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1568,
+          "raw_error_ms": 568,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_att-rev_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P013_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P016_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P005_mem-recall_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1216,
+          "raw_error_ms": 216,
+          "corrected_error_ms": 192
+        },
+        {
+          "filename": "P001_ori-time_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1184,
+          "raw_error_ms": 184,
+          "corrected_error_ms": 160
+        },
+        {
+          "filename": "P001_ori-place_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1184,
+          "raw_error_ms": 184,
+          "corrected_error_ms": 160
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_25_speech_64ms",
+      "threshold": 0.25,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 352,
+      "missed_count": 0,
+      "detection_rate": 1.0,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 248.0,
+        "within_150ms_rate": 0.823864,
+        "within_300ms_rate": 0.963068
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 64.0,
+        "p95_absolute_error_ms": 192.0,
+        "within_150ms_rate": 0.926136,
+        "within_300ms_rate": 0.980114
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.025179,
+        "median_absolute_difference_seconds": 0.029,
+        "p95_absolute_difference_seconds": 0.180375,
+        "maximum_absolute_difference_seconds": 0.2
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 17,
+        "undetected_count": 2,
+        "detection_rate": 0.894737,
+        "detected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_ori-place_01",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-recog_04",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [],
+      "worst_examples": [
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1568,
+          "raw_error_ms": 568,
+          "corrected_error_ms": 512
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P001_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1408,
+          "raw_error_ms": 408,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1408,
+          "raw_error_ms": 408,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P007_att-rev_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        },
+        {
+          "filename": "P010_att-rev_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        },
+        {
+          "filename": "P013_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_25_speech_100ms",
+      "threshold": 0.25,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 352,
+      "missed_count": 0,
+      "detection_rate": 1.0,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 280.0,
+        "within_150ms_rate": 0.818182,
+        "within_300ms_rate": 0.954545
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 64.0,
+        "p95_absolute_error_ms": 224.0,
+        "within_150ms_rate": 0.917614,
+        "within_300ms_rate": 0.971591
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.035506,
+        "median_absolute_difference_seconds": 0.029,
+        "p95_absolute_difference_seconds": 0.180375,
+        "maximum_absolute_difference_seconds": 0.27175
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 17,
+        "undetected_count": 2,
+        "detection_rate": 0.894737,
+        "detected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_ori-place_01",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-recog_04",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [],
+      "worst_examples": [
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1312
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1568,
+          "raw_error_ms": 568,
+          "corrected_error_ms": 512
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P001_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1408,
+          "raw_error_ms": 408,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1408,
+          "raw_error_ms": 408,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P007_att-rev_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_3_speech_64ms",
+      "threshold": 0.3,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 350,
+      "missed_count": 2,
+      "detection_rate": 0.994318,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 280.0,
+        "within_150ms_rate": 0.802857,
+        "within_300ms_rate": 0.954286
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 224.0,
+        "within_150ms_rate": 0.9,
+        "within_300ms_rate": 0.971429
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.049411,
+        "median_absolute_difference_seconds": 0.02525,
+        "p95_absolute_difference_seconds": 0.225125,
+        "maximum_absolute_difference_seconds": 0.27175
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 15,
+        "undetected_count": 4,
+        "detection_rate": 0.789474,
+        "detected_examples": [
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_04",
+          "P008_ori-place_01",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [
+        "P001_ori-time_02",
+        "P001_ori-time_05"
+      ],
+      "worst_examples": [
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1312
+        },
+        {
+          "filename": "P008_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2208,
+          "raw_error_ms": 1208,
+          "corrected_error_ms": 1152
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1792,
+          "raw_error_ms": 792,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1600,
+          "raw_error_ms": 600,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P002_ori-time_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1248,
+          "raw_error_ms": 248,
+          "corrected_error_ms": 192
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_3_speech_100ms",
+      "threshold": 0.3,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 350,
+      "missed_count": 2,
+      "detection_rate": 0.994318,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 280.0,
+        "within_150ms_rate": 0.8,
+        "within_300ms_rate": 0.951429
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 224.0,
+        "within_150ms_rate": 0.897143,
+        "within_300ms_rate": 0.968571
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.050101,
+        "median_absolute_difference_seconds": 0.02525,
+        "p95_absolute_difference_seconds": 0.225125,
+        "maximum_absolute_difference_seconds": 0.27175
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 15,
+        "undetected_count": 4,
+        "detection_rate": 0.789474,
+        "detected_examples": [
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_04",
+          "P008_ori-place_01",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [
+        "P001_ori-time_02",
+        "P001_ori-time_05"
+      ],
+      "worst_examples": [
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1312
+        },
+        {
+          "filename": "P008_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2208,
+          "raw_error_ms": 1208,
+          "corrected_error_ms": 1152
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1792,
+          "raw_error_ms": 792,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1600,
+          "raw_error_ms": 600,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P019_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P014_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        },
+        {
+          "filename": "P015_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_35_speech_64ms",
+      "threshold": 0.35,
+      "min_speech_duration_ms": 64,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 350,
+      "missed_count": 2,
+      "detection_rate": 0.994318,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 312.0,
+        "within_150ms_rate": 0.794286,
+        "within_300ms_rate": 0.945714
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 256.0,
+        "within_150ms_rate": 0.885714,
+        "within_300ms_rate": 0.962857
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.05703,
+        "median_absolute_difference_seconds": 0.02525,
+        "p95_absolute_difference_seconds": 0.225125,
+        "maximum_absolute_difference_seconds": 0.35175
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 15,
+        "undetected_count": 4,
+        "detection_rate": 0.789474,
+        "detected_examples": [
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_04",
+          "P008_ori-place_01",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [
+        "P001_ori-time_02",
+        "P001_ori-time_05"
+      ],
+      "worst_examples": [
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2848,
+          "raw_error_ms": 1848,
+          "corrected_error_ms": 1792
+        },
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1312
+        },
+        {
+          "filename": "P008_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2208,
+          "raw_error_ms": 1208,
+          "corrected_error_ms": 1152
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1792,
+          "raw_error_ms": 792,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1600,
+          "raw_error_ms": 600,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P007_att-rev_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P021_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P010_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1280,
+          "raw_error_ms": 280,
+          "corrected_error_ms": 224
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_35_speech_100ms",
+      "threshold": 0.35,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 350,
+      "missed_count": 2,
+      "detection_rate": 0.994318,
+      "onset_bias_correction_ms": 56,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 56.0,
+        "median_absolute_error_ms": 56.0,
+        "p95_absolute_error_ms": 312.0,
+        "within_150ms_rate": 0.791429,
+        "within_300ms_rate": 0.942857
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 32.0,
+        "p95_absolute_error_ms": 256.0,
+        "within_150ms_rate": 0.882857,
+        "within_300ms_rate": 0.96
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.05772,
+        "median_absolute_difference_seconds": 0.03575,
+        "p95_absolute_difference_seconds": 0.225125,
+        "maximum_absolute_difference_seconds": 0.35175
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 15,
+        "undetected_count": 4,
+        "detection_rate": 0.789474,
+        "detected_examples": [
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_04",
+          "P008_ori-place_01",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [
+        "P001_ori-time_02",
+        "P001_ori-time_05"
+      ],
+      "worst_examples": [
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2848,
+          "raw_error_ms": 1848,
+          "corrected_error_ms": 1792
+        },
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1312
+        },
+        {
+          "filename": "P008_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2208,
+          "raw_error_ms": 1208,
+          "corrected_error_ms": 1152
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1792,
+          "raw_error_ms": 792,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1760,
+          "raw_error_ms": 760,
+          "corrected_error_ms": 704
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1664,
+          "raw_error_ms": 664,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1600,
+          "raw_error_ms": 600,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P019_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P007_att-rev_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P014_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P001_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P012_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P021_att-rev_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1344,
+          "raw_error_ms": 344,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P003_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        },
+        {
+          "filename": "P021_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1312,
+          "raw_error_ms": 312,
+          "corrected_error_ms": 256
+        }
+      ]
+    },
+    {
+      "candidate_id": "threshold_0_5_speech_100ms",
+      "threshold": 0.5,
+      "min_speech_duration_ms": 100,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 0,
+      "sample_count": 352,
+      "detected_count": 349,
+      "missed_count": 3,
+      "detection_rate": 0.991477,
+      "onset_bias_correction_ms": 88,
+      "raw_false_early_count": 0,
+      "raw_false_early_rate": 0.0,
+      "corrected_false_early_count": 0,
+      "corrected_false_early_rate": 0.0,
+      "raw_error_metrics": {
+        "median_error_ms": 88.0,
+        "median_absolute_error_ms": 88.0,
+        "p95_absolute_error_ms": 395.2,
+        "within_150ms_rate": 0.719198,
+        "within_300ms_rate": 0.916905
+      },
+      "corrected_error_metrics": {
+        "median_error_ms": 0.0,
+        "median_absolute_error_ms": 64.0,
+        "p95_absolute_error_ms": 307.2,
+        "within_150ms_rate": 0.885387,
+        "within_300ms_rate": 0.948424
+      },
+      "delay_feature_drift": {
+        "subset": "successful_stt_and_vad_detected",
+        "subject_count": 21,
+        "mean_difference_seconds": 0.05781,
+        "median_absolute_difference_seconds": 0.036,
+        "p95_absolute_difference_seconds": 0.2945,
+        "maximum_absolute_difference_seconds": 0.39975
+      },
+      "empty_stt_audit": {
+        "sample_count": 19,
+        "detected_count": 15,
+        "undetected_count": 4,
+        "detection_rate": 0.789474,
+        "detected_examples": [
+          "P001_mem-recog_01",
+          "P001_mem-recog_05",
+          "P002_mem-recall_02",
+          "P003_ori-time_02",
+          "P007_ori-time_04",
+          "P008_ori-time_05",
+          "P008_ori-time_06",
+          "P008_ori-time_07",
+          "P008_att-rev_01",
+          "P008_mem-recog_01",
+          "P010_ori-place_01",
+          "P011_ori-time_02",
+          "P012_ori-time_03",
+          "P013_ori-time_02",
+          "P021_mem-recog_05"
+        ],
+        "undetected_examples": [
+          "P001_mem-reg_04",
+          "P001_mem-recog_04",
+          "P008_ori-place_01",
+          "P013_ori-time_03"
+        ]
+      },
+      "synthetic_nonspeech_audit": {
+        "sample_count": 8,
+        "detected_count": 0,
+        "undetected_count": 8,
+        "detection_rate": 0.0,
+        "detected_examples": [],
+        "undetected_examples": [
+          "silence",
+          "white-noise-rms-0.0003",
+          "white-noise-rms-0.001",
+          "white-noise-rms-0.003",
+          "hum-60hz-amplitude-0.003",
+          "tone-1000hz-amplitude-0.01",
+          "impulse-click-amplitude-0.5",
+          "broadband-noise-burst-40ms-rms-0.05"
+        ]
+      },
+      "passed": false,
+      "missed_examples": [
+        "P001_ori-time_02",
+        "P001_ori-time_05",
+        "P016_ori-place_01"
+      ],
+      "worst_examples": [
+        {
+          "filename": "P008_att-fwd_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2848,
+          "raw_error_ms": 1848,
+          "corrected_error_ms": 1760
+        },
+        {
+          "filename": "P013_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2528,
+          "raw_error_ms": 1528,
+          "corrected_error_ms": 1440
+        },
+        {
+          "filename": "P013_mem-recall_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2368,
+          "raw_error_ms": 1368,
+          "corrected_error_ms": 1280
+        },
+        {
+          "filename": "P008_ori-time_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2336,
+          "raw_error_ms": 1336,
+          "corrected_error_ms": 1248
+        },
+        {
+          "filename": "P008_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 2144,
+          "raw_error_ms": 1144,
+          "corrected_error_ms": 1056
+        },
+        {
+          "filename": "P001_mem-reg_02",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1824,
+          "raw_error_ms": 824,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P013_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1824,
+          "raw_error_ms": 824,
+          "corrected_error_ms": 736
+        },
+        {
+          "filename": "P001_mem-reg_05",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1696,
+          "raw_error_ms": 696,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P008_att-fwd_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1696,
+          "raw_error_ms": 696,
+          "corrected_error_ms": 608
+        },
+        {
+          "filename": "P017_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1632,
+          "raw_error_ms": 632,
+          "corrected_error_ms": 544
+        },
+        {
+          "filename": "P019_mem-recog_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1600,
+          "raw_error_ms": 600,
+          "corrected_error_ms": 512
+        },
+        {
+          "filename": "P017_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1568,
+          "raw_error_ms": 568,
+          "corrected_error_ms": 480
+        },
+        {
+          "filename": "P017_mem-recog_08",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1536,
+          "raw_error_ms": 536,
+          "corrected_error_ms": 448
+        },
+        {
+          "filename": "P007_ori-time_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P007_exe-flu_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1504,
+          "raw_error_ms": 504,
+          "corrected_error_ms": 416
+        },
+        {
+          "filename": "P001_ori-time_06",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1472,
+          "raw_error_ms": 472,
+          "corrected_error_ms": 384
+        },
+        {
+          "filename": "P001_ori-time_03",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1440,
+          "raw_error_ms": 440,
+          "corrected_error_ms": 352
+        },
+        {
+          "filename": "P001_mem-reg_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1408,
+          "raw_error_ms": 408,
+          "corrected_error_ms": 320
+        },
+        {
+          "filename": "P001_ori-time_04",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 288
+        },
+        {
+          "filename": "P003_att-rev_01",
+          "expected_onset_ms": 1000,
+          "detected_onset_ms": 1376,
+          "raw_error_ms": 376,
+          "corrected_error_ms": 288
+        }
+      ]
+    }
+  ],
+  "recommended_candidate": {
+    "candidate_id": "threshold_0_2_speech_100ms",
+    "threshold": 0.2,
+    "min_speech_duration_ms": 100,
+    "min_silence_duration_ms": 100,
+    "speech_pad_ms": 0,
+    "sample_count": 352,
+    "detected_count": 352,
+    "missed_count": 0,
+    "detection_rate": 1.0,
+    "onset_bias_correction_ms": 24,
+    "raw_false_early_count": 0,
+    "raw_false_early_rate": 0.0,
+    "corrected_false_early_count": 0,
+    "corrected_false_early_rate": 0.0,
+    "raw_error_metrics": {
+      "median_error_ms": 24.0,
+      "median_absolute_error_ms": 24.0,
+      "p95_absolute_error_ms": 198.4,
+      "within_150ms_rate": 0.866477,
+      "within_300ms_rate": 0.974432
+    },
+    "corrected_error_metrics": {
+      "median_error_ms": 0.0,
+      "median_absolute_error_ms": 32.0,
+      "p95_absolute_error_ms": 174.4,
+      "within_150ms_rate": 0.911932,
+      "within_300ms_rate": 0.982955
+    },
+    "delay_feature_drift": {
+      "subset": "successful_stt_and_vad_detected",
+      "subject_count": 21,
+      "mean_difference_seconds": 0.033685,
+      "median_absolute_difference_seconds": 0.028,
+      "p95_absolute_difference_seconds": 0.08475,
+      "maximum_absolute_difference_seconds": 0.232
+    },
+    "empty_stt_audit": {
+      "sample_count": 19,
+      "detected_count": 18,
+      "undetected_count": 1,
+      "detection_rate": 0.947368,
+      "detected_examples": [
+        "P001_mem-reg_04",
+        "P001_mem-recog_01",
+        "P001_mem-recog_05",
+        "P002_mem-recall_02",
+        "P003_ori-time_02",
+        "P007_ori-time_04",
+        "P008_ori-time_05",
+        "P008_ori-time_06",
+        "P008_ori-time_07",
+        "P008_ori-place_01",
+        "P008_att-rev_01",
+        "P008_mem-recog_01",
+        "P010_ori-place_01",
+        "P011_ori-time_02",
+        "P012_ori-time_03",
+        "P013_ori-time_02",
+        "P013_ori-time_03",
+        "P021_mem-recog_05"
+      ],
+      "undetected_examples": [
+        "P001_mem-recog_04"
+      ]
+    },
+    "synthetic_nonspeech_audit": {
+      "sample_count": 8,
+      "detected_count": 0,
+      "undetected_count": 8,
+      "detection_rate": 0.0,
+      "detected_examples": [],
+      "undetected_examples": [
+        "silence",
+        "white-noise-rms-0.0003",
+        "white-noise-rms-0.001",
+        "white-noise-rms-0.003",
+        "hum-60hz-amplitude-0.003",
+        "tone-1000hz-amplitude-0.01",
+        "impulse-click-amplitude-0.5",
+        "broadband-noise-burst-40ms-rms-0.05"
+      ]
+    },
+    "passed": true
+  },
+  "any_candidate_passed": true
+}
