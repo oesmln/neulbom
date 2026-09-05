@@ -7,6 +7,7 @@ from app.contracts.loader import (
 )
 from app.core.config import PROJECT_ROOT
 from app.inference.smoke import (
+    _SMOKE_TRANSCRIPTS,
     _create_synthetic_audio,
     _select_smoke_question_codes,
 )
@@ -87,4 +88,19 @@ def test_creates_deterministic_synthetic_audio() -> None:
     assert np.array_equal(
         first.waveform,
         second.waveform,
+    )
+
+
+def test_smoke_transcripts_cover_core_categories() -> None:
+    contracts = load_contract_bundle(
+        PROJECT_ROOT / "contracts",
+    )
+
+    assert set(_SMOKE_TRANSCRIPTS) == set(
+        contracts.cist.core_categories,
+    )
+    assert all(
+        transcript.strip()
+        for transcript
+        in _SMOKE_TRANSCRIPTS.values()
     )
