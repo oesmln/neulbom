@@ -544,6 +544,9 @@ public class SessionService {
                 question.getQuestionType(),
                 question.getDisplayOrder(),
                 question.getHint(),
-                question.isSubtitleAvailable());
+                question.isSubtitleAvailable(),
+                question.getQuestionCode(),
+                question.getVariantId(),
+                question.getAdministrationMode());
     }
 }

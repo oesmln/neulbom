@@ -21,6 +21,15 @@ public class QuestionEntity {
     @Column(name = "session_type", nullable = false, length = 20)
     private String sessionType;
 
+    @Column(name = "question_code", unique = true, length = 80)
+    private String questionCode;
+
+    @Column(name = "variant_id", length = 120)
+    private String variantId;
+
+    @Column(name = "administration_mode", length = 20)
+    private String administrationMode;
+
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
@@ -52,6 +61,18 @@ public class QuestionEntity {
 
     public String getSessionType() {
         return sessionType;
+    }
+
+    public String getQuestionCode() {
+        return questionCode;
+    }
+
+    public String getVariantId() {
+        return variantId;
+    }
+
+    public String getAdministrationMode() {
+        return administrationMode;
     }
 
     public String getContent() {

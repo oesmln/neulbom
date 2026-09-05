@@ -12,6 +12,9 @@ public record QuestionResponse(
         String type,
         int order,
         String hint,
-        boolean subtitleAvailable
+        boolean subtitleAvailable,
+        String questionCode,
+        String variantId,
+        String administrationMode
 ) {
 }

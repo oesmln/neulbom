@@ -733,6 +733,12 @@
 
 ### 8.2 비동기 작업 흐름
 
+- [x] 통합 AI 서버의 recognition plan·분석 생성·상태 조회·재시도 클라이언트를 구현한다. (#127)
+- [x] `analysis_id`, 상태, 최종 모델 결과와 멱등 작업 이력을 PostgreSQL에 저장한다. (#127)
+- [x] URL 재발급과 응답 교체가 섞인 재시도 입력을 구성하고 식별자 관계를 검증한다. (#127)
+- [x] cist-v1 17문항과 Q12~Q16 조건부 시행 정책을 백엔드 질문 데이터에 반영한다. (#127)
+- [ ] 실제 AI 서버 Docker 실행본으로 pending → processing → completed 흐름을 확인한다. (#127)
+- [ ] 배포 환경의 HTTPS object storage 또는 공개 backend origin으로 signed URL 다운로드를 확인한다. (#127)
 - [ ] recording 업로드 완료 이벤트를 만든다.
 - [ ] STT 작업을 예약한다.
 - [ ] AST 작업을 예약한다.
@@ -1065,6 +1071,8 @@
 
 ### 13.1 단위·통합 테스트
 
+- [x] 통합 AI 서버 Bearer Token·멱등 키·snake_case 직렬화 계약 테스트를 작성한다. (#127)
+- [x] Q11 plan, 17문항 생성, 상태 저장, signed URL·응답 혼합 재시도 통합 테스트를 작성한다. (#127)
 - [ ] 서비스 계층 단위 테스트를 작성한다.
 - [ ] Repository와 migration 통합 테스트를 작성한다.
 - [ ] Controller validation 테스트를 작성한다.

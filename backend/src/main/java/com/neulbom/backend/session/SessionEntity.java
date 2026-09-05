@@ -131,6 +131,14 @@ public class SessionEntity {
         currentQuestionOrder = Math.min(totalQuestions, answeredCount + 1);
     }
 
+    public void applyCistRecognitionPlan(int selectedConditionalQuestions) {
+        if (selectedConditionalQuestions < 0 || selectedConditionalQuestions > 5) {
+            throw new IllegalArgumentException("조건부 CIST 문항 수는 0~5여야 합니다.");
+        }
+        this.totalQuestions = 12 + selectedConditionalQuestions;
+        this.currentQuestionOrder = Math.min(totalQuestions, answeredCount + 1);
+    }
+
     public void end(Instant endedAt) {
         this.status = ENDED;
         this.endedAt = endedAt;

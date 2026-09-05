@@ -53,6 +53,16 @@ springdoc:
     path: /docs
 
 app:
+  ai-server:
+    enabled: ${AI_SERVER_ENABLED:false}
+    base-url: ${AI_SERVER_BASE_URL:http://localhost:8000}
+    service-token: ${AI_SERVER_SERVICE_TOKEN:}
+    connect-timeout: ${AI_SERVER_CONNECT_TIMEOUT:3s}
+    read-timeout: ${AI_SERVER_READ_TIMEOUT:30s}
+    retry-count: ${AI_SERVER_RETRY_COUNT:2}
+    signed-url-ttl: ${AI_SERVER_SIGNED_URL_TTL:30m}
+    audio-public-base-url: ${AI_AUDIO_PUBLIC_BASE_URL:}
+    audio-signing-secret: ${AI_AUDIO_SIGNING_SECRET:}
   scheduler:
     enabled: ${APP_SCHEDULER_ENABLED:true}
     daily-report-cron: ${APP_DAILY_REPORT_CRON:0 5 0 * * *}

@@ -78,7 +78,7 @@ public class SessionController {
     public SessionsResponse listSessions(
             @RequestParam(name = "user_id") UUID userId,
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String sessionType,
+            @RequestParam(required = false, name = "session_type") String sessionType,
             @RequestParam(required = false) LocalDate date,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int limit
@@ -108,7 +108,7 @@ public class SessionController {
     public QuestionsResponse listDailyQuestions(
             @RequestParam(name = "user_id") UUID userId,
             @AuthenticationPrincipal Jwt jwt,
-            @RequestParam(required = false) String sessionType,
+            @RequestParam(required = false, name = "session_type") String sessionType,
             @RequestParam(required = false, name = "type") String questionType
     ) {
         return sessionService.listDailyQuestions(userId, authenticatedUserId(jwt), sessionType, questionType);

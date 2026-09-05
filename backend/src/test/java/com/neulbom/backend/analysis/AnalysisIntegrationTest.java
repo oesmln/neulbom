@@ -174,7 +174,7 @@ class AnalysisIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(cognitiveBody).contains("risk_level");
         verify(cognitiveAnalysisClient).analyze(
                 eq(QUESTION_ID),
-                eq("오늘은 몇 년도인지 말씀해 주세요."),
+                eq("올해는 몇 년도입니까?"),
                 eq("2026년입니다."),
                 eq("orientation"),
                 eq("kcelectra-cist-v1"));

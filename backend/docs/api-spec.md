@@ -203,6 +203,10 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cist/features` | CIST 범주 균형 융합 특징 집계 | 서버 전용 | 서버 작업 큐 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/recognition-plan` | Q11 기반 조건부 기억재인 문항 계획 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/analyses` | 17문항 통합 AI 분석 생성 | 필요 | 세션 사용자 | MVP |
+| `GET` | `/sessions/{session_id}/cist-ai/analyses` | 통합 AI 분석 상태 동기화·조회 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/analyses/retry` | signed URL·응답 교체 분석 재시도 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/benchmark` | 지역 기준선 비교 | 필요 | 권한 보유 보호자 | MVP |
 | `GET` | `/screenings/{session_id}/result` | 검사·정서 문답 세션 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -1269,6 +1273,9 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `order` | integer | 진행 순서 |
 | `subtitle_available` | boolean | 자막 표시 가능 여부 |
 | `hint` | string/null | 힌트 텍스트 |
+| `question_code` | string/null | cist-v1의 안정적인 문항 코드. 비-CIST 문항은 `null` |
+| `variant_id` | string/null | AI 계약 문항 variant. 비-CIST 문항은 `null` |
+| `administration_mode` | enum/null | `always`, `conditional`. 비-CIST 문항은 `null` |
 
 ### 6.9 `GET /questions/{question_id}` - 질문 단건 조회
 
@@ -1281,7 +1288,10 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
   "type": "orientation",
   "order": 1,
   "hint": null,
-  "subtitle_available": true
+  "subtitle_available": true,
+  "question_code": "orientation_year",
+  "variant_id": "orientation-year-fixed-v1",
+  "administration_mode": "always"
 }
 ```
 
@@ -1560,6 +1570,40 @@ CIST 분석에서는 요청의 `question_id`가 전사문에 연결된 녹음의
 응답 지연은 숫자이며 0 이상인 값만 사용한다. `0초`는 유효한 측정값으로 유지한다. 대상자·범주별 중앙값을 먼저 계산한 뒤 네 범주를 동일 비중으로 평균한다. 범주별 유효 지연이 없으면 해당 범주를 0으로 대체하지 않고 전체 지연 특징을 `null`로 보존한다.
 
 문항 rubric이 없거나 문항 평가가 완료되지 않은 경우 특징을 임의로 생성하지 않고 `422` 또는 작업 `pending`으로 처리한다.
+
+### 7.5.2 CIST 통합 AI 서버 연동
+
+통합 AI 서버와의 내부 계약은 저장소의 `ai-server/contracts/ai-server-openapi-v1.yaml`, `cist-v1.json`, `wrong-event-v1.json`을 기준으로 한다. 백엔드는 `assessment_id`에 기존 `session_id`와 동일한 UUID를 사용하고 `analysis_id`는 백엔드에서 생성한다.
+
+#### `POST /sessions/{session_id}/cist-ai/recognition-plan`
+
+Q11(`memory_delayed_free_recall`) 답변의 녹음·STT 결과로 recognition plan을 생성한다. 성공 응답의 `recalled_units`, `next_question_codes`, `q11_result`를 저장하며 같은 세션에서 다시 호출하면 저장된 결과를 반환한다. AI 서버 호출에는 서비스 Bearer Token과 해당 논리 작업 전용 `Idempotency-Key`를 사용한다.
+
+#### `POST /sessions/{session_id}/cist-ai/analyses`
+
+종료된 CIST 세션에 대해 비동기 분석을 생성한다. 요청은 `cist-v1`의 17개 `question_code`를 정확히 한 번씩 포함하고, recognition plan에서 선택되지 않은 Q12~Q16은 `not_applicable`로 전송한다. 응답은 `202 Accepted`이며 백엔드가 생성한 `analysis_id`와 최초 상태를 반환한다.
+
+#### `GET /sessions/{session_id}/cist-ai/analyses`
+
+AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed` 중 하나다. `completed`에서만 `result`가 존재하며 `model_score`, `model_version`, `decision_threshold`, `threshold_version`, `risk_flag`를 변형하지 않고 별도 컬럼과 원본 JSON에 함께 저장한다.
+
+#### `POST /sessions/{session_id}/cist-ai/analyses/retry`
+
+저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
+
+#### signed URL과 환경 설정
+
+백엔드는 HMAC-SHA256으로 서명된 `GET /api/v1/internal/ai-audio/{recording_id}` URL을 발급한다. URL은 만료 시각과 서명을 포함하며 AI 서버 계약에 따라 공개 origin은 HTTPS여야 한다. 원본 음성 endpoint는 유효한 서명과 만료 시각을 통과한 요청에만 파일을 반환한다.
+
+| 환경변수 | 설명 |
+| --- | --- |
+| `AI_SERVER_ENABLED` | 통합 AI 서버 연동 활성화 여부 |
+| `AI_SERVER_BASE_URL` | 로컬 `http://localhost:8000`, 백엔드 Docker `http://host.docker.internal:8000`, Compose `http://ai-server:8000` |
+| `AI_SERVER_SERVICE_TOKEN` | AI 서버와 동일한 서비스 간 Bearer Token |
+| `AI_AUDIO_PUBLIC_BASE_URL` | AI 컨테이너가 접근 가능한 백엔드 HTTPS 공개 origin |
+| `AI_AUDIO_SIGNING_SECRET` | signed URL HMAC 키, 최소 32자 |
+
+AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, `chirp_3`, `ko-KR`, 자동 문장부호 사용을 포함한다. 문항별 `stt`에는 실행 상태와 원본 전사 결과만 포함한다.
 
 ### 7.6 `GET /analysis/cognitive/{user_id}/history` - 분석 이력
 
