@@ -72,7 +72,7 @@ class SessionIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.session_type").value("cist"))
                 .andExpect(jsonPath("$.status").value("active"))
-                .andExpect(jsonPath("$.total_questions").value(5))
+                .andExpect(jsonPath("$.total_questions").value(17))
                 .andExpect(jsonPath("$.settings.preferred_hearing_side").value("right"))
                 .andExpect(jsonPath("$.recording_sync_status").value("device_saved"))
                 .andReturn().getResponse().getContentAsString();
@@ -116,7 +116,7 @@ class SessionIntegrationTest {
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answers.length()").value(1))
-                .andExpect(jsonPath("$.answers[0].question_text").value("오늘은 몇 년도인지 말씀해 주세요."));
+                .andExpect(jsonPath("$.answers[0].question_text").value("올해는 몇 년도입니까?"));
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/settings", sessionId)
                         .with(jwtFor(elder))
@@ -219,8 +219,10 @@ class SessionIntegrationTest {
                         .param("session_type", "cist")
                         .param("type", "memory"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.questions.length()").value(1))
-                .andExpect(jsonPath("$.questions[0].type").value("memory"));
+                .andExpect(jsonPath("$.questions.length()").value(8))
+                .andExpect(jsonPath("$.questions[0].type").value("memory"))
+                .andExpect(jsonPath("$.questions[0].question_code").isNotEmpty())
+                .andExpect(jsonPath("$.questions[0].variant_id").isNotEmpty());
 
         mockMvc.perform(get("/api/v1/questions/{questionId}", ORIENTATION_QUESTION)
                         .with(jwtFor(elder)))
@@ -244,7 +246,7 @@ class SessionIntegrationTest {
                         .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"baseline\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.session_type").value("baseline"))
-                .andExpect(jsonPath("$.total_questions").value(5))
+                .andExpect(jsonPath("$.total_questions").value(17))
                 .andReturn().getResponse().getContentAsString();
         UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(sessionBody).get("session_id").asText());
@@ -254,7 +256,7 @@ class SessionIntegrationTest {
                         .param("user_id", elder.getId().toString())
                         .param("session_type", "baseline"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.questions.length()").value(5));
+                .andExpect(jsonPath("$.questions.length()").value(17));
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))

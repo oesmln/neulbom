@@ -46,6 +46,13 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+tasks.named('processResources') {
+    from('../ai-server/contracts') {
+        include 'ai-server-openapi-v1.yaml', 'cist-v1.json', 'wrong-event-v1.json'
+        into 'contracts'
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }

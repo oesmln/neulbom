@@ -108,6 +108,10 @@ public class TranscriptEntity {
         return modelName;
     }
 
+    public String getModelVersion() {
+        return modelVersion;
+    }
+
     public String getStatus() {
         return status;
     }
