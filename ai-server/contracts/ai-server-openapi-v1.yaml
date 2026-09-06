@@ -10,8 +10,9 @@ info:
   x-contract-id: ai-server-openapi-v1
   x-question-set-version: cist-v1
   x-wrong-event-rule-version: wrong-event-v1
-  x-default-threshold: 0.5
-  x-threshold-version: fusion-threshold-v1
+  x-default-threshold: 0.461
+  x-review-threshold: 0.802
+  x-threshold-version: fusion-threshold-v2
 
 servers:
   - url: https://ai-server.example.internal
@@ -1114,6 +1115,8 @@ components:
         - model_score
         - decision_threshold
         - threshold_version
+        - review_threshold
+        - risk_level
         - risk_flag
         - features
         - question_results
@@ -1134,13 +1137,26 @@ components:
         decision_threshold:
           type: number
           format: double
-          const: 0.5
+          const: 0.461
+          description: Lower screening threshold
+        review_threshold:
+          type: number
+          format: double
+          const: 0.802
+          description: Upper threshold for stronger risk signals
         threshold_version:
           type: string
-          const: fusion-threshold-v1
+          const: fusion-threshold-v2
         risk_flag:
           type: boolean
           description: True exactly when model_score is greater than or equal to decision_threshold
+        risk_level:
+          type: string
+          enum:
+            - stable
+            - monitoring_needed
+            - review_needed
+          description: Three-level auxiliary screening result; not a diagnosis
         features:
           $ref: '#/components/schemas/FusionFeatures'
         question_results:
@@ -1316,7 +1332,18 @@ x-business-validation-rules:
       - ai_server
       - contract_test
   - id: RISK_FLAG_CONSISTENCY
-    description: risk_flag must be true exactly when model_score >= decision_threshold.
+    description: >-
+      risk_flag must be true exactly when
+      model_score >= decision_threshold.
+    enforced_by:
+      - ai_server
+      - contract_test
+
+  - id: RISK_LEVEL_CONSISTENCY
+    description: >-
+      risk_level must be stable when model_score < 0.461,
+      monitoring_needed when 0.461 <= model_score < 0.802,
+      and review_needed when model_score >= 0.802.
     enforced_by:
       - ai_server
       - contract_test

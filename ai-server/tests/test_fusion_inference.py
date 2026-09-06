@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -8,6 +10,19 @@ from app.inference.fusion import (
     FusionFeatures,
     FusionInferenceError,
     FusionInferenceService,
+)
+from app.inference.risk_policy import (
+    RiskLevel,
+    RiskThresholdPolicy,
+)
+
+PROJECT_ROOT = (
+    Path(__file__).resolve().parents[1]
+)
+POLICY_PATH = (
+    PROJECT_ROOT
+    / "configs"
+    / "fusion-threshold-v2.json"
 )
 
 
@@ -70,19 +85,24 @@ def test_runs_fusion_with_exact_feature_order() -> None:
     assert result.model_score == (
         pytest.approx(0.7)
     )
-    assert result.decision_threshold == 0.5
+    assert result.decision_threshold == 0.461
+    assert result.review_threshold == 0.802
     assert (
         result.threshold_version
-        == "fusion-threshold-v1"
+        == "fusion-threshold-v2"
     )
     assert result.risk_flag is True
+    assert (
+        result.risk_level
+        == RiskLevel.MONITORING_NEEDED
+    )
     assert result.features == features
 
 
-def test_threshold_is_inclusive() -> None:
+def test_screening_threshold_is_inclusive() -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.5,
+            model_score=0.461,
         ),
     )
 
@@ -91,12 +111,17 @@ def test_threshold_is_inclusive() -> None:
     )
 
     assert result.risk_flag is True
+    assert (
+        result.risk_level
+        == RiskLevel.MONITORING_NEEDED
+    )
 
 
-def test_score_below_threshold_is_not_flagged() -> None:
+def test_score_below_screening_threshold_is_stable(
+) -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.4999,
+            model_score=0.460999,
         ),
     )
 
@@ -105,6 +130,47 @@ def test_score_below_threshold_is_not_flagged() -> None:
     )
 
     assert result.risk_flag is False
+    assert (
+        result.risk_level
+        == RiskLevel.STABLE
+    )
+
+
+def test_review_threshold_is_inclusive() -> None:
+    service = _service(
+        FakeFusionPipeline(
+            model_score=0.802,
+        ),
+    )
+
+    result = service.infer(
+        _valid_features(),
+    )
+
+    assert result.risk_flag is True
+    assert (
+        result.risk_level
+        == RiskLevel.REVIEW_NEEDED
+    )
+
+
+def test_score_below_review_threshold_needs_monitoring(
+) -> None:
+    service = _service(
+        FakeFusionPipeline(
+            model_score=0.801999,
+        ),
+    )
+
+    result = service.infer(
+        _valid_features(),
+    )
+
+    assert result.risk_flag is True
+    assert (
+        result.risk_level
+        == RiskLevel.MONITORING_NEEDED
+    )
 
 
 def test_rejects_wrong_event_score_out_of_range() -> None:
@@ -206,9 +272,10 @@ def test_rejects_wrong_feature_order() -> None:
                 ),
             ),
             class_order=(0, 1),
-            decision_threshold=0.5,
-            threshold_version=(
-                "fusion-threshold-v1"
+            risk_policy=(
+                RiskThresholdPolicy.from_path(
+                    POLICY_PATH,
+                )
             ),
             model_version="test-fusion-v1",
         )
@@ -223,9 +290,10 @@ def _service(
             EXPECTED_FUSION_FEATURE_ORDER
         ),
         class_order=(0, 1),
-        decision_threshold=0.5,
-        threshold_version=(
-            "fusion-threshold-v1"
+        risk_policy=(
+            RiskThresholdPolicy.from_path(
+                POLICY_PATH,
+            )
         ),
         model_version="test-fusion-v1",
     )

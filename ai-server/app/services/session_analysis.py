@@ -412,11 +412,17 @@ class SessionAnalysisProcessor:
             "decision_threshold": (
                 fusion_result.decision_threshold
             ),
+            "review_threshold": (
+                fusion_result.review_threshold
+            ),
             "threshold_version": (
                 fusion_result.threshold_version
             ),
             "risk_flag": (
                 fusion_result.risk_flag
+            ),
+            "risk_level": (
+                fusion_result.risk_level.value
             ),
             "features": {
                 "ast_logit": (
