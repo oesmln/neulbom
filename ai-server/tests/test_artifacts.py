@@ -25,7 +25,10 @@ def test_discovers_valid_model_artifacts(
     assert bundle.transformers_version == "5.15.1"
     assert bundle.ast_sampling_rate == 16000
     assert bundle.kcelectra_max_length == 256
-    assert bundle.decision_threshold == 0.5
+    assert (
+        bundle.training_default_threshold
+        == 0.5
+    )
     assert bundle.fusion_feature_order == (
         EXPECTED_FUSION_FEATURE_ORDER
     )

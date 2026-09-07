@@ -75,7 +75,7 @@ class ModelArtifactBundle:
     ast_sampling_rate: int
     kcelectra_max_length: int
     fusion_feature_order: tuple[str, ...]
-    decision_threshold: float
+    training_default_threshold: float
 
 
 def discover_model_artifacts(
@@ -112,7 +112,7 @@ def discover_model_artifacts(
         fusion_pipeline_path,
         fusion_contract_path,
         fusion_feature_order,
-        decision_threshold,
+        training_default_threshold,
     ) = _validate_fusion_artifacts(
         resolved_root,
     )
@@ -143,7 +143,9 @@ def discover_model_artifacts(
         ast_sampling_rate=ast_sampling_rate,
         kcelectra_max_length=kcelectra_max_length,
         fusion_feature_order=fusion_feature_order,
-        decision_threshold=decision_threshold,
+        training_default_threshold=(
+            training_default_threshold
+        ),
     )
 
 
@@ -611,10 +613,12 @@ def _validate_fusion_artifacts(
         ("feature_order",),
         "fusion feature_order",
     )
-    threshold = _get_json_value(
-        contract,
-        ("default_threshold",),
-        "fusion default_threshold",
+    training_default_threshold = (
+        _get_json_value(
+            contract,
+            ("default_threshold",),
+            "fusion training default_threshold",
+        )
     )
     class_order = _get_json_value(
         contract,
@@ -633,8 +637,8 @@ def _validate_fusion_artifacts(
         [0, 1],
     )
     _require_equal(
-        "fusion default_threshold",
-        threshold,
+        "fusion training default_threshold",
+        training_default_threshold,
         0.5,
     )
 
@@ -643,7 +647,7 @@ def _validate_fusion_artifacts(
         pipeline_path,
         contract_path,
         tuple(feature_order),
-        float(threshold),
+        float(training_default_threshold),
     )
 
 
