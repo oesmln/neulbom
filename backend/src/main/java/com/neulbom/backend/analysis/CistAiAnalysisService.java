@@ -240,8 +240,10 @@ public class CistAiAnalysisService {
                 finalResult == null ? null : finalResult.modelScore(),
                 finalResult == null ? null : finalResult.modelVersion(),
                 finalResult == null ? null : finalResult.decisionThreshold(),
+                finalResult == null ? null : finalResult.reviewThreshold(),
                 finalResult == null ? null : finalResult.thresholdVersion(),
                 finalResult == null ? null : finalResult.riskFlag(),
+                finalResult == null ? null : finalResult.riskLevel(),
                 result.updatedAt());
         analysisRepository.save(entity);
         return toResponse(entity);
@@ -434,8 +436,10 @@ public class CistAiAnalysisService {
                 entity.getModelScore(),
                 entity.getModelVersion(),
                 entity.getDecisionThreshold(),
+                entity.getReviewThreshold(),
                 entity.getThresholdVersion(),
                 entity.getRiskFlag(),
+                entity.getRiskLevel(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt());
     }

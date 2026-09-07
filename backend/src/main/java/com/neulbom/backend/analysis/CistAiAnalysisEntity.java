@@ -62,11 +62,17 @@ public class CistAiAnalysisEntity {
     @Column(name = "decision_threshold", precision = 12, scale = 10)
     private BigDecimal decisionThreshold;
 
+    @Column(name = "review_threshold", precision = 12, scale = 10)
+    private BigDecimal reviewThreshold;
+
     @Column(name = "threshold_version", length = 120)
     private String thresholdVersion;
 
     @Column(name = "risk_flag")
     private Boolean riskFlag;
+
+    @Column(name = "risk_level", length = 40)
+    private String riskLevel;
 
     @Column(name = "provider_created_at")
     private Instant providerCreatedAt;
@@ -112,8 +118,10 @@ public class CistAiAnalysisEntity {
             BigDecimal modelScore,
             String modelVersion,
             BigDecimal decisionThreshold,
+            BigDecimal reviewThreshold,
             String thresholdVersion,
             Boolean riskFlag,
+            String riskLevel,
             Instant updatedAt
     ) {
         this.status = status;
@@ -124,8 +132,10 @@ public class CistAiAnalysisEntity {
         this.modelScore = modelScore;
         this.modelVersion = modelVersion;
         this.decisionThreshold = decisionThreshold;
+        this.reviewThreshold = reviewThreshold;
         this.thresholdVersion = thresholdVersion;
         this.riskFlag = riskFlag;
+        this.riskLevel = riskLevel;
         this.updatedAt = updatedAt;
     }
 
@@ -153,8 +163,10 @@ public class CistAiAnalysisEntity {
     public BigDecimal getModelScore() { return modelScore; }
     public String getModelVersion() { return modelVersion; }
     public BigDecimal getDecisionThreshold() { return decisionThreshold; }
+    public BigDecimal getReviewThreshold() { return reviewThreshold; }
     public String getThresholdVersion() { return thresholdVersion; }
     public Boolean getRiskFlag() { return riskFlag; }
+    public String getRiskLevel() { return riskLevel; }
     public Instant getProviderCreatedAt() { return providerCreatedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

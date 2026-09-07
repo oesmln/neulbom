@@ -122,6 +122,50 @@ class AiServerClientTest {
         server.verify();
     }
 
+    @Test
+    void analysisStatusMapsThreeLevelRiskFields() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID analysisId = UUID.randomUUID();
+        UUID assessmentId = UUID.randomUUID();
+        server.expect(requestTo("http://ai.test/v1/analyses/" + analysisId))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {
+                          "analysis_id":"%s",
+                          "assessment_id":"%s",
+                          "status":"completed",
+                          "created_at":"2026-09-08T10:00:00Z",
+                          "updated_at":"2026-09-08T10:01:00Z",
+                          "retryable":false,
+                          "reason_code":null,
+                          "retry_items":[],
+                          "result":{
+                            "question_set_version":"cist-v1",
+                            "wrong_event_rule_version":"wrong-event-v1",
+                            "model_version":"final_fusion_lr_21subjects_core4_ast_v1",
+                            "model_score":0.823,
+                            "decision_threshold":0.461,
+                            "review_threshold":0.802,
+                            "threshold_version":"fusion-threshold-v2",
+                            "risk_flag":true,
+                            "risk_level":"review_needed",
+                            "features":null,
+                            "question_results":[]
+                          }
+                        }
+                        """.formatted(analysisId, assessmentId), MediaType.APPLICATION_JSON));
+
+        var result = client(builder).getAnalysis(analysisId);
+
+        assertThat(result.result().decisionThreshold()).isEqualByComparingTo("0.461");
+        assertThat(result.result().reviewThreshold()).isEqualByComparingTo("0.802");
+        assertThat(result.result().thresholdVersion()).isEqualTo("fusion-threshold-v2");
+        assertThat(result.result().riskFlag()).isTrue();
+        assertThat(result.result().riskLevel()).isEqualTo("review_needed");
+        server.verify();
+    }
+
     private AiServerClient client(RestClient.Builder builder) {
         ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         return new AiServerClient(

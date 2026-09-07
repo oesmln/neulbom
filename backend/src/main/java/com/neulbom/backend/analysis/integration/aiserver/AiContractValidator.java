@@ -1,5 +1,6 @@
 package com.neulbom.backend.analysis.integration.aiserver;
 
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -16,6 +17,10 @@ import org.springframework.util.StringUtils;
 
 @Component
 public class AiContractValidator {
+
+    private static final BigDecimal DECISION_THRESHOLD = new BigDecimal("0.461");
+    private static final BigDecimal REVIEW_THRESHOLD = new BigDecimal("0.802");
+    private static final String THRESHOLD_VERSION = "fusion-threshold-v2";
 
     private final CistContractCatalog catalog;
 
@@ -71,12 +76,20 @@ public class AiContractValidator {
         if ("completed".equals(response.status())) {
             require(response.result() != null, "completed 상태에는 최종 result가 필요합니다.");
             require(response.retryItems() == null || response.retryItems().isEmpty(), "completed 상태에는 retry_items가 없어야 합니다.");
+            validateFinalResult(response.result());
             require(response.result().questionResults() != null && response.result().questionResults().size() == 17,
                     "최종 결과는 17개 문항 결과를 포함해야 합니다.");
             for (QuestionAnalysisResult result : response.result().questionResults()) {
                 boolean administered = "administered".equals(result.administrationStatus());
-                require(administered == (result.recordingId() != null && result.responseId() != null),
-                        "시행 상태와 녹음·응답 ID가 일치하지 않습니다.");
+                if (administered) {
+                    require(result.recordingId() != null && result.responseId() != null,
+                            "시행 문항에는 녹음·응답 ID가 필요합니다.");
+                } else {
+                    require("not_applicable".equals(result.administrationStatus()),
+                            "최종 결과의 시행 상태가 올바르지 않습니다.");
+                    require(result.recordingId() == null && result.responseId() == null,
+                            "미시행 문항에는 녹음·응답 ID가 없어야 합니다.");
+                }
             }
         } else {
             require(response.result() == null, "completed 이외 상태에는 최종 result가 없어야 합니다.");
@@ -85,6 +98,31 @@ public class AiContractValidator {
             require(response.retryable(), "needs_retry 상태는 retryable=true여야 합니다.");
             require(response.retryItems() != null && !response.retryItems().isEmpty(), "needs_retry 상태에는 retry_items가 필요합니다.");
         }
+    }
+
+    private void validateFinalResult(AiServerContracts.FinalAnalysisResult result) {
+        BigDecimal score = result.modelScore();
+        require(score != null
+                        && score.compareTo(BigDecimal.ZERO) >= 0
+                        && score.compareTo(BigDecimal.ONE) <= 0,
+                "model_score는 0 이상 1 이하이어야 합니다.");
+        require(result.decisionThreshold() != null
+                        && result.decisionThreshold().compareTo(DECISION_THRESHOLD) == 0,
+                "decision_threshold가 fusion-threshold-v2 기준과 일치하지 않습니다.");
+        require(result.reviewThreshold() != null
+                        && result.reviewThreshold().compareTo(REVIEW_THRESHOLD) == 0,
+                "review_threshold가 fusion-threshold-v2 기준과 일치하지 않습니다.");
+        require(THRESHOLD_VERSION.equals(result.thresholdVersion()),
+                "threshold_version이 fusion-threshold-v2가 아닙니다.");
+        require(result.riskFlag() == score.compareTo(DECISION_THRESHOLD) >= 0,
+                "risk_flag가 decision_threshold 기준과 일치하지 않습니다.");
+        String expectedRiskLevel = score.compareTo(DECISION_THRESHOLD) < 0
+                ? "stable"
+                : score.compareTo(REVIEW_THRESHOLD) < 0
+                        ? "monitoring_needed"
+                        : "review_needed";
+        require(expectedRiskLevel.equals(result.riskLevel()),
+                "risk_level이 model_score 구간과 일치하지 않습니다.");
     }
 
     private void validateAdministered(AiServerContracts.AdministeredQuestionResponse response) {

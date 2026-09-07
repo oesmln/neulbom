@@ -268,8 +268,10 @@ public final class AiServerContracts {
             String modelVersion,
             BigDecimal modelScore,
             BigDecimal decisionThreshold,
+            BigDecimal reviewThreshold,
             String thresholdVersion,
             boolean riskFlag,
+            String riskLevel,
             FusionFeatures features,
             List<QuestionAnalysisResult> questionResults
     ) {
