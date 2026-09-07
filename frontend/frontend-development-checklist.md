@@ -91,7 +91,7 @@
       상태 전이 `device_saved → server_pending → server_uploaded → analysis_completed`, 실패 시 `failed`
 - [x] `client_recording_id` (기기 생성 UUID) 멱등 보장 — 재전송해도 중복 생성 없음 (#61)
 - [x] `Idempotency-Key` 헤더 지원
-- [ ] `POST /sessions/{id}/answers` 문항별 답변 저장
+- [x] `POST /sessions/{id}/answers` 문항별 답변 저장 및 AI `REPLACE_RESPONSE` 지정 문항 재녹음 (#133)
 - [ ] `PATCH /sessions/{id}/end` 종료 + 경험치 적립 상태 수신
 - [ ] `PATCH /sessions/{id}/settings` 자막·음성·말하기 속도 반영
 - [ ] 중단 세션 복구 — `GET /sessions/{id}`의 `current_question_order`부터 재개
@@ -110,6 +110,8 @@
 - [ ] `result_status=pending|processing` → 재조회 폴링, 완료 전 점수 자리 표시 금지
 - [ ] `insufficient_data` 상태 처리
 - [ ] 의료적 확정 진단으로 읽히는 문구를 화면에 쓰지 않는다
+- [x] Q11 recognition plan으로 조건부 Q12~Q16을 구성하고 세션 종료 후 통합 AI 분석을 생성·조회한다. (#133)
+- [x] 통합 AI의 `risk_level`을 점수 재계산 없이 안전한 안내 문구로 표시한다. (#133)
 
 ## 6단계 · 고령자 메인 화면
 

@@ -23,6 +23,8 @@ import type {
   AuthTokenResponse,
   CalendarActivitiesResponse,
   CharacterResponse,
+  CistAiAnalysisResponse,
+  CistRecognitionPlanResponse,
   ConsentRequest,
   ConsentResponse,
   ConsentsResponse,
@@ -368,7 +370,31 @@ export const sessions = {
 
   dailyQuestions(userId: Uuid, sessionType: SessionType): Promise<QuestionsResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockDailyQuestions(sessionType));
-    return request("/questions/daily", { query: { user_id: userId, sessionType } });
+    return request("/questions/daily", { query: { user_id: userId, session_type: sessionType } });
+  },
+};
+
+/* ── integrated CIST AI analysis ───────────────────────────────────────── */
+
+export const cistAi = {
+  createRecognitionPlan(sessionId: Uuid): Promise<CistRecognitionPlanResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockCistRecognitionPlan(sessionId));
+    return request(`/sessions/${sessionId}/cist-ai/recognition-plan`, { method: "POST" });
+  },
+
+  createAnalysis(sessionId: Uuid): Promise<CistAiAnalysisResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockCreateCistAiAnalysis(sessionId));
+    return request(`/sessions/${sessionId}/cist-ai/analyses`, { method: "POST" });
+  },
+
+  getAnalysis(sessionId: Uuid): Promise<CistAiAnalysisResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockGetCistAiAnalysis(sessionId));
+    return request(`/sessions/${sessionId}/cist-ai/analyses`);
+  },
+
+  retryAnalysis(sessionId: Uuid): Promise<CistAiAnalysisResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockRetryCistAiAnalysis(sessionId));
+    return request(`/sessions/${sessionId}/cist-ai/analyses/retry`, { method: "POST" });
   },
 };
 

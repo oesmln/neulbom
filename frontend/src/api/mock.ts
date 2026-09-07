@@ -14,6 +14,8 @@ import type {
   AuthTokenResponse,
   CalendarActivitiesResponse,
   CharacterResponse,
+  CistAiAnalysisResponse,
+  CistRecognitionPlanResponse,
   CounselingCentersResponse,
   DashboardResponse,
   DiariesResponse,
@@ -545,32 +547,30 @@ export function mockCalendarActivities(): CalendarActivitiesResponse {
 
 /* ── sessions & questions ───────────────────────────────────────────────── */
 
-const CIST_QUESTIONS: { content: string; hint: string; type: string }[] = [
-  {
-    content: "오늘이 몇 년 몇 월 며칠 무슨 요일인지 말씀해 주세요.",
-    hint: "연도, 월, 일, 요일을 순서대로 말씀해 주세요.",
-    type: "voice",
-  },
-  {
-    content: "지금 계신 이곳이 어디인지 말씀해 주세요.\n(시/도 → 구/군 → 동/읍)",
-    hint: "현재 계신 장소를 최대한 자세히 말씀해 주세요.",
-    type: "voice",
-  },
-  {
-    content: "제가 말하는 세 가지 단어를 잘 기억해 주세요.\n\n비행기 · 연필 · 사과",
-    hint: "잠시 후 다시 물어볼게요.",
-    type: "listen",
-  },
-  {
-    content: "100에서 7을 빼면 얼마인가요?\n그 숫자에서 또 7을 빼면 얼마인가요? (5번 반복)",
-    hint: "천천히 계산해서 말씀해 주세요.",
-    type: "voice",
-  },
-  {
-    content: "아까 기억하신 세 가지 단어가 무엇인지 말씀해 주세요.",
-    hint: "아까 들으신 단어들을 떠올려보세요.",
-    type: "voice",
-  },
+const CIST_QUESTIONS: Array<{
+  code: string;
+  variant: string;
+  content: string;
+  type: string;
+  conditional?: boolean;
+}> = [
+  { code: "orientation_year", variant: "orientation-year-fixed-v1", content: "올해는 몇 년도입니까?", type: "orientation" },
+  { code: "orientation_month", variant: "orientation-month-fixed-v1", content: "지금은 몇 월입니까?", type: "orientation" },
+  { code: "orientation_day", variant: "orientation-day-fixed-v1", content: "오늘은 며칠입니까?", type: "orientation" },
+  { code: "orientation_weekday", variant: "orientation-weekday-fixed-v1", content: "오늘은 무슨 요일입니까?", type: "orientation" },
+  { code: "orientation_place", variant: "orientation-place-fixed-v1", content: "지금 대상자님이 계신 여기는 어디인가요?", type: "orientation" },
+  { code: "memory_registration_first", variant: "memory-registration-first-fixed-v1", content: "민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다. 끝까지 듣고 따라 해 주세요.", type: "memory" },
+  { code: "memory_registration_second", variant: "memory-registration-second-fixed-v1", content: "같은 문장을 다시 한번 듣고 따라 해 주세요. 민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다.", type: "memory" },
+  { code: "attention_digit_span_4", variant: "attention-digit-span-4-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 6 - 9 - 7 - 3", type: "attention" },
+  { code: "attention_digit_span_5", variant: "attention-digit-span-5-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 5 - 7 - 2 - 8 - 4", type: "attention" },
+  { code: "attention_word_reverse", variant: "attention-word-reverse-fixed-v1", content: "제가 불러 드리는 말을 끝에서부터 거꾸로 따라해 주세요: 금수강산", type: "attention" },
+  { code: "memory_delayed_free_recall", variant: "memory-delayed-free-recall-fixed-v1", content: "제가 조금 전에 외우라고 불러드렸던 문장을 다시 한번 말씀해 주세요.", type: "memory" },
+  { code: "memory_recognition_person", variant: "memory-recognition-person-fixed-v1", content: "제가 아까 어떤 사람의 이름을 말했는데 누구일까요? 영수, 민수, 진수", type: "memory", conditional: true },
+  { code: "memory_recognition_transport", variant: "memory-recognition-transport-fixed-v1", content: "무엇을 타고 갔습니까? 버스, 오토바이, 자전거", type: "memory", conditional: true },
+  { code: "memory_recognition_place", variant: "memory-recognition-place-fixed-v1", content: "어디에 갔습니까? 공원, 놀이터, 운동장", type: "memory", conditional: true },
+  { code: "memory_recognition_time", variant: "memory-recognition-time-fixed-v1", content: "몇 시부터 했습니까? 10시, 11시, 12시", type: "memory", conditional: true },
+  { code: "memory_recognition_activity", variant: "memory-recognition-activity-fixed-v1", content: "무엇을 했습니까? 농구, 축구, 야구", type: "memory", conditional: true },
+  { code: "language_semantic_fluency", variant: "language-semantic-fluency-fixed-v1", content: "과일이나 채소 이름을 최대한 많이 말씀해 주세요.", type: "language" },
 ];
 
 const EMOTIONAL_QUESTIONS: string[] = [
@@ -591,6 +591,9 @@ export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse 
         order: i + 1,
         hint: null,
         subtitle_available: true,
+        question_code: null,
+        variant_id: null,
+        administration_mode: null,
       })),
     };
   }
@@ -600,10 +603,103 @@ export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse 
       content: q.content,
       type: q.type,
       order: i + 1,
-      hint: q.hint,
+      hint: null,
       subtitle_available: true,
+      question_code: q.code,
+      variant_id: q.variant,
+      administration_mode: q.conditional ? "conditional" : "always",
     })),
   };
+}
+
+export function mockCistRecognitionPlan(sessionId: Uuid): CistRecognitionPlanResponse {
+  return {
+    assessment_id: sessionId,
+    status: "completed",
+    question_set_version: "cist-v1",
+    wrong_event_rule_version: "wrong-event-v1",
+    recalled_units: { person: true, transport: false, place: true, time: false, activity: true },
+    next_question_codes: ["memory_recognition_transport", "memory_recognition_time"],
+    q11_result: {},
+    reason_code: null,
+    retryable: false,
+    retry_question_codes: [],
+  };
+}
+
+const mockCistAnalyses = new Map<Uuid, CistAiAnalysisResponse>();
+let mockCistAnalysisSequence = 1;
+
+function completedMockCistAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
+  const previous = mockCistAnalyses.get(sessionId);
+  return {
+    analysis_id: previous?.analysis_id ?? fixedId("77777777", mockCistAnalysisSequence++),
+    session_id: sessionId,
+    status: "completed",
+    retry_count: previous?.retry_count ?? 0,
+    retryable: false,
+    reason_code: null,
+    retry_items: [],
+    result: {},
+    model_score: 0.61,
+    model_version: "final_fusion_lr_21subjects_core4_ast_v1",
+    decision_threshold: 0.461,
+    review_threshold: 0.802,
+    threshold_version: "fusion-threshold-v2",
+    risk_flag: true,
+    risk_level: "monitoring_needed",
+    created_at: previous?.created_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function mockCreateCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
+  const now = new Date().toISOString();
+  const response: CistAiAnalysisResponse = {
+    ...completedMockCistAnalysis(sessionId),
+    status: "pending",
+    result: null,
+    model_score: null,
+    model_version: null,
+    decision_threshold: null,
+    review_threshold: null,
+    threshold_version: null,
+    risk_flag: null,
+    risk_level: null,
+    created_at: now,
+    updated_at: now,
+  };
+  mockCistAnalyses.set(sessionId, response);
+  return response;
+}
+
+export function mockGetCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
+  const response = completedMockCistAnalysis(sessionId);
+  mockCistAnalyses.set(sessionId, response);
+  return response;
+}
+
+export function mockRetryCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
+  const previous = mockCistAnalyses.get(sessionId) ?? completedMockCistAnalysis(sessionId);
+  const response: CistAiAnalysisResponse = {
+    ...previous,
+    status: "pending",
+    retry_count: previous.retry_count + 1,
+    retryable: false,
+    reason_code: null,
+    retry_items: null,
+    result: null,
+    model_score: null,
+    model_version: null,
+    decision_threshold: null,
+    review_threshold: null,
+    threshold_version: null,
+    risk_flag: null,
+    risk_level: null,
+    updated_at: new Date().toISOString(),
+  };
+  mockCistAnalyses.set(sessionId, response);
+  return response;
 }
 
 export function mockSession(userId: Uuid, sessionType: SessionType): SessionResponse {
@@ -640,7 +736,7 @@ export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
     session_id: sessionId,
     status: "completed",
     ended_at: new Date().toISOString(),
-    answered_count: 5,
+    answered_count: 14,
     analysis_status: "completed",
     result_status: "completed",
     result_type: "positive_feedback",
