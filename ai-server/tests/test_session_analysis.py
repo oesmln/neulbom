@@ -35,6 +35,9 @@ from app.services.analysis_worker import (
 from app.services.session_analysis import (
     SessionAnalysisProcessor,
 )
+from app.inference.risk_policy import (
+    RiskLevel,
+)
 
 
 class FakeDownloader:
@@ -166,11 +169,15 @@ class FakeFusionService:
                 "21subjects_core4_ast_v1"
             ),
             model_score=0.8,
-            decision_threshold=0.5,
+            decision_threshold=0.461,
+            review_threshold=0.802,
             threshold_version=(
-                "fusion-threshold-v1"
+                "fusion-threshold-v2"
             ),
             risk_flag=True,
+            risk_level=(
+                RiskLevel.MONITORING_NEEDED
+            ),
             features=features,
         )
 
@@ -436,11 +443,18 @@ def test_completes_full_session_pipeline(
         assert result["model_score"] == 0.8
         assert result[
             "decision_threshold"
-        ] == 0.5
+        ] == 0.461
+        assert result[
+            "review_threshold"
+        ] == 0.802
         assert result[
             "threshold_version"
-        ] == "fusion-threshold-v1"
+        ] == "fusion-threshold-v2"
         assert result["risk_flag"] is True
+        assert (
+            result["risk_level"]
+            == "monitoring_needed"
+        )
         assert len(
             result["question_results"],
         ) == 17

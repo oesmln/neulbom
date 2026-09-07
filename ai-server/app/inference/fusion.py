@@ -2,7 +2,8 @@ import json
 from dataclasses import dataclass
 from json import JSONDecodeError
 from math import isfinite
-from typing import Any, Literal
+from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -13,9 +14,19 @@ from app.inference.artifacts import (
     EXPECTED_FUSION_FEATURE_ORDER,
     ModelArtifactBundle,
 )
+from app.inference.risk_policy import (
+    EXPECTED_THRESHOLD_VERSION,
+    RiskLevel,
+    RiskThresholdPolicy,
+)
 
 FUSION_THRESHOLD_VERSION = (
-    "fusion-threshold-v1"
+    EXPECTED_THRESHOLD_VERSION
+)
+DEFAULT_RISK_POLICY_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "fusion-threshold-v2.json"
 )
 EXPECTED_SKLEARN_VERSION = "1.6.1"
 
@@ -37,8 +48,10 @@ class FusionInferenceResult:
     model_version: str
     model_score: float
     decision_threshold: float
+    review_threshold: float
     threshold_version: str
     risk_flag: bool
+    risk_level: RiskLevel
     features: FusionFeatures
 
 
@@ -49,8 +62,7 @@ class FusionInferenceService:
         pipeline: Any,
         feature_order: tuple[str, ...],
         class_order: tuple[int, ...],
-        decision_threshold: float,
-        threshold_version: str,
+        risk_policy: RiskThresholdPolicy,
         model_version: str,
     ) -> None:
         if (
@@ -68,27 +80,12 @@ class FusionInferenceService:
                 "(0, 1)이어야 합니다.",
             )
 
-        if not (
-            isfinite(decision_threshold)
-            and 0.0 <= decision_threshold <= 1.0
+        if not isinstance(
+            risk_policy,
+            RiskThresholdPolicy,
         ):
             raise ValueError(
-                "decision_threshold는 "
-                "0 이상 1 이하여야 합니다.",
-            )
-
-        if decision_threshold != 0.5:
-            raise ValueError(
-                "현재 운영 기본 임계값은 "
-                "0.5여야 합니다.",
-            )
-
-        if (
-            threshold_version
-            != FUSION_THRESHOLD_VERSION
-        ):
-            raise ValueError(
-                "지원하지 않는 threshold_version입니다.",
+                "risk_policy가 필요합니다.",
             )
 
         if not model_version.strip():
@@ -111,18 +108,17 @@ class FusionInferenceService:
         self._pipeline = pipeline
         self._feature_order = feature_order
         self._class_order = class_order
-        self._decision_threshold = (
-            decision_threshold
-        )
-        self._threshold_version = (
-            threshold_version
-        )
+        self._risk_policy = risk_policy
         self._model_version = model_version
 
     @classmethod
     def from_artifacts(
         cls,
         artifacts: ModelArtifactBundle,
+        *,
+        risk_policy_path: Path = (
+            DEFAULT_RISK_POLICY_PATH
+        ),
     ) -> "FusionInferenceService":
         if (
             sklearn.__version__
@@ -161,18 +157,6 @@ class FusionInferenceService:
                 (),
             ),
         )
-        threshold = contract.get(
-            "default_threshold",
-        )
-
-        if not isinstance(
-            threshold,
-            (int, float),
-        ) or isinstance(threshold, bool):
-            raise FusionInferenceError(
-                "fusion default_threshold가 "
-                "올바르지 않습니다.",
-            )
 
         _validate_loaded_pipeline(
             pipeline=pipeline,
@@ -185,11 +169,10 @@ class FusionInferenceService:
             pipeline=pipeline,
             feature_order=feature_order,
             class_order=class_order,
-            decision_threshold=float(
-                threshold,
-            ),
-            threshold_version=(
-                FUSION_THRESHOLD_VERSION
+            risk_policy=(
+                RiskThresholdPolicy.from_path(
+                    risk_policy_path,
+                )
             ),
             model_version=(
                 artifacts.fusion_directory.name
@@ -277,19 +260,31 @@ class FusionInferenceService:
                 "유효하지 않습니다.",
             )
 
+        risk_level = (
+            self._risk_policy.classify(
+                model_score,
+            )
+        )
+
         return FusionInferenceResult(
             model_version=self._model_version,
             model_score=model_score,
             decision_threshold=(
-                self._decision_threshold
+                self._risk_policy
+                .screening_threshold
+            ),
+            review_threshold=(
+                self._risk_policy.review_threshold
             ),
             threshold_version=(
-                self._threshold_version
+                self._risk_policy.threshold_version
             ),
             risk_flag=(
-                model_score
-                >= self._decision_threshold
+                self._risk_policy.is_risk_flagged(
+                    model_score,
+                )
             ),
+            risk_level=risk_level,
             features=features,
         )
 

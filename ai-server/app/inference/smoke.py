@@ -338,8 +338,14 @@ def run_inference_smoke(
         "threshold_version": (
             fusion_result.threshold_version
         ),
+        "review_threshold": (
+            fusion_result.review_threshold
+        ),
         "risk_flag": (
             fusion_result.risk_flag
+        ),
+        "risk_level": (
+            fusion_result.risk_level.value
         ),
         "load_seconds": (
             fusion_load_seconds

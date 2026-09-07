@@ -1,0 +1,12 @@
+{
+  "schema_version": "fusion-threshold-policy-schema-v1",
+  "threshold_version": "fusion-threshold-v2",
+  "screening_threshold": 0.461,
+  "review_threshold": 0.802,
+  "risk_levels": [
+    "stable",
+    "monitoring_needed",
+    "review_needed"
+  ],
+  "description": "21명 내부 OOF 결과를 바탕으로 정한 졸업과제 프로토타입의 잠정 운영 기준"
+}

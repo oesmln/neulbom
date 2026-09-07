@@ -112,11 +112,13 @@ def final_result_payload() -> dict:
             "21subjects_core4_ast_v1"
         ),
         "model_score": 0.75,
-        "decision_threshold": 0.5,
+        "decision_threshold": 0.461,
+        "review_threshold": 0.802,
         "threshold_version": (
-            "fusion-threshold-v1"
+            "fusion-threshold-v2"
         ),
         "risk_flag": True,
+        "risk_level": "monitoring_needed",
         "features": {
             "ast_logit": -0.25,
             "kcelectra_logit": 0.5,
@@ -157,6 +159,10 @@ def test_accepts_valid_final_result() -> None:
     assert result.model_score == 0.75
     assert result.risk_flag is True
     assert len(result.question_results) == 17
+    assert (
+        result.risk_level
+        == "monitoring_needed"
+    )
 
 
 def test_rejects_inconsistent_risk_flag() -> None:
@@ -394,5 +400,17 @@ def test_no_response_cannot_have_delay() -> None:
         match="응답 지연",
     ):
         QuestionAnalysisResult.model_validate(
+            payload,
+        )
+
+def test_rejects_inconsistent_risk_level() -> None:
+    payload = final_result_payload()
+    payload["risk_level"] = "review_needed"
+
+    with pytest.raises(
+        ValidationError,
+        match="risk_level",
+    ):
+        FinalAnalysisResult.model_validate(
             payload,
         )

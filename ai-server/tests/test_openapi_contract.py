@@ -416,10 +416,13 @@ def test_fixed_analysis_metadata_matches(
     ] == "wrong-event-v1"
     assert info[
         "x-default-threshold"
-    ] == 0.5
+    ] == 0.461
+    assert info[
+        "x-review-threshold"
+    ] == 0.802
     assert info[
         "x-threshold-version"
-    ] == "fusion-threshold-v1"
+    ] == "fusion-threshold-v2"
 
     reference_result = (
         reference_openapi["components"][
@@ -434,17 +437,23 @@ def test_fixed_analysis_metadata_matches(
 
     assert reference_result["properties"][
         "decision_threshold"
-    ]["const"] == 0.5
+    ]["const"] == 0.461
     assert runtime_result["properties"][
         "decision_threshold"
-    ]["const"] == 0.5
+    ]["const"] == 0.461
+    assert reference_result["properties"][
+        "review_threshold"
+    ]["const"] == 0.802
+    assert runtime_result["properties"][
+        "review_threshold"
+    ]["const"] == 0.802
 
     assert reference_result["properties"][
         "threshold_version"
-    ]["const"] == "fusion-threshold-v1"
+    ]["const"] == "fusion-threshold-v2"
     assert runtime_result["properties"][
         "threshold_version"
-    ]["const"] == "fusion-threshold-v1"
+    ]["const"] == "fusion-threshold-v2"
 
 
 def test_processing_timeout_matches_contract(

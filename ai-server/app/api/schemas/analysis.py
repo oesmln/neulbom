@@ -28,6 +28,9 @@ from app.api.schemas.common import (
     Timezone,
     WrongEventRuleVersion,
 )
+from app.inference.risk_policy import (
+    RiskLevel,
+)
 
 AnalysisStatus = Literal[
     "pending",
@@ -285,11 +288,13 @@ class FinalAnalysisResult(APIModel):
         ge=0,
         le=1,
     )
-    decision_threshold: Literal[0.5]
+    decision_threshold: Literal[0.461]
+    review_threshold: Literal[0.802]
     threshold_version: Literal[
-        "fusion-threshold-v1"
+        "fusion-threshold-v2"
     ]
     risk_flag: bool
+    risk_level: RiskLevel
     features: FusionFeatureValues
     question_results: list[
         QuestionAnalysisResult
@@ -359,6 +364,32 @@ class FinalAnalysisResult(APIModel):
             raise ValueError(
                 "risk_flag가 model_score와 "
                 "decision_threshold의 비교 결과와 "
+                "일치하지 않습니다.",
+            )
+
+        if (
+            self.model_score
+            < self.decision_threshold
+        ):
+            expected_risk_level = (
+                RiskLevel.STABLE
+            )
+        elif (
+            self.model_score
+            < self.review_threshold
+        ):
+            expected_risk_level = (
+                RiskLevel.MONITORING_NEEDED
+            )
+        else:
+            expected_risk_level = (
+                RiskLevel.REVIEW_NEEDED
+            )
+
+        if self.risk_level != expected_risk_level:
+            raise ValueError(
+                "risk_level이 model_score와 "
+                "두 운영 threshold의 비교 결과와 "
                 "일치하지 않습니다.",
             )
 
