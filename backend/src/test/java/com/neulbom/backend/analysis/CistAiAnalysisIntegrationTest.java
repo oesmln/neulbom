@@ -240,9 +240,11 @@ class CistAiAnalysisIntegrationTest {
                 "wrong-event-v1",
                 "final_fusion_lr_21subjects_core4_ast_v1",
                 new BigDecimal("0.61"),
-                new BigDecimal("0.5"),
-                "fusion-threshold-v1",
+                new BigDecimal("0.461"),
+                new BigDecimal("0.802"),
+                "fusion-threshold-v2",
                 true,
+                "monitoring_needed",
                 new AiServerContracts.FusionFeatures(
                         new BigDecimal("0.1"),
                         new BigDecimal("0.2"),
@@ -259,14 +261,21 @@ class CistAiAnalysisIntegrationTest {
                 .andExpect(jsonPath("$.status").value("completed"))
                 .andExpect(jsonPath("$.model_score").value(0.61))
                 .andExpect(jsonPath("$.model_version").value("final_fusion_lr_21subjects_core4_ast_v1"))
-                .andExpect(jsonPath("$.decision_threshold").value(0.5))
-                .andExpect(jsonPath("$.threshold_version").value("fusion-threshold-v1"))
-                .andExpect(jsonPath("$.risk_flag").value(true));
+                .andExpect(jsonPath("$.decision_threshold").value(0.461))
+                .andExpect(jsonPath("$.review_threshold").value(0.802))
+                .andExpect(jsonPath("$.threshold_version").value("fusion-threshold-v2"))
+                .andExpect(jsonPath("$.risk_flag").value(true))
+                .andExpect(jsonPath("$.risk_level").value("monitoring_needed"));
 
         CistAiAnalysisEntity stored = analysisRepository.findById(request.analysisId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(stored.getModelScore()).isEqualByComparingTo("0.61");
         org.assertj.core.api.Assertions.assertThat(stored.getModelVersion())
                 .isEqualTo("final_fusion_lr_21subjects_core4_ast_v1");
+        org.assertj.core.api.Assertions.assertThat(stored.getDecisionThreshold()).isEqualByComparingTo("0.461");
+        org.assertj.core.api.Assertions.assertThat(stored.getReviewThreshold()).isEqualByComparingTo("0.802");
+        org.assertj.core.api.Assertions.assertThat(stored.getThresholdVersion()).isEqualTo("fusion-threshold-v2");
+        org.assertj.core.api.Assertions.assertThat(stored.getRiskFlag()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(stored.getRiskLevel()).isEqualTo("monitoring_needed");
     }
 
     private void saveAdministeredResponse(

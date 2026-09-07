@@ -21,8 +21,10 @@ public record CistAiAnalysisResponse(
         BigDecimal modelScore,
         String modelVersion,
         BigDecimal decisionThreshold,
+        BigDecimal reviewThreshold,
         String thresholdVersion,
         Boolean riskFlag,
+        String riskLevel,
         Instant createdAt,
         Instant updatedAt
 ) {
