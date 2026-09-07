@@ -738,6 +738,7 @@
 - [x] URL 재발급과 응답 교체가 섞인 재시도 입력을 구성하고 식별자 관계를 검증한다. (#127)
 - [x] cist-v1 17문항과 Q12~Q16 조건부 시행 정책을 백엔드 질문 데이터에 반영한다. (#127)
 - [x] Fusion `fusion-threshold-v2`의 `review_threshold`와 `risk_level`을 저장·응답하고 세 구간 일관성을 검증한다. (#131)
+- [x] `REPLACE_RESPONSE` 대상 문항은 종료된 세션에서도 새 녹음·답변을 저장하고 완료 문항 수를 유지한다. (#133)
 - [ ] 실제 AI 서버 Docker 실행본으로 pending → processing → completed 흐름을 확인한다. (#127)
 - [ ] 배포 환경의 HTTPS object storage 또는 공개 backend origin으로 signed URL 다운로드를 확인한다. (#127)
 - [ ] recording 업로드 완료 이벤트를 만든다.

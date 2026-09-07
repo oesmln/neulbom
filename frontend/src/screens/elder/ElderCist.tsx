@@ -1,17 +1,17 @@
 import React from "react";
 import { View, Pressable, StyleSheet, ScrollView } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ElderNav } from "@/navigation/types";
+import { ElderNav, ElderStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { newClientId, sessions } from "@/api";
+import { cistAi, newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
-import type { QuestionResponse, Uuid } from "@/api/types";
+import type { CistRecognitionPlanResponse, QuestionResponse, Uuid } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Badge, Button, ErrorState, LoadingState, ProgressBar, SentenceText as Text } from "@/components/ui";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
@@ -21,8 +21,8 @@ import VoicePlaybackButton from "@/components/VoicePlaybackButton";
  *
  * The flow follows the backend one step at a time:
  *   `POST /sessions` (`session_type=baseline`) → `GET /questions/daily`
- *   → `POST /sessions/{id}/answers` per question → `PATCH /sessions/{id}/end`
- * and then the result screen reads `GET /screenings/{session_id}/result`.
+ *   → Q11 저장 → `POST /sessions/{id}/cist-ai/recognition-plan`
+ *   → 선택된 Q12~Q16만 시행 → 세션 종료 → AI 분석 생성.
  *
  * Spoken answers are recorded with expo-audio, uploaded through
  * `POST /recordings`, and saved with the returned `recording_id`.
@@ -32,21 +32,16 @@ const WAVE_BARS = 28;
 /**
  * The domain chip above each question.
  *
- * `QuestionResponse` carries `type` (voice / listen) but no cognitive domain, so
- * there is nothing on the wire to render here — this is the Figma ordering of
- * the CIST domains, kept as presentation only. When the API grows a domain
- * field this table goes away and the label comes from the question.
+ * The backend question `type` is the CIST domain used for the compact chip.
  */
-const CIST_DOMAINS = [
-  "날짜 지남력",
-  "장소 지남력",
-  "단어 등록",
-  "주의 집중",
-  "단어 회상",
-];
-
-function domainOf(question: QuestionResponse, index: number): string {
-  return CIST_DOMAINS[index] ?? `문항 ${question.order}`;
+function domainOf(question: QuestionResponse): string {
+  switch (question.type) {
+    case "orientation": return "지남력";
+    case "memory": return "기억력";
+    case "attention": return "주의 집중";
+    case "language": return "언어 능력";
+    default: return `문항 ${question.order}`;
+  }
 }
 
 type CompletedTurn = {
@@ -63,7 +58,11 @@ function answerTextForTurn(isListenQuestion: boolean, transcript: string | null)
 
 export default function ElderCistScreen() {
   const navigation = useNavigation<ElderNav>();
+  const route = useRoute<RouteProp<ElderStackParamList, "ElderCist">>();
   const { userId } = useApp();
+  const retrySessionId = route.params?.sessionId ?? null;
+  const retryQuestionCodes = route.params?.retryQuestionCodes ?? [];
+  const retryMode = !!retrySessionId;
 
   const [index, setIndex] = React.useState(0);
   const [listened, setListened] = React.useState(false);
@@ -74,12 +73,16 @@ export default function ElderCistScreen() {
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
+  const [recognitionPlan, setRecognitionPlan] = React.useState<CistRecognitionPlanResponse | null>(null);
+  const [recordingAttempt, setRecordingAttempt] = React.useState(0);
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
   const scrollRef = React.useRef<ScrollView>(null);
 
   const session = useApi(
-    () => sessions.start({ user_id: userId as string, session_type: "baseline" }),
-    [userId],
+    () => retrySessionId
+      ? sessions.get(retrySessionId)
+      : sessions.start({ user_id: userId as string, session_type: "baseline" }),
+    [userId, retrySessionId],
     { enabled: !!userId },
   );
 
@@ -89,12 +92,31 @@ export default function ElderCistScreen() {
     { enabled: !!userId },
   );
 
-  const list = questions.data?.questions ?? [];
+  const list = React.useMemo(() => {
+    const all = questions.data?.questions ?? [];
+    if (retryMode) {
+      const requested = new Set(retryQuestionCodes);
+      return all.filter((item) => item.question_code && requested.has(item.question_code));
+    }
+    if (!recognitionPlan) {
+      return all.filter((item) => item.order <= 11);
+    }
+    const selected = new Set(recognitionPlan.next_question_codes ?? []);
+    return all.filter((item) => item.administration_mode !== "conditional"
+      || (item.question_code != null && selected.has(item.question_code)));
+  }, [questions.data?.questions, recognitionPlan, retryMode, retryQuestionCodes]);
   const question = list[index];
   const isLast = index === list.length - 1;
+  const isQ11PlanningStep = !retryMode
+    && recognitionPlan == null
+    && question?.question_code === "memory_delayed_free_recall";
+  const displayTotal = retryMode || recognitionPlan
+    ? list.length
+    : questions.data?.questions.length ?? list.length;
   const isListenQuestion = question?.type === "listen";
   const canAdvance = isListenQuestion ? listened : answered;
-  const canGoPrevious = index > 0 || navigation.canGoBack();
+  const recognitionPlanBoundary = !retryMode && recognitionPlan != null && index === 11;
+  const canGoPrevious = !recognitionPlanBoundary && (index > 0 || navigation.canGoBack());
   const voice = useSpeechPlayback(answered ? null : question?.content ?? null);
 
   React.useEffect(() => {
@@ -113,7 +135,10 @@ export default function ElderCistScreen() {
   }, [completedTurns.length, question?.question_id]);
 
   const goBack = () => {
+    if (recognitionPlanBoundary) return;
     if (index > 0) {
+      const previousQuestion = list[index - 1];
+      if (previousQuestion) delete answerClientIds.current[previousQuestion.question_id];
       setCompletedTurns((current) => current.slice(0, Math.max(0, index - 1)));
       setIndex(index - 1);
       setListened(false);
@@ -130,7 +155,7 @@ export default function ElderCistScreen() {
     const sessionId = session.data.session_id;
     const completedTurn: CompletedTurn = {
       questionId: question.question_id,
-      domain: domainOf(question, index),
+      domain: domainOf(question),
       question: question.content,
       answer: answerTextForTurn(isListenQuestion, currentTranscript),
     };
@@ -147,8 +172,39 @@ export default function ElderCistScreen() {
         answered_at: new Date().toISOString(),
       });
 
+      if (!retryMode && question.question_code === "memory_delayed_free_recall") {
+        const plan = await cistAi.createRecognitionPlan(sessionId);
+        if (plan.status === "needs_retry") {
+          delete answerClientIds.current[question.question_id];
+          setAnswered(false);
+          setListened(false);
+          setRecordingId(null);
+          setCurrentTranscript(null);
+          setAskedAt(Date.now());
+          setRecordingAttempt((attempt) => attempt + 1);
+          setSubmissionError("음성이 또렷하게 들리지 않았어요. 이 문항만 다시 말씀해 주세요.");
+          return;
+        }
+        setRecognitionPlan(plan);
+        setCompletedTurns((current) => [...current, completedTurn]);
+        setListened(false);
+        setAnswered(false);
+        setIndex(index + 1);
+        return;
+      }
+
       if (isLast) {
-        await sessions.end(sessionId);
+        if (retryMode) {
+          await cistAi.retryAnalysis(sessionId);
+        } else {
+          await sessions.end(sessionId);
+          try {
+            await cistAi.createAnalysis(sessionId);
+          } catch {
+            // The ended session is recoverable. ElderResult offers the same
+            // idempotent create call again instead of trapping the user here.
+          }
+        }
         navigation.replace("ElderResult", { sessionId, mode: "baseline" });
         return;
       }
@@ -183,13 +239,13 @@ export default function ElderCistScreen() {
           >
             <Ionicons name="chevron-back" size={18} color={colors.white} />
           </Pressable>
-          <Text style={styles.headerTitle}>초기 인지 활동 확인</Text>
+          <Text style={styles.headerTitle}>{retryMode ? "음성 답변 다시 확인" : "초기 인지 활동 확인"}</Text>
           <Text style={styles.headerCount}>
-            {list.length > 0 ? `${index + 1} / ${list.length}` : ""}
+            {list.length > 0 ? `${index + 1} / ${displayTotal}` : ""}
           </Text>
         </View>
         <ProgressBar
-          value={list.length > 0 ? ((index + 1) / list.length) * 100 : 0}
+          value={displayTotal > 0 ? ((index + 1) / displayTotal) * 100 : 0}
           color={colors.white}
           track="rgba(255,255,255,0.25)"
         />
@@ -219,7 +275,7 @@ export default function ElderCistScreen() {
         {question ? (
           <View style={styles.currentTurn}>
             {completedTurns.length > 0 ? <Text style={styles.currentLabel}>다음 질문</Text> : null}
-            <Badge label={domainOf(question, index)} />
+            <Badge label={domainOf(question)} />
 
             <View style={{ gap: spacing.md }}>
               <Text style={styles.prompt}>{question.content}</Text>
@@ -245,6 +301,7 @@ export default function ElderCistScreen() {
               />
             ) : (
               <MicRecorder
+                key={`${question.question_id}:${recordingAttempt}`}
                 userId={userId}
                 sessionId={session.data?.session_id ?? null}
                 questionId={question.question_id}
@@ -263,7 +320,11 @@ export default function ElderCistScreen() {
                 <Text style={styles.submissionError}>{submissionError}</Text>
               ) : null}
               <Button
-                label={isLast ? "검사 완료" : "다음 문항"}
+                label={isQ11PlanningStep
+                  ? "다음 문항"
+                  : isLast
+                    ? (retryMode ? "재분석 요청" : "검사 완료")
+                    : "다음 문항"}
                 disabled={!canAdvance || submitting || !session.data}
                 onPress={() => void advance()}
               />

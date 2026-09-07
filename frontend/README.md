@@ -17,6 +17,8 @@ npm start
 - Android emulator: `http://10.0.2.2:8080`
 - 실제 기기: 같은 네트워크에 연결된 개발 PC의 LAN 주소
 
+CIST의 Q11 recognition plan, 조건부 문항, 비동기 AI 분석과 재녹음 재시도를 실제 서버로 확인하려면 [`../docs/cist-ai-local-integration-test.md`](../docs/cist-ai-local-integration-test.md)를 따릅니다.
+
 Metro 서버 실행 후 별도 터미널에서 iOS 또는 Android 앱을 실행합니다.
 
 ```bash

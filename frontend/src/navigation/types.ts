@@ -72,7 +72,7 @@ export type ElderStackParamList = {
    * CIST is the one-off initial screening, not a tab — it is reached from
    * onboarding and from the home card, and it pushes over the tabs.
    */
-  ElderCist: undefined;
+  ElderCist: { sessionId: string; retryQuestionCodes: string[] } | undefined;
   /**
    * Carries the session it belongs to so the screen can read
    * `GET /screenings/{session_id}/result` instead of guessing.

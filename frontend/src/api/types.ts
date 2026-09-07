@@ -327,6 +327,9 @@ export interface QuestionResponse {
   order: number;
   hint: string | null;
   subtitle_available: boolean;
+  question_code: string | null;
+  variant_id: string | null;
+  administration_mode: "always" | "conditional" | null;
 }
 
 export interface QuestionsResponse {
@@ -404,6 +407,59 @@ export interface TranscribeResponse {
   confidence: number | null;
   language: string;
   model: string | null;
+}
+
+/* ── integrated CIST AI analysis ───────────────────────────────────────── */
+
+export type CistAiStatus = "pending" | "processing" | "needs_retry" | "completed" | "failed";
+export type CistRiskLevel = "stable" | "monitoring_needed" | "review_needed";
+export type CistRetryAction = "REISSUE_AUDIO_URL" | "REPLACE_RESPONSE";
+
+export interface CistMemoryUnits {
+  person: boolean;
+  transport: boolean;
+  place: boolean;
+  time: boolean;
+  activity: boolean;
+}
+
+export interface CistRecognitionPlanResponse {
+  assessment_id: Uuid;
+  status: "completed" | "needs_retry";
+  question_set_version: "cist-v1";
+  wrong_event_rule_version: "wrong-event-v1";
+  recalled_units: CistMemoryUnits | null;
+  next_question_codes: string[] | null;
+  q11_result: unknown | null;
+  reason_code: string | null;
+  retryable: boolean | null;
+  retry_question_codes: string[] | null;
+}
+
+export interface CistAiRetryItem {
+  question_code: string;
+  reason_code: string;
+  required_action: CistRetryAction;
+}
+
+export interface CistAiAnalysisResponse {
+  analysis_id: Uuid;
+  session_id: Uuid;
+  status: CistAiStatus;
+  retry_count: number;
+  retryable: boolean;
+  reason_code: string | null;
+  retry_items: CistAiRetryItem[] | null;
+  result: unknown | null;
+  model_score: number | null;
+  model_version: string | null;
+  decision_threshold: number | null;
+  review_threshold: number | null;
+  threshold_version: string | null;
+  risk_flag: boolean | null;
+  risk_level: CistRiskLevel | null;
+  created_at: IsoInstant;
+  updated_at: IsoInstant;
 }
 
 /* ── dashboard & screening result ───────────────────────────────────────── */
