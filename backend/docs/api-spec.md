@@ -1203,7 +1203,7 @@ JWT 발급을 완료한다. 기존 소셜 계정에는 역할 선택 화면을 �
 
 ### 6.6 `POST /sessions/{session_id}/answers` - 문항별 답변 저장
 
-음성 답변은 `recording_id` 또는 `transcript_id`를 연결한다. 네트워크가 끊긴 상태에서 저장한 답변은 `client_answer_id`로 재전송한다.
+음성 답변은 `recording_id` 또는 `transcript_id`를 연결한다. 네트워크가 끊긴 상태에서 저장한 답변은 `client_answer_id`로 재전송한다. 종료된 CIST 세션은 일반 답변을 거부하지만, 통합 AI 분석이 `needs_retry`와 `REPLACE_RESPONSE`를 반환한 문항에 한해 새 녹음·답변 ID로 교체 답변을 저장할 수 있다. 교체 답변은 완료 문항 수를 증가시키지 않는다.
 
 #### Request Body
 
@@ -1301,7 +1301,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 - 세션 시작·설정 변경·종료·답변 저장은 고령자 본인만 수행한다. 보호자는 활성 연결과 동의가 있고 `screening` 또는 `summary` scope가 있을 때 세션·답변을 읽을 수 있다.
 - 세션 설정이 생략되면 사용자 환경 설정 또는 `preferred_hearing_side=unknown`, `speech_rate=0.90`, 자막·효과음 `false`를 사용한다. `voice_profile_id`는 활성 한국어 음성만 허용한다.
-- 동일 세션의 `client_answer_id`를 재전송하면 기존 답변을 다시 반환하고 답변 수를 증가시키지 않는다. 종료된 세션과 다른 세션 유형의 질문은 `422`로 거부한다.
+- 동일 세션의 `client_answer_id`를 재전송하면 기존 답변을 다시 반환하고 답변 수를 증가시키지 않는다. 종료된 세션은 AI 분석의 `REPLACE_RESPONSE` 대상 문항만 새 답변을 허용하며, 그 밖의 답변과 다른 세션 유형의 질문은 `422`로 거부한다.
 
 ## 7. 녹음·STT·AI 분석 API
 

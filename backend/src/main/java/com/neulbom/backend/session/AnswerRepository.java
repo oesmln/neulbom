@@ -10,6 +10,8 @@ public interface AnswerRepository extends JpaRepository<AnswerEntity, UUID> {
 
     Optional<AnswerEntity> findBySessionIdAndClientAnswerId(UUID sessionId, UUID clientAnswerId);
 
+    boolean existsBySessionIdAndQuestionId(UUID sessionId, UUID questionId);
+
     Optional<AnswerEntity> findByTranscriptId(UUID transcriptId);
 
     List<AnswerEntity> findAllBySessionIdOrderByAnsweredAtAsc(UUID sessionId);

@@ -12,7 +12,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neulbom.backend.analysis.CistAiAnalysisRepository;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
@@ -63,6 +65,7 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
+    private final CistAiAnalysisRepository cistAiAnalysisRepository;
     private final GuardianAccessService guardianAccessService;
     private final GameService gameService;
     private final ObjectMapper objectMapper;
@@ -77,6 +80,7 @@ public class SessionService {
             SessionRepository sessionRepository,
             QuestionRepository questionRepository,
             AnswerRepository answerRepository,
+            CistAiAnalysisRepository cistAiAnalysisRepository,
             GuardianAccessService guardianAccessService,
             GameService gameService,
             ObjectMapper objectMapper,
@@ -90,6 +94,7 @@ public class SessionService {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
+        this.cistAiAnalysisRepository = cistAiAnalysisRepository;
         this.guardianAccessService = guardianAccessService;
         this.gameService = gameService;
         this.objectMapper = objectMapper;
@@ -252,24 +257,10 @@ public class SessionService {
     @Transactional
     public AnswerResponse saveAnswer(UUID authenticatedUserId, UUID sessionId, AnswerRequest request) {
         SessionEntity session = ownedSession(authenticatedUserId, sessionId);
-        if (!SessionEntity.ACTIVE.equals(session.getStatus())) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "종료된 세션입니다.", "진행 중인 세션에는 답변을 추가할 수 없습니다.");
-        }
         AnswerEntity existing = answerRepository.findBySessionIdAndClientAnswerId(sessionId, request.clientAnswerId())
                 .orElse(null);
-        if (existing != null) {
-            if (!existing.getQuestionId().equals(request.questionId())) {
-                throw new ApiException(HttpStatus.CONFLICT, "중복 답변 ID가 다른 문항에 사용되었습니다.", "client_answer_id를 확인하세요.");
-            }
-            return new AnswerResponse(
-                    existing.getId(),
-                    existing.getQuestionId(),
-                    true,
-                    session.getCurrentQuestionOrder(),
-                    existing.getSyncStatus());
-        }
-        if (session.getAnsweredCount() >= session.getTotalQuestions()) {
-            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "모든 문항에 답변했습니다.", "새 세션을 시작하세요.");
+        if (existing != null && !existing.getQuestionId().equals(request.questionId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "중복 답변 ID가 다른 문항에 사용되었습니다.", "client_answer_id를 확인하세요.");
         }
         validateAnswerRequest(request);
         QuestionEntity question = questionRepository.findById(request.questionId())
@@ -277,6 +268,28 @@ public class SessionService {
                 .orElseThrow(() -> new ResourceNotFoundException("질문을 찾을 수 없습니다."));
         if (!questionMatchesSession(question, session.getSessionType())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "세션 문항이 아닙니다.", "question_id와 session_type을 확인하세요.");
+        }
+        boolean firstAnswerForQuestion = !answerRepository.existsBySessionIdAndQuestionId(sessionId, question.getId());
+        boolean retryReplacement = SessionEntity.ENDED.equals(session.getStatus())
+                && isAllowedAiRetryReplacement(session, question);
+        if (!SessionEntity.ACTIVE.equals(session.getStatus()) && !retryReplacement) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "종료된 세션입니다.",
+                    "AI 분석이 재녹음을 요구한 문항만 새 답변을 저장할 수 있습니다.");
+        }
+        if (existing != null) {
+            return new AnswerResponse(
+                    existing.getId(),
+                    existing.getQuestionId(),
+                    true,
+                    session.getCurrentQuestionOrder(),
+                    existing.getSyncStatus());
+        }
+        if (SessionEntity.ACTIVE.equals(session.getStatus())
+                && firstAnswerForQuestion
+                && session.getAnsweredCount() >= session.getTotalQuestions()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "모든 문항에 답변했습니다.", "새 세션을 시작하세요.");
         }
         Instant now = clock.instant();
         AnswerEntity answer = new AnswerEntity(
@@ -291,14 +304,48 @@ public class SessionService {
                 request.answeredAt(),
                 now);
         answerRepository.save(answer);
-        session.recordAnswer();
-        sessionRepository.save(session);
+        if (firstAnswerForQuestion) {
+            session.recordAnswer();
+            sessionRepository.save(session);
+        }
         return new AnswerResponse(
                 answer.getId(),
                 answer.getQuestionId(),
                 true,
                 session.getCurrentQuestionOrder(),
                 answer.getSyncStatus());
+    }
+
+    private boolean isAllowedAiRetryReplacement(SessionEntity session, QuestionEntity question) {
+        if (!Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())
+                || question.getQuestionCode() == null) {
+            return false;
+        }
+        return cistAiAnalysisRepository.findBySessionId(session.getId())
+                .filter(analysis -> "needs_retry".equals(analysis.getStatus()) && analysis.isRetryable())
+                .map(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), question.getQuestionCode()))
+                .orElse(false);
+    }
+
+    private boolean hasReplaceResponseItem(String retryItems, String questionCode) {
+        if (retryItems == null || retryItems.isBlank()) {
+            return false;
+        }
+        try {
+            JsonNode items = objectMapper.readTree(retryItems);
+            if (!items.isArray()) {
+                return false;
+            }
+            for (JsonNode item : items) {
+                if (questionCode.equals(item.path("question_code").asText())
+                        && "REPLACE_RESPONSE".equals(item.path("required_action").asText())) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("저장된 AI 재시도 항목을 읽을 수 없습니다.", exception);
+        }
     }
 
     @Transactional(readOnly = true)

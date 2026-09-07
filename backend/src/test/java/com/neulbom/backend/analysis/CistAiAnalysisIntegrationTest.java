@@ -37,6 +37,7 @@ import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -189,7 +190,31 @@ class CistAiAnalysisIntegrationTest {
 
         QuestionEntity q11 = questionRepository.findByQuestionCodeAndActiveTrue("memory_delayed_free_recall")
                 .orElseThrow();
-        saveAdministeredResponse(elder, session, q11, now.plusSeconds(120));
+        ReplacementRecording replacementRecording = saveReplacementRecording(
+                elder, session, q11, now.plusSeconds(120));
+        int answeredCountBeforeReplacement = sessionRepository.findById(session.getId()).orElseThrow().getAnsweredCount();
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", session.getId())
+                        .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "client_answer_id":"%s",
+                                  "question_id":"%s",
+                                  "recording_id":"%s",
+                                  "transcript_id":"%s",
+                                  "response_time_ms":250,
+                                  "answered_at":"%s"
+                                }
+                                """.formatted(
+                                UUID.randomUUID(),
+                                q11.getId(),
+                                replacementRecording.recordingId(),
+                                replacementRecording.transcriptId(),
+                                now.plusSeconds(120))))
+                .andExpect(status().isCreated());
+        org.assertj.core.api.Assertions.assertThat(
+                        sessionRepository.findById(session.getId()).orElseThrow().getAnsweredCount())
+                .isEqualTo(answeredCountBeforeReplacement);
         when(aiServerClient.retryAnalysis(any(UUID.class), anyString(), any()))
                 .thenReturn(new AiServerContracts.AnalysisAcceptedResponse(
                         request.analysisId(), session.getId(), "pending", now.plusSeconds(50)));
@@ -326,5 +351,47 @@ class CistAiAnalysisIntegrationTest {
                 250,
                 answeredAt,
                 answeredAt));
+    }
+
+    private ReplacementRecording saveReplacementRecording(
+            UserEntity elder,
+            SessionEntity session,
+            QuestionEntity question,
+            Instant answeredAt
+    ) {
+        UUID recordingId = UUID.randomUUID();
+        UUID transcriptId = UUID.randomUUID();
+        recordingRepository.save(new RecordingEntity(
+                recordingId,
+                UUID.randomUUID(),
+                elder.getId(),
+                RecordingEntity.ANSWER,
+                session.getId(),
+                question.getId(),
+                "recordings/" + recordingId + ".wav",
+                "answer.wav",
+                "{}",
+                "audio/wav",
+                1024,
+                4000,
+                answeredAt,
+                answeredAt));
+        transcriptRepository.save(new TranscriptEntity(
+                transcriptId,
+                recordingId,
+                "민수는 공원에 가서 야구를 했습니다.",
+                new BigDecimal("4.000"),
+                new BigDecimal("0.95"),
+                "ko-KR",
+                "chirp_3",
+                "v2",
+                "completed",
+                answeredAt,
+                answeredAt,
+                answeredAt));
+        return new ReplacementRecording(recordingId, transcriptId);
+    }
+
+    private record ReplacementRecording(UUID recordingId, UUID transcriptId) {
     }
 }
