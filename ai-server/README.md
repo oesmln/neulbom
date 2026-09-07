@@ -36,7 +36,7 @@ ai-server/
 │  ├─ scoring/              # 정오 판정, wrong-event, 응답 지연
 │  ├─ services/             # 분석 파이프라인과 비동기 worker
 │  └─ main.py
-├─ configs/                 # VAD 운영 설정
+├─ configs/                 # VAD 및 Fusion 위험 단계 운영 설정
 ├─ contracts/               # AI·백엔드 기준 계약 파일
 ├─ scripts/                 # VAD 검증 도구
 ├─ tests/                   # 자동 테스트
@@ -61,8 +61,49 @@ AI 서버와 백엔드는 다음 파일을 버전별 불변 기준본으로 사�
 
 - 문항 집합: `cist-v1`
 - 보조 실패 사건 규칙: `wrong-event-v1`
-- 최종 임계값: `0.5`
-- 임계값 버전: `fusion-threshold-v1`
+- 하위 선별 임계값: `0.461`
+- 상위 확인 임계값: `0.802`
+- 임계값 버전: `fusion-threshold-v2`
+
+### 최종 위험 단계
+
+Fusion Model은 0에서 1 사이의 연속형 위험 점수인
+`model_score`를 출력합니다. AI 서버는 이 점수에 두 개의 운영
+threshold를 적용하여 다음 세 단계로 구분합니다.
+
+| 점수 범위 | `risk_level` | 화면 표시 |
+|---|---|---|
+| `p < 0.461` | `stable` | 안정적 |
+| `0.461 <= p < 0.802` | `monitoring_needed` | 꾸준한 관찰 필요 |
+| `p >= 0.802` | `review_needed` | 확인 필요 |
+
+기존 연동 호환성을 위해 `risk_flag`도 함께 반환합니다.
+
+```text
+risk_flag = model_score >= 0.461
+```
+
+최종 결과 예시는 다음과 같습니다.
+
+```json
+{
+  "model_score": 0.823,
+  "decision_threshold": 0.461,
+  "review_threshold": 0.802,
+  "threshold_version": "fusion-threshold-v2",
+  "risk_flag": true,
+  "risk_level": "review_needed"
+}
+```
+
+백엔드는 AI 서버가 반환한 `model_score`, 두 threshold,
+`threshold_version`, `risk_flag`, `risk_level`을 재계산하지 않고
+그대로 저장하고 프론트엔드에 전달합니다.
+
+`0.461`과 `0.802`는 21명의 내부 OOF 결과를 바탕으로 선정한
+졸업과제 프로토타입의 잠정 운영 기준이며 외부 검증된 임상 기준이
+아닙니다. 결과 화면에서는 의학적 진단이나 확진 결과가 아닌 참고용
+스크리닝 결과임을 안내해야 합니다.
 
 ## 모델 아티팩트
 
@@ -114,9 +155,26 @@ artifacts/models/
 - transformers 버전 일치
 - AST sampling rate
 - KcELECTRA max length
-- fusion 특징 순서와 임계값
+- fusion 특징 순서와 학습 당시 기본 임계값
 
 검증에 실패하면 `/health/live`는 정상 응답하지만 `/health/ready`는 `503 MODEL_ARTIFACTS_UNAVAILABLE`을 반환합니다.
+
+Fusion 모델 아티팩트의 `default_threshold=0.5`는 모델 학습 및
+기존 평가 당시의 기준값입니다. 실제 서비스의 위험 단계 판정에는
+이 값을 직접 사용하지 않습니다.
+
+운영 threshold는 다음 별도 정책 파일에서 관리합니다.
+
+```text
+configs/fusion-threshold-v2.json
+```
+
+학습 모델의 계수와 확률 출력 방식은 변경하지 않고, 모델이 출력한
+동일한 연속형 위험 점수에 운영 정책의 `0.461`과 `0.802`를
+적용합니다.
+
+운영 threshold 정책 파일의 Schema, 버전, 임계값 및 위험 단계는
+Fusion 추론 서비스가 최초 로딩될 때 검증합니다.
 
 ## 로컬 실행
 
