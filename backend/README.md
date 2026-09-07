@@ -56,6 +56,8 @@ AI_AUDIO_SIGNING_SECRET=32자-이상의-별도-HMAC-비밀값
 
 백엔드 연동 계약은 저장소의 `ai-server/contracts/ai-server-openapi-v1.yaml`, `cist-v1.json`, `wrong-event-v1.json`이며 빌드 시 같은 파일이 백엔드 classpath의 `contracts/`로 포함됩니다.
 
+macOS에서 앱·백엔드·AI Docker·HTTPS signed URL을 함께 확인하는 절차는 [`../docs/cist-ai-local-integration-test.md`](../docs/cist-ai-local-integration-test.md)를 따릅니다.
+
 ## 카카오·네이버 OAuth
 
 provider client secret은 백엔드 `.env`에만 둡니다. 프론트가 authorization code를 받을 때 사용한 redirect URI를 provider 콘솔과 백엔드 allowlist에 동일하게 등록합니다. 여러 환경은 쉼표로 구분합니다.
