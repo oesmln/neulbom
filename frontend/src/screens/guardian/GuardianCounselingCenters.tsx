@@ -7,6 +7,7 @@ import { counseling } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import type { CounselingCenterResponse } from "@/api/types";
+import { districtOptions } from "@/theme/districts";
 import {
   brandColors,
   colors,
@@ -146,12 +147,101 @@ function Dropdown({
   );
 }
 
-/** `facility_type` filter chips, in the order api-spec 12.1 lists the enum. */
+
+/** 카카오 결과의 링크는 기관 홈페이지가 아니라 카카오 장소 상세라서 라벨을 구분한다. */
+function siteLabel(center: CounselingCenterResponse) {
+  return center.source_name === "카카오 로컬" ? "카카오 장소 정보" : "기관 사이트";
+}
+
+/** 등록 기관과 카카오 검색 결과가 같은 모양으로 보이도록 카드를 하나로 둔다. */
+function CenterCard({
+  center,
+  onKakaoMap,
+  onNaverMap,
+}: {
+  center: CounselingCenterResponse;
+  onKakaoMap: (center: CounselingCenterResponse) => void;
+  onNaverMap: (center: CounselingCenterResponse) => void;
+}) {
+  const visual = typeVisual(center);
+  return (
+    <Card>
+      <Body style={{ fontWeight: fontWeight.bold }}>{center.name}</Body>
+      <View
+        style={[styles.typeBadge, { backgroundColor: visual.background }]}
+      >
+        <Text style={[styles.typeLabel, { color: visual.color }]}>
+          {visual.label}
+        </Text>
+      </View>
+
+      {center.address ? (
+        <View style={styles.addressRow}>
+          <Ionicons
+            name="location-outline"
+            size={14}
+            color={colors.mutedForeground}
+          />
+          <Caption style={{ flex: 1 }}>{center.address}</Caption>
+        </View>
+      ) : null}
+
+      <View style={styles.actions}>
+        <View style={styles.linkGroup}>
+          {center.phone ? (
+            <Pressable
+              onPress={() => void Linking.openURL(`tel:${center.phone}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`${center.name} 전화 걸기`}
+              style={styles.linkButton}
+            >
+              <Ionicons name="call-outline" size={14} color={guardian.blue} />
+              <Text style={styles.linkLabel}>{center.phone}</Text>
+            </Pressable>
+          ) : null}
+          {center.homepage_url ? (
+            <Pressable
+              onPress={() => void Linking.openURL(center.homepage_url as string)}
+              accessibilityRole="link"
+              accessibilityLabel={`${center.name} ${siteLabel(center)} 열기`}
+              style={styles.linkButton}
+            >
+              <Ionicons name="globe-outline" size={14} color={guardian.blue} />
+              <Text style={styles.linkLabel}>{siteLabel(center)}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <View style={styles.mapGroup}>
+          <Pressable
+            onPress={() => onKakaoMap(center)}
+            accessibilityRole="button"
+            accessibilityLabel={`${center.name} 카카오맵에서 보기`}
+            style={[styles.mapButton, styles.kakaoButton]}
+          >
+            <Ionicons name="map-outline" size={14} color={KAKAO_LABEL} />
+            <Text style={[styles.mapLabel, { color: KAKAO_LABEL }]}>카카오맵</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onNaverMap(center)}
+            accessibilityRole="button"
+            accessibilityLabel={`${center.name} 네이버 지도에서 보기`}
+            style={styles.mapButton}
+          >
+            <Ionicons name="map-outline" size={14} color={colors.white} />
+            <Text style={styles.mapLabel}>네이버 지도</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+/** `facility_type` filter chips — 치매안심센터를 먼저 둔다 (무료 검사·상담 진입점). */
 const TYPE_FILTERS = [
   { key: null, label: "전체" },
-  { key: "hospital", label: "병원" },
   { key: "dementia_center", label: "치매안심센터" },
   { key: "public_health_center", label: "보건소" },
+  { key: "hospital", label: "치매 진료 병원" },
 ] as const;
 
 export default function GuardianCounselingCentersScreen() {
@@ -174,24 +264,58 @@ export default function GuardianCounselingCentersScreen() {
     { enabled: !!province },
   );
 
-  // 시·군·구 options are whatever the province's centres actually sit in.
-  const districts = React.useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const c of centers.data?.centers ?? []) {
-      if (c.district_code && c.district_name) seen.set(c.district_code, c.district_name);
-    }
-    return [...seen].map(([code, name]) => ({ code, name }));
-  }, [centers.data]);
+  // 시·군·구 is a fixed table so it can always be chosen, even where the server
+  // holds no registered centres; the name is what both the server filter and the
+  // Kakao search use (#138).
+  const districts = React.useMemo(
+    () => (province ? districtOptions(province.code) : []),
+    [province],
+  );
 
   const visible = (centers.data?.centers ?? [])
-    .filter((c) => !district || c.district_code === district.code)
+    .filter((c) => !district || c.district_name === district.name)
     .filter((c) => !facilityType || c.facility_type === facilityType);
+
+  // Kakao Local results for the same region, fetched by the server so the REST
+  // key never ships in the app. Registered centres render first, these follow.
+  const nearby = useApi(
+    () => counseling.nearby(province?.name as string, district?.name, facilityType ?? undefined),
+    [province?.name, district?.name, facilityType],
+    { enabled: !!province },
+  );
+  // Kakao keyword search also returns neighbouring districts; list the ones whose
+  // address actually sits in the selected 시·군·구 first so "강남구" reads as 강남구.
+  const inDistrict = (c: CounselingCenterResponse) =>
+    !district || (c.address ?? "").includes(district.name);
+  const nearbyCenters = (nearby.data?.centers ?? [])
+    .filter((c) => !visible.some((v) => v.name === c.name && v.address === c.address))
+    .sort((a, b) => Number(inDistrict(b)) - Number(inDistrict(a)));
+  const providerOk = nearby.data?.provider_status === "ok";
 
   const openMap = (center: CounselingCenterResponse) => {
     const url =
       center.naver_map_url ??
       `https://map.naver.com/p/search/${encodeURIComponent(center.name)}`;
     void Linking.openURL(url);
+  };
+
+  // 카카오맵 URL 스킴 — 좌표가 있으면 핀 링크, 없으면 이름 검색 링크 (#136).
+  // 서버 응답의 latitude/longitude를 그대로 쓰므로 백엔드 변경은 없다.
+  const openKakaoMap = (center: CounselingCenterResponse) => {
+    const name = encodeURIComponent(center.name);
+    const url =
+      center.latitude !== null && center.longitude !== null
+        ? `https://map.kakao.com/link/map/${name},${center.latitude},${center.longitude}`
+        : `https://map.kakao.com/link/search/${name}`;
+    void Linking.openURL(url);
+  };
+
+  // 선택한 시/도(+시/군/구)와 시설 키워드로 카카오맵 검색을 연다. 서버에 등록된 기관이
+  // 없는 지역도 지도에서 바로 찾을 수 있게 하는 경로라 기관 데이터에 의존하지 않는다 (#136).
+  const openKakaoSearch = (keyword: string) => {
+    const region = [province?.name, district?.name].filter(Boolean).join(" ");
+    const query = encodeURIComponent(`${region} ${keyword}`.trim());
+    void Linking.openURL(`https://map.kakao.com/link/search/${query}`);
   };
 
   return (
@@ -268,6 +392,34 @@ export default function GuardianCounselingCentersScreen() {
         </View>
       ) : null}
 
+      {province ? (
+        <Caption style={{ marginTop: spacing.md }}>
+          가까운 치매안심센터에서 무료 검사·상담을 받으실 수 있어요.
+        </Caption>
+      ) : null}
+
+      {province && nearby.data && !providerOk ? (
+        <View style={styles.kakaoSearchCard}>
+          <Caption>
+            {province.name} {district?.name ?? ""} 주변을 카카오맵에서 바로 찾기
+          </Caption>
+          <View style={styles.kakaoSearchRow}>
+            {KAKAO_SEARCH_KEYWORDS.map((item) => (
+              <Pressable
+                key={item.keyword}
+                onPress={() => openKakaoSearch(item.keyword)}
+                accessibilityRole="link"
+                accessibilityLabel={`카카오맵에서 ${province.name} ${district?.name ?? ""} ${item.label} 찾기`}
+                style={[styles.mapButton, styles.kakaoButton]}
+              >
+                <Ionicons name="search-outline" size={14} color={KAKAO_LABEL} />
+                <Text style={[styles.mapLabel, { color: KAKAO_LABEL }]}>{item.label} 찾기</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.results}>
         {!province ? (
           <EmptyState
@@ -278,83 +430,74 @@ export default function GuardianCounselingCentersScreen() {
           <ErrorState message={apiErrorMessage(centers.error)} onRetry={centers.reload} />
         ) : centers.loading && !centers.data ? (
           <LoadingState label="기관을 불러오는 중이에요" />
-        ) : visible.length === 0 ? (
-          <EmptyState message="이 지역에 등록된 기관이 없어요." icon="location-outline" />
+        ) : visible.length === 0 && nearbyCenters.length === 0 ? (
+          nearby.loading ? (
+            <LoadingState label="주변 기관을 찾고 있어요" />
+          ) : (
+            <EmptyState
+              message={
+                providerOk
+                  ? "이 지역에서 찾은 기관이 없어요.\n시/군/구나 유형을 바꿔 보세요."
+                  : "이 지역에 등록된 기관이 없어요.\n위의 카카오맵 검색으로 주변 기관을 찾아보세요."
+              }
+              icon="location-outline"
+            />
+          )
         ) : (
           <>
-            <Caption style={{ marginBottom: spacing.md }}>
-              {province.name} {district?.name ?? ""} · {visible.length}개 기관
-            </Caption>
-            <View style={{ gap: spacing.md }}>
-              {visible.map((center) => {
-                const visual = typeVisual(center);
-                return (
-                  <Card key={center.center_id}>
-                    <Body style={{ fontWeight: fontWeight.bold }}>{center.name}</Body>
-                    <View
-                      style={[styles.typeBadge, { backgroundColor: visual.background }]}
-                    >
-                      <Text style={[styles.typeLabel, { color: visual.color }]}>
-                        {visual.label}
-                      </Text>
-                    </View>
-
-                    {center.address ? (
-                      <View style={styles.addressRow}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color={colors.mutedForeground}
-                        />
-                        <Caption style={{ flex: 1 }}>{center.address}</Caption>
-                      </View>
-                    ) : null}
-
-                    <View style={styles.actions}>
-                      <View style={styles.linkGroup}>
-                        {center.phone ? (
-                          <Pressable
-                            onPress={() => void Linking.openURL(`tel:${center.phone}`)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${center.name} 전화 걸기`}
-                            style={styles.linkButton}
-                          >
-                            <Ionicons name="call-outline" size={14} color={guardian.blue} />
-                            <Text style={styles.linkLabel}>{center.phone}</Text>
-                          </Pressable>
-                        ) : null}
-                        {center.homepage_url ? (
-                          <Pressable
-                            onPress={() => void Linking.openURL(center.homepage_url as string)}
-                            accessibilityRole="link"
-                            accessibilityLabel={`${center.name} 기관 사이트 열기`}
-                            style={styles.linkButton}
-                          >
-                            <Ionicons name="globe-outline" size={14} color={guardian.blue} />
-                            <Text style={styles.linkLabel}>기관 사이트</Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                      <Pressable
-                        onPress={() => openMap(center)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${center.name} 네이버 지도에서 보기`}
-                        style={styles.mapButton}
-                      >
-                        <Ionicons name="map-outline" size={14} color={colors.white} />
-                        <Text style={styles.mapLabel}>네이버 지도</Text>
-                      </Pressable>
-                    </View>
-                  </Card>
-                );
-              })}
-            </View>
+            {visible.length > 0 ? (
+              <>
+                <Caption style={{ marginBottom: spacing.md }}>
+                  {province.name} {district?.name ?? ""} · 등록 기관 {visible.length}개
+                </Caption>
+                <View style={{ gap: spacing.md }}>
+                  {visible.map((center) => (
+                    <CenterCard
+                      key={center.center_id}
+                      center={center}
+                      onKakaoMap={openKakaoMap}
+                      onNaverMap={openMap}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
+            {nearby.loading && !nearby.data ? (
+              <LoadingState label="주변 기관을 찾고 있어요" />
+            ) : nearbyCenters.length > 0 ? (
+              <>
+                <Caption style={{ marginTop: visible.length > 0 ? spacing.lg : 0, marginBottom: spacing.md }}>
+                  카카오맵 검색 결과 · {nearbyCenters.length}개
+                </Caption>
+                <View style={{ gap: spacing.md }}>
+                  {nearbyCenters.map((center) => (
+                    <CenterCard
+                      key={center.center_id}
+                      center={center}
+                      onKakaoMap={openKakaoMap}
+                      onNaverMap={openMap}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
           </>
         )}
       </View>
     </Screen>
   );
 }
+
+/** 카카오 공식 버튼 색 — 배경 #FEE500, 라벨 #191919 (카카오 디자인 가이드). */
+const KAKAO_YELLOW = "#FEE500";
+const KAKAO_LABEL = "#191919";
+
+/** 카카오맵 검색 키워드 — 화면의 시설 유형 칩과 같은 순서. */
+const KAKAO_SEARCH_KEYWORDS: { label: string; keyword: string }[] = [
+  { label: "치매안심센터", keyword: "치매안심센터" },
+  { label: "보건소", keyword: "보건소" },
+  { label: "치매 진료 병원", keyword: "치매 진료 병원" },
+];
 
 const styles = StyleSheet.create({
   fieldLabel: {
@@ -432,4 +575,8 @@ const styles = StyleSheet.create({
     backgroundColor: brandColors.naverGreen,
   },
   mapLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.white },
+  mapGroup: { gap: spacing.sm },
+  kakaoButton: { backgroundColor: KAKAO_YELLOW },
+  kakaoSearchCard: { marginTop: spacing.md, gap: spacing.sm },
+  kakaoSearchRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
 });

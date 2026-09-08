@@ -83,6 +83,7 @@ import type {
   Uuid,
   VoiceProfilesResponse,
   XpHistoryResponse,
+  NearbyCentersResponse,
 } from "./types";
 
 /**
@@ -792,6 +793,20 @@ export const counseling = {
       query: {
         province_code: provinceCode,
         district_code: districtCode,
+        facility_type: facilityType,
+      },
+    });
+  },
+
+  /** 시·도/시·군·구 표시명으로 서버가 카카오 로컬 검색을 대신 호출한다 (api-spec 12.1a). */
+  nearby(provinceName: string, districtName?: string, facilityType?: string): Promise<NearbyCentersResponse> {
+    if (USE_MOCK_API) {
+      return Promise.resolve(mock.mockNearbyCenters(provinceName, districtName, facilityType));
+    }
+    return request("/counseling/nearby", {
+      query: {
+        province_name: provinceName,
+        district_name: districtName,
         facility_type: facilityType,
       },
     });
