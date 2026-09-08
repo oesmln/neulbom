@@ -1,23 +1,39 @@
 import React from "react";
 import { View, StyleSheet, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
-import { diaryDateLabel, isoDateOf, moodEmoji } from "@/utils/format";
+import { isoDateOf, moodEmoji } from "@/utils/format";
 import type { DiaryListItem } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Screen, ScreenHeader, Card, Caption, Body, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
+import {
+  Screen,
+  ScreenHeader,
+  Card,
+  Button,
+  Caption,
+  Body,
+  ErrorState,
+  LoadingState,
+  SentenceText as Text,
+} from "@/components/ui";
 
 /**
  * Month calendar backed by `GET /calendar/{user_id}/activities` for the day
  * markers and `GET /diaries/{user_id}` for the entry shown underneath.
  *
- * The grid is built from the real month rather than a fixed offset, and a day
- * without an entry stays blank instead of borrowing a neighbour's mood.
+ * Layout follows the Figma prototype (ElderCalendarScreen): a ‹ month › row,
+ * a bordered grid where the selected day turns sage with a 📖, and a light-sage
+ * entry card with the day's mood and a "전체 보기" toggle. The grid is built
+ * from the real month, and a day without an entry stays blank instead of
+ * borrowing a neighbour's mood.
  */
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+/** Entries longer than this start collapsed behind "전체 보기". */
+const COLLAPSE_AFTER = 90;
 
 function monthRange(base: Date) {
   const first = new Date(base.getFullYear(), base.getMonth(), 1);
@@ -38,11 +54,21 @@ function metadataMood(metadata: unknown): { mood: string | null; level: number |
 export default function ElderCalendarScreen() {
   const { userId } = useApp();
   const today = React.useMemo(() => new Date(), []);
-  const { first, last } = React.useMemo(() => monthRange(today), [today]);
+  const todayDate = isoDateOf(today);
+
+  // 0 = this month; ‹ › move by whole months and the queries follow.
+  const [monthOffset, setMonthOffset] = React.useState(0);
+  const monthBase = React.useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + monthOffset, 1),
+    [today, monthOffset],
+  );
+  const { first, last } = React.useMemo(() => monthRange(monthBase), [monthBase]);
   const fromDate = isoDateOf(first);
   const toDate = isoDateOf(last);
+  const monthLabel = `${monthBase.getFullYear()}년 ${monthBase.getMonth() + 1}월`;
 
-  const [selected, setSelected] = React.useState<string>(isoDateOf(today));
+  const [selected, setSelected] = React.useState<string | null>(todayDate);
+  const [expanded, setExpanded] = React.useState(false);
 
   const calendar = useApi(
     () => diariesApi.calendar(userId as string, fromDate, toDate),
@@ -84,29 +110,43 @@ export default function ElderCalendarScreen() {
   ];
 
   const dateOf = (day: number) =>
-    isoDateOf(new Date(today.getFullYear(), today.getMonth(), day));
+    isoDateOf(new Date(monthBase.getFullYear(), monthBase.getMonth(), day));
 
-  const selectedDiary = diaryByDate.get(selected);
-  const todayDate = isoDateOf(today);
+  const selectedDiary = selected ? diaryByDate.get(selected) : undefined;
+  const selectedDay = selected ? Number(selected.slice(8, 10)) : null;
   const showGenerationStatus =
     selected === todayDate && Boolean(diaryList.data) && !selectedDiary;
   const generation = useApi(
-    () => diariesApi.generationStatus(userId as string, selected),
+    () => diariesApi.generationStatus(userId as string, selected as string),
     [userId, selected],
     { enabled: !!userId && showGenerationStatus },
   );
+  // The list only carries an 80-char `preview`; the card shows the whole entry,
+  // so fetch the detail for whichever day is selected (same pattern as GuardianDiary).
+  const detail = useApi(
+    () => diariesApi.detail(selectedDiary?.diary_id as string),
+    [selectedDiary?.diary_id],
+    { enabled: !!selectedDiary },
+  );
+  const content = detail.data?.content ?? selectedDiary?.preview ?? selectedDiary?.title ?? "";
+  const collapsible = content.length > COLLAPSE_AFTER;
+
   const loading = calendar.loading || diaryList.loading;
   const error = calendar.error ?? diaryList.error;
 
+  const moveMonth = (delta: number) => {
+    setMonthOffset((offset) => offset + delta);
+    setSelected(null);
+    setExpanded(false);
+  };
+
+  const selectDay = (date: string) => {
+    setSelected((current) => (current === date ? null : date));
+    setExpanded(false);
+  };
+
   return (
-    <Screen
-      header={
-        <ScreenHeader
-          title={`${today.getFullYear()}년 ${today.getMonth() + 1}월`}
-          subtitle={`${diaryByDate.size}일 일기 작성`}
-        />
-      }
-    >
+    <Screen header={<ScreenHeader title={monthLabel} subtitle={`${diaryByDate.size}일 일기 작성`} />}>
       {error && !calendar.data ? (
         <ErrorState
           message={apiErrorMessage(error)}
@@ -121,10 +161,38 @@ export default function ElderCalendarScreen() {
 
       {calendar.data ? (
         <>
-          <Card>
+          {/* ‹ 2026년 9월 › — month navigation */}
+          <View style={styles.monthRow}>
+            <Pressable
+              onPress={() => moveMonth(-1)}
+              accessibilityRole="button"
+              accessibilityLabel="이전 달"
+              style={styles.monthButton}
+            >
+              <Ionicons name="chevron-back" size={16} color={colors.mutedForeground} />
+            </Pressable>
+            <Text style={styles.monthLabel}>{monthLabel}</Text>
+            <Pressable
+              onPress={() => moveMonth(1)}
+              accessibilityRole="button"
+              accessibilityLabel="다음 달"
+              style={styles.monthButton}
+            >
+              <Ionicons name="chevron-forward" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+
+          <Card style={styles.calendarCard}>
             <View style={styles.weekRow}>
               {WEEK.map((w, i) => (
-                <Text key={w} style={[styles.weekLabel, i === 0 && { color: colors.destructive }]}>
+                <Text
+                  key={w}
+                  style={[
+                    styles.weekLabel,
+                    i === 0 && { color: colors.destructive },
+                    i === 6 && { color: colors.primary },
+                  ]}
+                >
                   {w}
                 </Text>
               ))}
@@ -135,19 +203,38 @@ export default function ElderCalendarScreen() {
                 if (!day) return <View key={`pad-${i}`} style={styles.cell} />;
                 const date = dateOf(day);
                 const isSelected = date === selected;
+                const isToday = date === todayDate;
                 const mood = moodByDate.get(date);
                 return (
                   <Pressable
                     key={date}
                     style={styles.cell}
-                    onPress={() => setSelected(date)}
+                    onPress={() => selectDay(date)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${today.getMonth() + 1}월 ${day}일${mood ? " 일기 있음" : ""}`}
+                    accessibilityLabel={`${monthBase.getMonth() + 1}월 ${day}일${mood ? " 일기 있음" : ""}`}
                     accessibilityState={{ selected: isSelected }}
                   >
-                    <View style={[styles.dayInner, isSelected && styles.today]}>
-                      <Text style={[styles.dayNum, isSelected && { color: colors.white }]}>{day}</Text>
-                      {mood ? <Text style={styles.mood}>{mood}</Text> : null}
+                    <View
+                      style={[
+                        styles.dayInner,
+                        isToday && styles.dayToday,
+                        isSelected && styles.daySelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.dayNum,
+                          isToday && { color: colors.primaryDark },
+                          isSelected && { color: colors.white },
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                      {mood ? (
+                        <Text style={styles.mood}>{isSelected ? "📖" : mood}</Text>
+                      ) : (
+                        <View style={styles.moodSpacer} />
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -155,36 +242,63 @@ export default function ElderCalendarScreen() {
             </View>
           </Card>
 
-          <Card style={{ marginTop: spacing.lg }}>
-            <Caption>{diaryDateLabel(selectedDiary?.written_at ?? `${selected}T00:00:00`)}</Caption>
-            {selectedDiary ? (
-              <>
-                <Text style={{ fontSize: 30, marginVertical: spacing.xs }}>
+          {selected && selectedDiary ? (
+            // Light-sage entry card: "9월 8일의 일기" + mood, body, 전체 보기 toggle.
+            <View style={styles.entryCard}>
+              <View style={styles.entryHead}>
+                <Text style={styles.entryTitle}>
+                  {monthBase.getMonth() + 1}월 {selectedDay}일의 일기
+                </Text>
+                <Text style={styles.entryMood}>
                   {moodEmoji(selectedDiary.mood, selectedDiary.mood_level)}
                 </Text>
-                <Body>{selectedDiary.preview ?? selectedDiary.title ?? ""}</Body>
-              </>
-            ) : showGenerationStatus && generation.error ? (
-              <ErrorState
-                message={apiErrorMessage(generation.error)}
-                onRetry={generation.reload}
-              />
-            ) : showGenerationStatus && !generation.data ? (
-              <LoadingState label="일기 준비 상태를 확인하고 있어요" />
-            ) : showGenerationStatus && generation.data ? (
-              <View style={styles.generationStatus}>
-                <Text style={styles.generationLabel}>
-                  {generation.data.display_label ?? "일기를 준비하고 있어요"}
-                </Text>
-                <Body>{generation.data.message ?? "잠시 후 다시 확인해 주세요."}</Body>
               </View>
-            ) : (
-              <Body>아직 이 날의 일기가 없어요.</Body>
-            )}
-          </Card>
+              <Text style={styles.entryBody} numberOfLines={collapsible && !expanded ? 3 : undefined}>
+                {content}
+              </Text>
+              {collapsible ? (
+                <Button
+                  label={expanded ? "접기" : "전체 보기"}
+                  onPress={() => setExpanded((value) => !value)}
+                  style={styles.entryAction}
+                />
+              ) : null}
+            </View>
+          ) : selected ? (
+            <Card style={styles.emptyCard}>
+              {showGenerationStatus && generation.error ? (
+                <ErrorState message={apiErrorMessage(generation.error)} onRetry={generation.reload} />
+              ) : showGenerationStatus && !generation.data ? (
+                <LoadingState label="일기 준비 상태를 확인하고 있어요" />
+              ) : showGenerationStatus && generation.data ? (
+                <>
+                  <Text style={styles.generationLabel}>
+                    {generation.data.display_label ?? "일기를 준비하고 있어요"}
+                  </Text>
+                  <Body style={styles.emptyText}>
+                    {generation.data.message ?? "잠시 후 다시 확인해 주세요."}
+                  </Body>
+                </>
+              ) : (
+                <Body style={styles.emptyText}>
+                  {monthBase.getMonth() + 1}월 {selectedDay}일에는 아직 일기가 없어요.
+                </Body>
+              )}
+            </Card>
+          ) : null}
 
           <View style={styles.legend}>
-            <Caption>😊 좋음 · 😐 보통 · 빈 칸은 기록 없음</Caption>
+            {[
+              ["😄", "아주 좋음"],
+              ["😊", "좋음"],
+              ["😐", "보통"],
+              ["😔", "힘듦"],
+            ].map(([emoji, label]) => (
+              <View key={label} style={styles.legendItem}>
+                <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                <Caption>{label}</Caption>
+              </View>
+            ))}
           </View>
         </>
       ) : null}
@@ -193,19 +307,72 @@ export default function ElderCalendarScreen() {
 }
 
 const styles = StyleSheet.create({
-  weekRow: { flexDirection: "row", marginBottom: spacing.sm },
-  weekLabel: { flex: 1, textAlign: "center", fontSize: fontSize.caption, fontWeight: fontWeight.bold, color: colors.mutedForeground },
-  grid: { flexDirection: "row", flexWrap: "wrap" },
-  cell: { width: "14.2857%", aspectRatio: 1, padding: 3 },
-  dayInner: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
-  today: { backgroundColor: colors.primary },
-  dayNum: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: colors.foreground },
-  mood: { fontSize: 14, marginTop: 1 },
-  generationStatus: { marginTop: spacing.sm, gap: spacing.xs },
-  generationLabel: {
-    fontSize: fontSize.body,
-    fontWeight: fontWeight.bold,
-    color: colors.foreground,
+  monthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.lg,
   },
-  legend: { marginTop: spacing.lg, alignItems: "center" },
+  monthButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthLabel: { fontSize: 15, fontWeight: fontWeight.semibold, color: colors.foreground },
+
+  calendarCard: { padding: spacing.lg },
+  weekRow: { flexDirection: "row", marginBottom: spacing.sm },
+  weekLabel: {
+    flex: 1,
+    textAlign: "center",
+    paddingVertical: spacing.xs,
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
+    color: colors.mutedForeground,
+  },
+  grid: { flexDirection: "row", flexWrap: "wrap", rowGap: spacing.xs },
+  cell: { width: "14.2857%" },
+  dayInner: {
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  dayToday: { backgroundColor: colors.secondary },
+  daySelected: { backgroundColor: colors.primary },
+  dayNum: { fontSize: 13, fontWeight: fontWeight.semibold, color: colors.foreground },
+  mood: { fontSize: 12 },
+  moodSpacer: { height: 14 },
+
+  entryCard: {
+    marginTop: spacing.lg,
+    padding: spacing.xl,
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    backgroundColor: colors.secondary,
+  },
+  entryHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  entryTitle: { fontSize: 16, fontWeight: fontWeight.bold, color: colors.foreground },
+  entryMood: { fontSize: 22 },
+  entryBody: { fontSize: 14, lineHeight: 24, color: colors.mutedForeground },
+  entryAction: { marginTop: spacing.xs },
+
+  emptyCard: { marginTop: spacing.lg, alignItems: "center", gap: spacing.sm },
+  emptyText: { textAlign: "center", color: colors.mutedForeground },
+  generationLabel: { fontSize: fontSize.body, fontWeight: fontWeight.bold, color: colors.foreground },
+
+  legend: {
+    marginTop: spacing.lg,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.lg,
+  },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
 });

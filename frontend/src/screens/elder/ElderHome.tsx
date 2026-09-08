@@ -235,6 +235,9 @@ function DiaryCard({ diary }: { diary: DashboardDiarySummary }) {
  * cannot turn a screening score into something that reads as a diagnosis. The
  * title and message below are the server's `title` / `message`, not local copy.
  */
+/** 상태 카드 하단 안내 — 진단이 아닌 참고 정보임을 명시한다. */
+const REFERENCE_NOTICE = "이 안내는 진단이 아니라, 오늘까지의 대화를 참고해 보여드리는 정보예요.";
+
 function CognitiveStatusCard({ activity }: { activity: DashboardCognitiveActivity }) {
   const index = Math.max(0, cognitiveStages.findIndex((s) => s.key === activity.status));
   const current = cognitiveStages[index];
@@ -293,6 +296,8 @@ function CognitiveStatusCard({ activity }: { activity: DashboardCognitiveActivit
       </View>
 
       {footnote ? <Text style={styles.cardFootnote}>{footnote}</Text> : null}
+      {/* 자문의견서: 운영 threshold 결과는 "참고 점수"임을 함께 안내한다 (#136). */}
+      <Text style={styles.cardFootnote}>{REFERENCE_NOTICE}</Text>
     </Card>
   );
 }
