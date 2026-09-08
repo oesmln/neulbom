@@ -43,6 +43,7 @@ import com.neulbom.backend.user.UserPreferenceRepository;
 import com.neulbom.backend.user.UserRepository;
 import com.neulbom.backend.user.VoiceProfileEntity;
 import com.neulbom.backend.user.VoiceProfileRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -71,6 +72,7 @@ public class SessionService {
     private final ObjectMapper objectMapper;
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     public SessionService(
             UserRepository userRepository,
@@ -85,7 +87,8 @@ public class SessionService {
             GameService gameService,
             ObjectMapper objectMapper,
             UuidGenerator uuidGenerator,
-            Clock clock
+            Clock clock,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.userRepository = userRepository;
         this.consentRepository = consentRepository;
@@ -100,6 +103,7 @@ public class SessionService {
         this.objectMapper = objectMapper;
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -179,6 +183,9 @@ public class SessionService {
             Instant endedAt = clock.instant();
             session.end(endedAt);
             sessionRepository.save(session);
+            // 커밋 이후에만 소비된다 — 세션 종료 즉시 일기 생성 등 후속 작업의 훅.
+            eventPublisher.publishEvent(new SessionEndedEvent(
+                    session.getId(), session.getUserId(), session.getSessionType()));
             if ("baseline".equals(session.getSessionType())) {
                 userRepository.findById(session.getUserId())
                         .filter(UserEntity::isActive)

@@ -66,6 +66,9 @@ app:
   scheduler:
     enabled: ${APP_SCHEDULER_ENABLED:true}
     daily-report-cron: ${APP_DAILY_REPORT_CRON:0 5 0 * * *}
+  diary:
+    # true면 정서 문답 세션 종료 직후 Gemini 요약으로 당일 일기를 만든다 (로컬 테스트용, 기본 false)
+    generate-on-session-end: ${DIARY_GENERATE_ON_SESSION_END:false}
   request-id:
     header-name: ${REQUEST_ID_HEADER:X-Request-Id}
   cors:

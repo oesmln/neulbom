@@ -4,10 +4,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
-import com.neulbom.backend.analysis.AnalysisService;
-import com.neulbom.backend.analysis.api.DailySummaryRequest;
-import com.neulbom.backend.analysis.api.DailySummaryResponse;
-import com.neulbom.backend.diary.api.DiaryFromDailySummaryRequest;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
 import org.slf4j.Logger;
@@ -29,19 +25,16 @@ public class DailyReportScheduler {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
-    private final AnalysisService analysisService;
-    private final DiaryService diaryService;
+    private final DailyDiaryGenerator dailyDiaryGenerator;
     private final Clock clock;
 
     public DailyReportScheduler(
             UserRepository userRepository,
-            AnalysisService analysisService,
-            DiaryService diaryService,
+            DailyDiaryGenerator dailyDiaryGenerator,
             Clock clock
     ) {
         this.userRepository = userRepository;
-        this.analysisService = analysisService;
-        this.diaryService = diaryService;
+        this.dailyDiaryGenerator = dailyDiaryGenerator;
         this.clock = clock;
     }
 
@@ -59,17 +52,8 @@ public class DailyReportScheduler {
 
     private void processUser(UserEntity user, LocalDate targetDate) {
         try {
-            DailySummaryResponse summary = analysisService.createDailySummary(
-                    new DailySummaryRequest(user.getId(), targetDate, "Asia/Seoul"));
-            diaryService.createFromDailySummary(
-                    user.getId(),
-                    new DiaryFromDailySummaryRequest(
-                            summary.dailySummaryId(),
-                            user.getId(),
-                            "오늘의 이야기",
-                            null,
-                            null,
-                            null));
+            // 전날 정서 문답을 Gemini 요약으로 묶어 일기 본문까지 만든다.
+            dailyDiaryGenerator.generate(user.getId(), targetDate);
         } catch (RuntimeException exception) {
             // One user's provider or data failure must not prevent the rest of
             // the elder accounts from receiving their next report.
