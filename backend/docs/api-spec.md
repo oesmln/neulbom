@@ -251,6 +251,7 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | Method | Endpoint | 설명 | 인증 | 주요 역할 | 우선순위 |
 | --- | --- | --- | --- | --- | --- |
 | `GET` | `/counseling/centers` | 지역별 상담 센터 목록 및 지도·기관 사이트 외부 링크 | 필요 | 로그인 사용자 | MVP |
+| `GET` | `/counseling/nearby` | 시·도/시·군·구 기준 카카오 로컬 검색으로 주변 기관 조회 | 필요 | 로그인 사용자 | MVP |
 | `GET` | `/counseling/centers/{center_id}/availability` | 상담 가능 시간 조회 | 필요 | `guardian` | Phase 2 |
 | `POST` | `/counseling/appointments` | 상담 예약 생성 | 필요 | `guardian` | Phase 2 |
 | `GET` | `/counseling/appointments` | 본인 상담 예약 목록 조회 | 필요 | `guardian` | Phase 2 |
@@ -2353,6 +2354,30 @@ MVP에서는 지역을 선택하면 상담 센터 목록과 네이버 지도·�
 - `counseling_centers` 기준 테이블을 migration으로 생성하고 부산광역시 해운대구 MVP seed를 등록한다.
 - `province_code`는 필수이며 `district_code`, `facility_type`, `page`, `limit`을 서버에서 필터·페이지네이션한다. 응답의 `homepage_url`과 `naver_map_url`은 외부 연결용 URL이다.
 - MVP의 `reservation_mode`는 `external_link`로 고정한다. availability·appointment endpoint는 Phase 2로 유지한다.
+
+### 12.1a `GET /counseling/nearby` - 주변 상담 기관 검색 (카카오 로컬)
+
+등록 기관 테이블에 없는 지역도 지도 데이터로 찾을 수 있도록, 시·도/시·군·구 표시명과 시설 유형을 받아 서버가 카카오 로컬 키워드 검색을 대신 호출한다. 카카오 REST 키는 서버 `.env`(`KAKAO_CLIENT_ID`)에만 두며 앱에 노출하지 않는다. 결과는 지역·유형별로 1시간 메모리 캐시한다.
+
+#### Query Parameters
+
+| 파라미터 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `province_name` | string | Y | 시·도 표시명 (예: `서울특별시`) |
+| `district_name` | string | N | 시·군·구 표시명 (예: `강남구`) |
+| `facility_type` | enum | N | `dementia_center`, `public_health_center`, `hospital`. 생략 시 세 유형 모두 |
+
+검색어는 `{province_name} {district_name} {키워드}`이며 키워드는 `치매안심센터` · `보건소` · `치매 진료 병원`이다.
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `centers[]` | array | 12.1과 같은 `CounselingCenterResponse` 형식. `center_id`는 카카오 장소 ID 기반 결정적 UUID, `province_code`/`district_code`는 `null`, `homepage_url`은 카카오 장소 상세 URL, `source_name`은 `카카오 로컬` |
+| `total` | integer | 결과 수 |
+| `provider_status` | enum | `ok` · `not_configured`(키 없음) · `unavailable`(카카오 오류·미활성화) |
+
+provider 실패는 `503`이 아니라 빈 `centers`와 `provider_status`로 응답한다. 앱은 `ok`가 아니면 카카오맵 검색 링크 버튼으로 폴백한다. 등록 기관 목록(12.1)은 이 endpoint와 독립적으로 동작한다.
 
 ### 12.2 `GET /counseling/centers/{center_id}/availability` - 상담 가능 시간 (Phase 2)
 

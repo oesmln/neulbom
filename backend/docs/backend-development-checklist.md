@@ -193,6 +193,7 @@
 완료 조건: 지역 선택 후 센터 목록과 외부 연결이 동작한다. availability·예약·취소는 동의·기관 연동 조건을 포함한 Phase 2로 남겨둔다.
 
 구현 근거: `counseling_centers` V9 migration/seed와 `CounselingCenterController`의 지역·기관 유형 필터, 지도·홈페이지 URL, 출처·갱신 시각 응답을 연결했다.
+- [x] `GET /counseling/nearby` - 카카오 로컬 키워드 검색으로 주변 치매안심센터·보건소·치매 진료 병원 조회, 1시간 캐시, provider 실패 시 빈 목록 + `provider_status` (#137)
 
 ### 11차. 알림 API
 
