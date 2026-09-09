@@ -41,6 +41,8 @@ import {
 const WEEKLY_TARGET_SESSIONS = 7;
 const DEFAULT_SCORE_MAX = 30;
 const RECENT_DIARY_LIMIT = 3;
+/** 점수 카드 하단 안내 — threshold 기반 판정이 참고용임을 밝힌다 (톤: GuardianChart 참고용 캡션). */
+const SCORE_REFERENCE_NOTICE = "이 점수는 참고용 스크리닝 결과이며, 정확한 진단은 전문의와 확인해 주세요.";
 
 const RISK_BADGE: Record<string, { label: string; color: string; background: string }> = {
   low: { label: "정상 범위", color: guardian.blueDark, background: guardian.blueLight },
@@ -248,6 +250,9 @@ export default function GuardianDashboardScreen() {
               <Caption>0점</Caption>
               <Caption>{scoreMax}점</Caption>
             </View>
+            {/* 자문의견서: threshold 판정은 참고용임을 점수 바로 아래에서 안내한다.
+                상담 권유 등 행동 유도는 아래 ③ 경보 카드가 맡으므로 여기서는 반복하지 않는다 (#136). */}
+            <Caption style={{ marginTop: spacing.sm }}>{SCORE_REFERENCE_NOTICE}</Caption>
           </>
         ) : null}
       </Card>

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput } from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Alert, Modal, TextInput, Image } from "react-native";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,13 +26,43 @@ import { Button, Card, ErrorState, LoadingState, ProgressBar, ScreenHeader, Sent
  * level number, current XP and the goal all come from the server; nothing here
  * decides when someone levels up.
  */
+/**
+ * 레벨별 팥이(공식 캐릭터) 프로필 이미지 — `assets/models/optimized/{n}_final.glb`를
+ * Memoi3D와 같은 카메라·조명으로 렌더한 정적 PNG. 마이페이지는 3D 캔버스를 띄우지
+ * 않으므로(동시 1개 캐릭터 로드 원칙) 이미지로 대체한다 (#136).
+ */
+const PATYI_IMAGES: Record<number, number> = {
+  1: require("../../../assets/character/patyi-level-1.png"),
+  2: require("../../../assets/character/patyi-level-2.png"),
+  3: require("../../../assets/character/patyi-level-3.png"),
+  4: require("../../../assets/character/patyi-level-4.png"),
+  5: require("../../../assets/character/patyi-level-5.png"),
+};
+
 const LEVELS = [
-  { level: 1, name: "아기 메모이", min: 0, emoji: "🐣", desc: "막 태어난 메모이예요. 함께 시작해봐요!" },
-  { level: 2, name: "꼬마 메모이", min: 100, emoji: "🐶", desc: "조금씩 자라고 있어요. 꾸준히 함께해요!" },
-  { level: 3, name: "활발한 메모이", min: 300, emoji: "🌱", desc: "에너지가 넘치는 메모이가 됐어요!" },
-  { level: 4, name: "씩씩한 메모이", min: 600, emoji: "🌸", desc: "메모이가 훌쩍 성장했어요. 대단해요!" },
-  { level: 5, name: "지혜로운 메모이", min: 1000, emoji: "⭐", desc: "최고 등급! 메모이와 함께라서 행복해요." },
+  { level: 1, name: "아기 메모이", min: 0, emoji: "🐣", image: PATYI_IMAGES[1], desc: "막 태어난 메모이예요. 함께 시작해봐요!" },
+  { level: 2, name: "꼬마 메모이", min: 100, emoji: "🐶", image: PATYI_IMAGES[2], desc: "조금씩 자라고 있어요. 꾸준히 함께해요!" },
+  { level: 3, name: "활발한 메모이", min: 300, emoji: "🌱", image: PATYI_IMAGES[3], desc: "에너지가 넘치는 메모이가 됐어요!" },
+  { level: 4, name: "씩씩한 메모이", min: 600, emoji: "🌸", image: PATYI_IMAGES[4], desc: "메모이가 훌쩍 성장했어요. 대단해요!" },
+  { level: 5, name: "지혜로운 메모이", min: 1000, emoji: "⭐", image: PATYI_IMAGES[5], desc: "최고 등급! 메모이와 함께라서 행복해요." },
 ];
+
+/** 팥이 이미지를 보여주고, 로드에 실패하면 기존 이모지로 되돌아간다. */
+function PatyiAvatar({ image, emoji, size }: { image: number; emoji: string; size: number }) {
+  const [failed, setFailed] = React.useState(false);
+  if (failed) {
+    return <Text style={{ fontSize: size * 0.7 }}>{emoji}</Text>;
+  }
+  return (
+    <Image
+      source={image}
+      onError={() => setFailed(true)}
+      style={{ width: size, height: size }}
+      resizeMode="contain"
+      accessibilityIgnoresInvertColors
+    />
+  );
+}
 
 function levelMeta(level: number) {
   return LEVELS.find((l) => l.level === level) ?? LEVELS[0];
@@ -177,7 +207,7 @@ export default function ElderMyPageScreen() {
         <Card style={{ gap: spacing.lg }}>
           <View style={styles.levelRow}>
             <View style={styles.levelBadge}>
-              <Text style={{ fontSize: 28 }}>{level.emoji}</Text>
+              <PatyiAvatar image={level.image} emoji={level.emoji} size={44} />
               <Text style={styles.levelBadgeLabel}>Lv.{level.level}</Text>
             </View>
 
@@ -247,7 +277,7 @@ export default function ElderMyPageScreen() {
                           <Ionicons name="checkmark" size={11} color={colors.white} />
                         ) : null}
                       </View>
-                      <Text style={{ fontSize: 10 }}>{l.emoji}</Text>
+                      <PatyiAvatar image={l.image} emoji={l.emoji} size={18} />
                     </View>
                     {isLast ? null : (
                       <View
