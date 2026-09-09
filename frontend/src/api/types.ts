@@ -964,3 +964,12 @@ export interface CounselingCentersResponse {
   centers: CounselingCenterResponse[];
   total: number;
 }
+
+/** `GET /counseling/nearby` — 카카오 로컬 검색 결과. `ok`가 아니면 지도 검색 링크로 폴백한다. */
+export type NearbyProviderStatus = "ok" | "not_configured" | "unavailable";
+
+export interface NearbyCentersResponse {
+  centers: CounselingCenterResponse[];
+  total: number;
+  provider_status: NearbyProviderStatus;
+}

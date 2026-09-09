@@ -39,6 +39,7 @@ import type {
   Uuid,
   XpHistoryItem,
   XpHistoryResponse,
+  NearbyCentersResponse,
 } from "./types";
 
 export const MOCK_ELDER_ID = "11111111-1111-4111-8111-111111111111";
@@ -905,6 +906,31 @@ export function mockCounselingCenters(
       source_updated_at: daysAgo(30).toISOString(),
     }));
   return { centers, total: centers.length };
+}
+
+export function mockNearbyCenters(
+  provinceName: string,
+  districtName?: string,
+  facilityType?: string,
+): NearbyCentersResponse {
+  // The fixtures only cover 부산 해운대구; other regions come back empty with
+  // provider_status "ok" so the screen shows the "no results" state, not the fallback.
+  const centers =
+    provinceName === "부산광역시" && (!districtName || districtName === "해운대구")
+      ? counselingCenters
+          .filter((c) => !facilityType || c.facility_type === facilityType)
+          .map((c) => ({
+            ...c,
+            province_code: null,
+            district_code: null,
+            province_name: "부산광역시",
+            district_name: "해운대구",
+            reservation_mode: "external_link",
+            source_name: "카카오 로컬",
+            source_updated_at: daysAgo(0).toISOString(),
+          }))
+      : [];
+  return { centers, total: centers.length, provider_status: "ok" };
 }
 
 export function mockHistory(): HistoryResponse {
