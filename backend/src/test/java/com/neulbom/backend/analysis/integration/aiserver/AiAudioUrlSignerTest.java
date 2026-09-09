@@ -50,12 +50,12 @@ class AiAudioUrlSignerTest {
     }
 
     @Test
-    void rejectsAudioFormatsOutsideTheAiContract() {
+    void acceptsWebmAudioFormatInTheAiContract() {
         AiAudioUrlSigner signer = signer("https://backend.test", "test-signing-secret-at-least-32-characters");
 
-        assertThatThrownBy(() -> signer.issue(recording(UUID.randomUUID(), "audio/webm")))
-                .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+        var audio = signer.issue(recording(UUID.randomUUID(), "audio/webm"));
+
+        assertThat(audio.contentType()).isEqualTo("audio/webm");
     }
 
     private AiAudioUrlSigner signer(String publicBaseUrl, String secret) {

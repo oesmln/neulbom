@@ -86,11 +86,12 @@ public class AiAudioUrlSigner {
         return switch (mimeType == null ? "" : mimeType.toLowerCase(java.util.Locale.ROOT)) {
             case "audio/x-wav" -> "audio/wav";
             case "audio/x-m4a" -> "audio/mp4";
-            case "audio/wav", "audio/mp4", "audio/mpeg" -> mimeType.toLowerCase(java.util.Locale.ROOT);
+            case "audio/wav", "audio/mp4", "audio/mpeg", "audio/webm" ->
+                    mimeType.toLowerCase(java.util.Locale.ROOT);
             default -> throw new ApiException(
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "AI 분석에서 지원하지 않는 음성 형식입니다.",
-                    "WAV, M4A 또는 MP3 녹음을 사용하세요.");
+                    "WAV, M4A, MP3 또는 WebM 녹음을 사용하세요.");
         };
     }
 }

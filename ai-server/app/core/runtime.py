@@ -130,6 +130,10 @@ async def lifespan(
                         settings
                         .max_audio_download_bytes
                     ),
+                    allowed_hosts=(
+                        settings
+                        .allowed_audio_download_hosts
+                    ),
                 )
             )
             repository = (

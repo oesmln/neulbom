@@ -17,6 +17,7 @@ _FORMAT_HINTS = {
     "audio/mp4": "mp4",
     "audio/x-m4a": "mp4",
     "audio/mpeg": "mp3",
+    "audio/webm": "webm",
 }
 
 

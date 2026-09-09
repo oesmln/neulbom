@@ -128,6 +128,44 @@ def test_creates_recognition_plan(
     assert workflow.execution_count == 1
 
 
+def test_accepts_webm_audio_resource(
+    tmp_path: Path,
+) -> None:
+    workflow = FakeRecognitionPlanWorkflow()
+    client = _create_client(
+        tmp_path=tmp_path,
+        workflow=workflow,
+    )
+    payload = _request_payload()
+    payload["response"]["audio"] = {
+        "signed_url": (
+            "https://storage.example/q11.webm"
+        ),
+        "expires_at": "2099-09-01T10:30:00Z",
+        "content_type": "audio/webm",
+        "size_bytes": 123456,
+    }
+
+    response = client.post(
+        (
+            f"/v1/assessments/{ASSESSMENT_ID}"
+            "/recognition-plan"
+        ),
+        headers={
+            "Authorization": (
+                f"Bearer {SERVICE_TOKEN}"
+            ),
+            "Idempotency-Key": (
+                "recognition-plan-webm-0001"
+            ),
+        },
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert workflow.execution_count == 1
+
+
 def test_replays_identical_request(
     tmp_path: Path,
 ) -> None:

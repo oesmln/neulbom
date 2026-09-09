@@ -22,6 +22,10 @@ import com.neulbom.backend.game.GameService;
 import com.neulbom.backend.game.XpPolicy;
 import com.neulbom.backend.game.api.XpAwardResponse;
 import com.neulbom.backend.guardian.GuardianAccessService;
+import com.neulbom.backend.recording.RecordingEntity;
+import com.neulbom.backend.recording.RecordingRepository;
+import com.neulbom.backend.recording.TranscriptEntity;
+import com.neulbom.backend.recording.TranscriptRepository;
 import com.neulbom.backend.session.api.AnswerRequest;
 import com.neulbom.backend.session.api.AnswerResponse;
 import com.neulbom.backend.session.api.QuestionResponse;
@@ -66,6 +70,8 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
+    private final RecordingRepository recordingRepository;
+    private final TranscriptRepository transcriptRepository;
     private final CistAiAnalysisRepository cistAiAnalysisRepository;
     private final GuardianAccessService guardianAccessService;
     private final GameService gameService;
@@ -82,6 +88,8 @@ public class SessionService {
             SessionRepository sessionRepository,
             QuestionRepository questionRepository,
             AnswerRepository answerRepository,
+            RecordingRepository recordingRepository,
+            TranscriptRepository transcriptRepository,
             CistAiAnalysisRepository cistAiAnalysisRepository,
             GuardianAccessService guardianAccessService,
             GameService gameService,
@@ -97,6 +105,8 @@ public class SessionService {
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
+        this.recordingRepository = recordingRepository;
+        this.transcriptRepository = transcriptRepository;
         this.cistAiAnalysisRepository = cistAiAnalysisRepository;
         this.guardianAccessService = guardianAccessService;
         this.gameService = gameService;
@@ -263,7 +273,7 @@ public class SessionService {
 
     @Transactional
     public AnswerResponse saveAnswer(UUID authenticatedUserId, UUID sessionId, AnswerRequest request) {
-        SessionEntity session = ownedSession(authenticatedUserId, sessionId);
+        SessionEntity session = ownedSessionForUpdate(authenticatedUserId, sessionId);
         AnswerEntity existing = answerRepository.findBySessionIdAndClientAnswerId(sessionId, request.clientAnswerId())
                 .orElse(null);
         if (existing != null && !existing.getQuestionId().equals(request.questionId())) {
@@ -276,6 +286,7 @@ public class SessionService {
         if (!questionMatchesSession(question, session.getSessionType())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "세션 문항이 아닙니다.", "question_id와 session_type을 확인하세요.");
         }
+        validateAnswerReferences(authenticatedUserId, sessionId, question.getId(), request);
         boolean firstAnswerForQuestion = !answerRepository.existsBySessionIdAndQuestionId(sessionId, question.getId());
         boolean retryReplacement = SessionEntity.ENDED.equals(session.getStatus())
                 && isAllowedAiRetryReplacement(session, question);
@@ -330,8 +341,86 @@ public class SessionService {
         }
         return cistAiAnalysisRepository.findBySessionId(session.getId())
                 .filter(analysis -> "needs_retry".equals(analysis.getStatus()) && analysis.isRetryable())
-                .map(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), question.getQuestionCode()))
+                .filter(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), question.getQuestionCode()))
+                .map(analysis -> hasNotSubmittedReplacement(
+                        session.getId(),
+                        question.getId(),
+                        question.getQuestionCode(),
+                        analysis.getSubmittedResponses()))
                 .orElse(false);
+    }
+
+    private boolean hasNotSubmittedReplacement(
+            UUID sessionId,
+            UUID questionId,
+            String questionCode,
+            String submittedResponses
+    ) {
+        if (submittedResponses == null || submittedResponses.isBlank()) {
+            return false;
+        }
+        try {
+            JsonNode submitted = objectMapper.readTree(submittedResponses).path(questionCode);
+            String submittedResponseId = submitted.path("responseId").asText();
+            if (submittedResponseId.isBlank()) {
+                return false;
+            }
+            return answerRepository.findAllBySessionIdOrderByAnsweredAtAsc(sessionId).stream()
+                    .filter(answer -> questionId.equals(answer.getQuestionId()))
+                    .reduce((first, second) -> second)
+                    .map(answer -> answer.getId().toString().equals(submittedResponseId))
+                    .orElse(false);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("저장된 AI 제출 응답을 읽을 수 없습니다.", exception);
+        }
+    }
+
+    private void validateAnswerReferences(
+            UUID authenticatedUserId,
+            UUID sessionId,
+            UUID questionId,
+            AnswerRequest request
+    ) {
+        RecordingEntity recording = null;
+        if (request.recordingId() != null) {
+            recording = requiredOwnedRecording(authenticatedUserId, request.recordingId());
+            validateRecordingContext(recording, sessionId, questionId);
+        }
+
+        if (request.transcriptId() == null) {
+            return;
+        }
+
+        TranscriptEntity transcript = transcriptRepository.findById(request.transcriptId())
+                .orElseThrow(() -> new ResourceNotFoundException("전사 결과를 찾을 수 없습니다."));
+        RecordingEntity transcriptRecording = requiredOwnedRecording(authenticatedUserId, transcript.getRecordingId());
+        validateRecordingContext(transcriptRecording, sessionId, questionId);
+        if (recording != null && !recording.getId().equals(transcriptRecording.getId())) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "녹음과 전사 결과가 일치하지 않습니다.",
+                    "transcript_id는 recording_id에서 생성된 결과여야 합니다.");
+        }
+    }
+
+    private RecordingEntity requiredOwnedRecording(UUID authenticatedUserId, UUID recordingId) {
+        RecordingEntity recording = recordingRepository.findById(recordingId)
+                .orElseThrow(() -> new ResourceNotFoundException("녹음 파일을 찾을 수 없습니다."));
+        if (!authenticatedUserId.equals(recording.getUserId())) {
+            throw new AccessDeniedException("본인 녹음만 답변에 연결할 수 있습니다.");
+        }
+        return recording;
+    }
+
+    private void validateRecordingContext(RecordingEntity recording, UUID sessionId, UUID questionId) {
+        if (!RecordingEntity.ANSWER.equals(recording.getPurpose())
+                || !sessionId.equals(recording.getSessionId())
+                || !questionId.equals(recording.getQuestionId())) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "답변과 녹음의 참조가 일치하지 않습니다.",
+                    "recording_id의 세션·문항·용도를 확인하세요.");
+        }
     }
 
     private boolean hasReplaceResponseItem(String retryItems, String questionCode) {
@@ -419,6 +508,15 @@ public class SessionService {
 
     private SessionEntity ownedSession(UUID authenticatedUserId, UUID sessionId) {
         SessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
+        if (!authenticatedUserId.equals(session.getUserId())) {
+            throw new AccessDeniedException("본인 세션만 수정할 수 있습니다.");
+        }
+        return session;
+    }
+
+    private SessionEntity ownedSessionForUpdate(UUID authenticatedUserId, UUID sessionId) {
+        SessionEntity session = sessionRepository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
         if (!authenticatedUserId.equals(session.getUserId())) {
             throw new AccessDeniedException("본인 세션만 수정할 수 있습니다.");

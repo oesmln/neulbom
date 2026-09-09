@@ -67,6 +67,7 @@ AudioContentType = Literal[
     "audio/mp4",
     "audio/x-m4a",
     "audio/mpeg",
+    "audio/webm",
 ]
 
 

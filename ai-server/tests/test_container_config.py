@@ -136,3 +136,7 @@ def test_compose_uses_container_paths() -> None:
     assert environment[
         "AI_SERVER_APP_ENV"
     ] == "production"
+    assert (
+        "AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS"
+        in environment
+    )

@@ -1,7 +1,11 @@
+import asyncio
 import hashlib
+import ipaddress
+import socket
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import Callable
 from urllib.parse import urlsplit
 
 import httpx
@@ -13,6 +17,7 @@ _CONTENT_TYPE_ALIASES = {
     "audio/mp4": "audio/mp4",
     "audio/x-m4a": "audio/mp4",
     "audio/mpeg": "audio/mpeg",
+    "audio/webm": "audio/webm",
 }
 
 
@@ -51,6 +56,10 @@ class SignedAudioDownloader:
         *,
         client: httpx.AsyncClient,
         max_size_bytes: int,
+        allowed_hosts: frozenset[str],
+        resolver: Callable[
+            [str, int], list[str]
+        ] | None = None,
     ) -> None:
         if max_size_bytes <= 0:
             raise ValueError(
@@ -59,6 +68,12 @@ class SignedAudioDownloader:
 
         self._client = client
         self._max_size_bytes = max_size_bytes
+        self._allowed_hosts = frozenset(
+            host.strip().lower().rstrip(".")
+            for host in allowed_hosts
+            if host.strip()
+        )
+        self._resolver = resolver or _resolve_host
 
     async def download(
         self,
@@ -69,7 +84,11 @@ class SignedAudioDownloader:
         declared_size_bytes: int,
         expected_sha256: str | None = None,
     ) -> DownloadedAudio:
-        _validate_signed_url(signed_url)
+        await _validate_signed_url(
+            signed_url,
+            allowed_hosts=self._allowed_hosts,
+            resolver=self._resolver,
+        )
         _validate_expiration(expires_at)
 
         content_type = _normalize_content_type(
@@ -236,26 +255,76 @@ def create_audio_http_client(
     )
 
 
-def _validate_signed_url(
+async def _validate_signed_url(
     signed_url: str,
+    *,
+    allowed_hosts: frozenset[str],
+    resolver: Callable[[str, int], list[str]],
 ) -> None:
     parsed = urlsplit(signed_url)
+    hostname = (
+        parsed.hostname or ""
+    ).lower().rstrip(".")
+    try:
+        port = parsed.port
+    except ValueError:
+        _raise_unsafe_url()
 
     if (
         parsed.scheme.lower() != "https"
-        or not parsed.hostname
+        or not hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.fragment
+        or port not in {None, 443}
     ):
-        raise AudioDownloadError(
-            reason_code=(
-                AudioDownloadReason
-                .AUDIO_DOWNLOAD_FAILED
-            ),
-            message="유효한 HTTPS 음성 URL이 아닙니다.",
-            retryable=False,
+        _raise_unsafe_url()
+
+    if hostname not in allowed_hosts:
+        _raise_unsafe_url()
+
+    try:
+        addresses = await asyncio.to_thread(
+            resolver,
+            hostname,
+            port or 443,
         )
+    except (OSError, ValueError) as error:
+        raise AudioDownloadError(
+            reason_code=AudioDownloadReason.AUDIO_DOWNLOAD_FAILED,
+            message="음성 URL 호스트를 확인할 수 없습니다.",
+            retryable=True,
+        ) from error
+
+    if not addresses:
+        _raise_unsafe_url()
+
+    for address in addresses:
+        try:
+            resolved_ip = ipaddress.ip_address(address)
+        except ValueError:
+            _raise_unsafe_url()
+        if not resolved_ip.is_global:
+            _raise_unsafe_url()
+
+
+def _resolve_host(hostname: str, port: int) -> list[str]:
+    return list({
+        result[4][0]
+        for result in socket.getaddrinfo(
+            hostname,
+            port,
+            type=socket.SOCK_STREAM,
+        )
+    })
+
+
+def _raise_unsafe_url() -> None:
+    raise AudioDownloadError(
+        reason_code=AudioDownloadReason.AUDIO_DOWNLOAD_FAILED,
+        message="허용되지 않은 음성 URL입니다.",
+        retryable=False,
+    )
 
 
 def _validate_expiration(
