@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -16,6 +17,10 @@ import com.neulbom.backend.guardian.GuardianLinkEntity;
 import com.neulbom.backend.guardian.GuardianLinkRepository;
 import com.neulbom.backend.guardian.GuardianLinkScopeEntity;
 import com.neulbom.backend.guardian.GuardianLinkScopeRepository;
+import com.neulbom.backend.recording.RecordingEntity;
+import com.neulbom.backend.recording.RecordingRepository;
+import com.neulbom.backend.recording.TranscriptEntity;
+import com.neulbom.backend.recording.TranscriptRepository;
 import com.neulbom.backend.user.ConsentEntity;
 import com.neulbom.backend.user.ConsentRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -49,6 +54,12 @@ class SessionIntegrationTest {
 
     @Autowired
     private ConsentRepository consentRepository;
+
+    @Autowired
+    private RecordingRepository recordingRepository;
+
+    @Autowired
+    private TranscriptRepository transcriptRepository;
 
     @Autowired
     private UuidGenerator uuidGenerator;
@@ -210,6 +221,57 @@ class SessionIntegrationTest {
     }
 
     @Test
+    void answerRejectsForeignOrMismatchedRecordingReferences() throws Exception {
+        UserEntity elder = saveUser("answer-reference-owner", "elder");
+        UserEntity other = saveUser("answer-reference-other", "elder");
+        UUID sessionId = startCistSession(elder);
+        Instant now = Instant.now().minusSeconds(1);
+
+        RecordingEntity foreignRecording = saveRecording(
+                other.getId(), sessionId, ORIENTATION_QUESTION, now);
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(answerJson(ORIENTATION_QUESTION, foreignRecording.getId(), null, now)))
+                .andExpect(status().isForbidden());
+
+        UUID anotherQuestionId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+        RecordingEntity wrongQuestionRecording = saveRecording(
+                elder.getId(), sessionId, anotherQuestionId, now);
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(answerJson(ORIENTATION_QUESTION, wrongQuestionRecording.getId(), null, now)))
+                .andExpect(status().isUnprocessableEntity());
+
+        RecordingEntity validRecording = saveRecording(
+                elder.getId(), sessionId, ORIENTATION_QUESTION, now);
+        UUID mismatchedTranscriptId = UUID.randomUUID();
+        transcriptRepository.save(new TranscriptEntity(
+                mismatchedTranscriptId,
+                wrongQuestionRecording.getId(),
+                "다른 문항 전사문",
+                new BigDecimal("1.000"),
+                new BigDecimal("0.90"),
+                "ko-KR",
+                "test",
+                "v1",
+                "completed",
+                now,
+                now,
+                now));
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", sessionId)
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(answerJson(
+                                ORIENTATION_QUESTION,
+                                validRecording.getId(),
+                                mismatchedTranscriptId,
+                                now)))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
     void questionsAreFilteredBySessionTypeAndOwner() throws Exception {
         UserEntity elder = saveUser("question-owner", "elder");
 
@@ -330,6 +392,47 @@ class SessionIntegrationTest {
                 false,
                 now,
                 now));
+    }
+
+    private UUID startCistSession(UserEntity elder) throws Exception {
+        String body = mockMvc.perform(post("/api/v1/sessions")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"cist\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(body).get("session_id").asText());
+    }
+
+    private RecordingEntity saveRecording(UUID userId, UUID sessionId, UUID questionId, Instant now) {
+        UUID recordingId = UUID.randomUUID();
+        return recordingRepository.save(new RecordingEntity(
+                recordingId,
+                UUID.randomUUID(),
+                userId,
+                RecordingEntity.ANSWER,
+                sessionId,
+                questionId,
+                "recordings/" + recordingId + ".wav",
+                "answer.wav",
+                "{}",
+                "audio/wav",
+                128,
+                1000,
+                now,
+                now));
+    }
+
+    private String answerJson(UUID questionId, UUID recordingId, UUID transcriptId, Instant answeredAt) {
+        String transcriptField = transcriptId == null
+                ? ""
+                : ",\"transcript_id\":\"" + transcriptId + "\"";
+        return "{\"client_answer_id\":\"" + UUID.randomUUID()
+                + "\",\"question_id\":\"" + questionId
+                + "\",\"recording_id\":\"" + recordingId + "\""
+                + transcriptField
+                + ",\"response_time_ms\":1000,\"answered_at\":\"" + answeredAt + "\"}";
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor jwtFor(UserEntity user) {

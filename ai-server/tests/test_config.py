@@ -20,6 +20,7 @@ def test_default_settings() -> None:
         / "models"
     ).resolve()
     assert settings.service_token is None
+    assert settings.allowed_audio_download_hosts == frozenset()
     assert settings.idempotency_db_path == (
         PROJECT_ROOT
         / "data"
@@ -73,6 +74,10 @@ def test_environment_variables_override_defaults(
         service_token,
     )
     monkeypatch.setenv(
+        "AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS",
+        "Storage.Example., cdn.example",
+    )
+    monkeypatch.setenv(
         "AI_SERVER_IDEMPOTENCY_DB_PATH",
         str(idempotency_db_path),
     )
@@ -102,6 +107,9 @@ def test_environment_variables_override_defaults(
         == service_token
     )
     assert service_token not in repr(settings)
+    assert settings.allowed_audio_download_hosts == frozenset(
+        {"storage.example", "cdn.example"},
+    )
 
     assert settings.idempotency_db_path == (
         idempotency_db_path.resolve()

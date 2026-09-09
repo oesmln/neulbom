@@ -1204,7 +1204,7 @@ JWT 발급을 완료한다. 기존 소셜 계정에는 역할 선택 화면을 �
 
 ### 6.6 `POST /sessions/{session_id}/answers` - 문항별 답변 저장
 
-음성 답변은 `recording_id` 또는 `transcript_id`를 연결한다. 네트워크가 끊긴 상태에서 저장한 답변은 `client_answer_id`로 재전송한다. 종료된 CIST 세션은 일반 답변을 거부하지만, 통합 AI 분석이 `needs_retry`와 `REPLACE_RESPONSE`를 반환한 문항에 한해 새 녹음·답변 ID로 교체 답변을 저장할 수 있다. 교체 답변은 완료 문항 수를 증가시키지 않는다.
+음성 답변은 `recording_id` 또는 `transcript_id`를 연결한다. 서버는 저장 전에 녹음 소유자와 세션·문항·용도를 검증하고, 전사문이 해당 녹음에서 생성되었는지도 확인한다. 네트워크가 끊긴 상태에서 저장한 답변은 `client_answer_id`로 재전송한다. 종료된 CIST 세션은 일반 답변을 거부하지만, 통합 AI 분석이 `needs_retry`와 `REPLACE_RESPONSE`를 반환한 문항에 한해 새 녹음·답변 ID로 교체 답변을 한 번 저장할 수 있다. 교체 답변은 완료 문항 수를 증가시키지 않는다.
 
 #### Request Body
 
@@ -1308,7 +1308,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 ### 7.1 `POST /recordings` - 문항 답변·음성 일기 업로드 및 동기화
 
-`Content-Type: multipart/form-data`를 사용한다. 파일은 `wav`, `m4a`, `mp3`, 최대 25MB를 허용한다.
+`Content-Type: multipart/form-data`를 사용한다. 파일은 `wav`, `m4a`, `mp3`, `webm`(Opus 포함), 최대 25MB를 허용한다.
 
 #### Form Data
 
@@ -1353,7 +1353,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 - 녹음 업로드는 고령자 본인만 수행한다. `purpose=answer`는 본인 소유 세션·활성 질문의 `session_id`와 `question_id`를 함께 받아야 하고, `purpose=diary`는 두 필드를 받지 않는다.
 - 답변 녹음은 앱에서 60초에 자동 종료하고 서버도 `duration_ms`가 60,000을 초과하면 STT 호출 전에 `422`로 거부한다. 장시간 음성용 BatchRecognize는 사용하지 않는다.
-- 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, 최대 25MB이며 MIME type도 함께 검증한다.
+- 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, `webm`(Opus 포함), 최대 25MB이며 MIME type도 함께 검증한다.
 - 동일 `client_recording_id`를 본인이 재전송하면 기존 `recording_id`와 처리 상태를 `deduplicated=true`로 반환한다. 다른 사용자가 해당 ID를 사용하면 `403`이다.
 - 상태 조회는 본인 또는 활성 보호자 연결의 `screening`(답변)·`diary`(음성 일기) scope만 허용한다. STT·AST·KcELECTRA 결과 ID는 처리 완료 시 adapter가 채우며 초기 업로드 응답에서는 `pending`이다.
 
@@ -1596,6 +1596,10 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 
 백엔드는 HMAC-SHA256으로 서명된 `GET /api/v1/internal/ai-audio/{recording_id}` URL을 발급한다. URL은 만료 시각과 서명을 포함하며 AI 서버 계약에 따라 공개 origin은 HTTPS여야 한다. 원본 음성 endpoint는 유효한 서명과 만료 시각을 통과한 요청에만 파일을 반환한다.
 
+AI 분석 음성 MIME은 `audio/wav`, `audio/mp4`, `audio/mpeg`, `audio/webm`(WebM/Opus)를 지원한다. 백엔드는 저장된 녹음의 MIME을 signed URL 응답에 전달하고 AI 서버는 해당 형식으로 다운로드·전처리한다.
+
+AI 서버는 `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS`에 등록된 HTTPS 443 호스트만 다운로드한다. 요청 직전에 DNS의 모든 A·AAAA 결과가 공개 IP인지 검사하며 loopback, 사설망, link-local, 클라우드 메타데이터 주소를 포함한 비공개 IP를 거부한다. HTTP redirect는 따르지 않는다.
+
 | 환경변수 | 설명 |
 | --- | --- |
 | `AI_SERVER_ENABLED` | 통합 AI 서버 연동 활성화 여부 |
@@ -1603,6 +1607,7 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 | `AI_SERVER_SERVICE_TOKEN` | AI 서버와 동일한 서비스 간 Bearer Token |
 | `AI_AUDIO_PUBLIC_BASE_URL` | AI 컨테이너가 접근 가능한 백엔드 HTTPS 공개 origin |
 | `AI_AUDIO_SIGNING_SECRET` | signed URL HMAC 키, 최소 32자 |
+| `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS` | AI 서버가 signed URL 다운로드를 허용할 쉼표 구분 호스트 목록 |
 
 AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, `chirp_3`, `ko-KR`, 자동 문장부호 사용을 포함한다. 문항별 `stt`에는 실행 상태와 원본 전사 결과만 포함한다.
 

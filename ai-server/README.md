@@ -9,7 +9,7 @@ AST 음향 분석, KcELECTRA 텍스트 분석, 보조 실패 사건, 응답 지�
 ## 주요 기능
 
 - Q11 지연회상 결과에 따른 Q12~Q16 조건부 문항 선택
-- signed URL을 통한 문항별 음성 다운로드
+- signed URL을 통한 문항별 음성 다운로드(WAV, M4A, MP3, WebM/Opus)
 - 음성 mono·16kHz 전처리
 - Silero VAD 기반 첫 발화 및 응답 지연 계산
 - 문항별 정오 판정과 보조 `wrong_event` 계산
@@ -211,6 +211,7 @@ Copy-Item .env.example .env
 ```dotenv
 AI_SERVER_APP_ENV=local
 AI_SERVER_SERVICE_TOKEN=충분히-긴-서비스간-인증-토큰
+AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=백엔드-공개-호스트.example.com
 AI_SERVER_ARTIFACTS_DIR=C:/외부경로/artifacts/models
 AI_SERVER_ANALYSIS_DB_PATH=data/analyses.sqlite3
 AI_SERVER_IDEMPOTENCY_DB_PATH=data/idempotency.sqlite3
@@ -266,6 +267,7 @@ Docker용 `.env`에는 다음 값을 설정합니다.
 
 ```dotenv
 AI_SERVER_SERVICE_TOKEN=충분히-긴-서비스간-인증-토큰
+AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=백엔드-공개-호스트.example.com
 AI_SERVER_MODEL_ARTIFACTS_HOST_PATH=C:/외부경로/artifacts/models
 AI_SERVER_PORT=8000
 ```

@@ -59,6 +59,7 @@ class Settings(BaseSettings):
         / "analyses.sqlite3"
     )
     audio_download_timeout_seconds: float = 30.0
+    audio_download_allowed_hosts: str = ""
     max_audio_download_bytes: int = (
         32 * 1024 * 1024
     )
@@ -98,6 +99,17 @@ class Settings(BaseSettings):
         return (
             PROJECT_ROOT / value
         ).resolve()
+
+    @property
+    def allowed_audio_download_hosts(
+        self,
+    ) -> frozenset[str]:
+        """signed URL 다운로드를 허용할 정규화된 호스트 목록."""
+        return frozenset(
+            host.strip().lower().rstrip(".")
+            for host in self.audio_download_allowed_hosts.split(",")
+            if host.strip()
+        )
 
 
 @lru_cache

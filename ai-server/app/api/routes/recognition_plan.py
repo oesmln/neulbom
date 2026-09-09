@@ -93,6 +93,9 @@ async def get_audio_downloader(
             max_size_bytes=(
                 settings.max_audio_download_bytes
             ),
+            allowed_hosts=(
+                settings.allowed_audio_download_hosts
+            ),
         )
     finally:
         await client.aclose()

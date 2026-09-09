@@ -536,7 +536,8 @@ components:
             - audio/mp4
             - audio/x-m4a
             - audio/mpeg
-          description: Standard MIME types are audio/wav for WAV, audio/mp4 for M4A, and audio/mpeg for MP3
+            - audio/webm
+          description: Standard MIME types are audio/wav for WAV, audio/mp4 for M4A, audio/mpeg for MP3, and audio/webm for WebM/Opus
         size_bytes:
           type: integer
           minimum: 1

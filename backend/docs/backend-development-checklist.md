@@ -684,7 +684,7 @@
 ### 7.1 파일 저장
 
 - [x] `POST /recordings` multipart 업로드를 구현한다.
-- [x] `wav`, `m4a`, `mp3`만 허용한다.
+- [x] `wav`, `m4a`, `mp3`, `webm`(Opus 포함)을 허용한다.
 - [x] 최대 25MB 파일 제한을 적용한다.
 - [ ] 파일 확장자만 믿지 말고 MIME type과 실제 파일 형식을 함께 검증한다.
 - [x] 저장 파일명에 이름·생년월일을 사용하지 않는다.
@@ -743,6 +743,8 @@
 - [x] `REPLACE_RESPONSE` 대상 문항은 종료된 세션에서도 새 녹음·답변을 저장하고 완료 문항 수를 유지한다. (#133)
 - [ ] 실제 AI 서버 Docker 실행본으로 pending → processing → completed 흐름을 확인한다. (#127)
 - [ ] 배포 환경의 HTTPS object storage 또는 공개 backend origin으로 signed URL 다운로드를 확인한다. (#127)
+- [x] AI 음성 다운로드 호스트 allowlist와 공개 IP DNS 검증으로 SSRF를 차단한다. (#135)
+- [x] AI signed URL과 계약에서 `audio/webm`(WebM/Opus)을 전달한다.
 - [ ] recording 업로드 완료 이벤트를 만든다.
 - [ ] STT 작업을 예약한다.
 - [ ] AST 작업을 예약한다.

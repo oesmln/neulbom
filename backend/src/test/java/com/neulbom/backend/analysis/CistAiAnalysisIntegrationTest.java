@@ -215,6 +215,29 @@ class CistAiAnalysisIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(
                         sessionRepository.findById(session.getId()).orElseThrow().getAnsweredCount())
                 .isEqualTo(answeredCountBeforeReplacement);
+
+        ReplacementRecording duplicateReplacement = saveReplacementRecording(
+                elder, session, q11, now.plusSeconds(121));
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/answers", session.getId())
+                        .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "client_answer_id":"%s",
+                                  "question_id":"%s",
+                                  "recording_id":"%s",
+                                  "transcript_id":"%s",
+                                  "response_time_ms":250,
+                                  "answered_at":"%s"
+                                }
+                                """.formatted(
+                                UUID.randomUUID(),
+                                q11.getId(),
+                                duplicateReplacement.recordingId(),
+                                duplicateReplacement.transcriptId(),
+                                now.plusSeconds(121))))
+                .andExpect(status().isUnprocessableEntity());
+
         when(aiServerClient.retryAnalysis(any(UUID.class), anyString(), any()))
                 .thenReturn(new AiServerContracts.AnalysisAcceptedResponse(
                         request.analysisId(), session.getId(), "pending", now.plusSeconds(50)));

@@ -33,6 +33,26 @@ def test_accepts_valid_recognition_plan_request() -> None:
     )
 
 
+def test_accepts_webm_audio_resource() -> None:
+    payload = _valid_request_payload()
+    payload["response"]["audio"] = {
+        "signed_url": (
+            "https://storage.example/q11.webm"
+        ),
+        "expires_at": "2026-09-01T10:30:00Z",
+        "content_type": "audio/webm",
+        "size_bytes": 123456,
+    }
+
+    request = RecognitionPlanRequest.model_validate(
+        payload,
+    )
+
+    assert request.response.audio.content_type == (
+        "audio/webm"
+    )
+
+
 def test_rejects_wrong_q11_question_code() -> None:
     payload = _valid_request_payload()
     payload["response"]["question_code"] = (
