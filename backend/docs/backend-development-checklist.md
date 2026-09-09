@@ -165,6 +165,7 @@
 완료 조건: 문답 결과를 일기로 저장하고, 캘린더에서 활동을 확인하며, 보호자가 일기에 반응할 수 있다. `DiaryService`는 KST 기준 생성 상태·daily_summary 중복·작성자/보호자 scope를 저장·검증한다.
 
 구현 근거: 일기 CRUD·세션/일일 요약 연결·생성 job 상태·reaction unique 정책·날짜/활동 유형 캘린더 aggregation을 구현했고, 실제 푸시 알림 이벤트와 0시 외부 워커 스케줄은 알림/운영 워커 연결 단계에서 이어간다.
+- [x] 자정 일일 리포트가 전날 정서 문답의 Gemini 세션 요약을 이어 붙여 일기 본문으로 저장 (`DailyDiaryGenerator`, 음성 답변은 STT 전사문 사용). 세션 종료 즉시 생성은 `app.diary.generate-on-session-end`(기본 false) 로컬 테스트 옵션
 
 ### 9차. 게임·캐릭터·캠페인 API
 
