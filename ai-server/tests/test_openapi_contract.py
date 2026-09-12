@@ -416,10 +416,10 @@ def test_fixed_analysis_metadata_matches(
     ] == "wrong-event-v1"
     assert info[
         "x-default-threshold"
-    ] == 0.461
+    ] == 0.38592870327757767
     assert info[
         "x-review-threshold"
-    ] == 0.802
+    ] == 0.8061380697921943
     assert info[
         "x-threshold-version"
     ] == "fusion-threshold-v2"
@@ -437,16 +437,16 @@ def test_fixed_analysis_metadata_matches(
 
     assert reference_result["properties"][
         "decision_threshold"
-    ]["const"] == 0.461
+    ]["const"] == 0.38592870327757767
     assert runtime_result["properties"][
         "decision_threshold"
-    ]["const"] == 0.461
+    ]["const"] == 0.38592870327757767
     assert reference_result["properties"][
         "review_threshold"
-    ]["const"] == 0.802
+    ]["const"] == 0.8061380697921943
     assert runtime_result["properties"][
         "review_threshold"
-    ]["const"] == 0.802
+    ]["const"] == 0.8061380697921943
 
     assert reference_result["properties"][
         "threshold_version"

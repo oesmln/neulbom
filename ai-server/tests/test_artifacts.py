@@ -5,11 +5,19 @@ import pytest
 
 from app.inference.artifacts import (
     AST_DIRECTORY_NAME,
+    EXPECTED_AST_ENSEMBLE_METHOD,
+    EXPECTED_AST_FIXED_EPOCH,
+    EXPECTED_AST_PRETRAINED_MODEL,
+    EXPECTED_AST_PRIMARY_POOLING,
     EXPECTED_FUSION_FEATURE_ORDER,
     FUSION_DIRECTORY_NAME,
     KCELECTRA_DIRECTORY_NAME,
     ArtifactValidationError,
     discover_model_artifacts,
+)
+from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
 )
 
 
@@ -22,7 +30,14 @@ def test_discovers_valid_model_artifacts(
 
     assert len(bundle.ast_seeds) == 3
     assert len(bundle.kcelectra_seeds) == 3
-    assert bundle.transformers_version == "5.15.1"
+    assert (
+        bundle.ast_transformers_version
+        == "5.16.1"
+    )
+    assert (
+        bundle.kcelectra_transformers_version
+        == "5.15.1"
+    )
     assert bundle.ast_sampling_rate == 16000
     assert bundle.kcelectra_max_length == 256
     assert (
@@ -103,7 +118,7 @@ def test_rejects_wrong_ast_seed_configuration(
         / "ensemble_config.json"
     )
     ensemble = _read_json(ensemble_path)
-    ensemble["training_contract"]["model_seeds"] = [
+    ensemble["model_seeds"] = [
         42,
         52,
     ]
@@ -135,6 +150,74 @@ def test_rejects_inconsistent_transformers_version(
     with pytest.raises(
         ArtifactValidationError,
         match="seed 간 일치하지 않습니다",
+    ):
+        discover_model_artifacts(tmp_path)
+
+
+def test_rejects_wrong_ast_ensemble_method(
+    tmp_path: Path,
+) -> None:
+    _create_valid_artifact_tree(tmp_path)
+
+    ensemble_path = (
+        tmp_path
+        / "ast"
+        / AST_DIRECTORY_NAME
+        / "ensemble_config.json"
+    )
+    ensemble = _read_json(ensemble_path)
+    ensemble["ensemble_method"] = (
+        "mean_seed_probability"
+    )
+    _write_json(ensemble_path, ensemble)
+
+    with pytest.raises(
+        ArtifactValidationError,
+        match="AST ensemble method",
+    ):
+        discover_model_artifacts(tmp_path)
+
+
+def test_rejects_wrong_fusion_model_version(
+    tmp_path: Path,
+) -> None:
+    _create_valid_artifact_tree(tmp_path)
+
+    contract_path = (
+        tmp_path
+        / "fusion"
+        / FUSION_DIRECTORY_NAME
+        / "final_fusion_lr_contract.json"
+    )
+    contract = _read_json(contract_path)
+    contract["model_version"] = "wrong-version"
+    _write_json(contract_path, contract)
+
+    with pytest.raises(
+        ArtifactValidationError,
+        match="fusion model_version",
+    ):
+        discover_model_artifacts(tmp_path)
+
+
+def test_rejects_wrong_fusion_service_threshold(
+    tmp_path: Path,
+) -> None:
+    _create_valid_artifact_tree(tmp_path)
+
+    contract_path = (
+        tmp_path
+        / "fusion"
+        / FUSION_DIRECTORY_NAME
+        / "final_fusion_lr_contract.json"
+    )
+    contract = _read_json(contract_path)
+    contract["service_lower_threshold"] = 0.5
+    _write_json(contract_path, contract)
+
+    with pytest.raises(
+        ArtifactValidationError,
+        match="service lower threshold",
     ):
         discover_model_artifacts(tmp_path)
 
@@ -196,9 +279,17 @@ def _create_ast_artifacts(
         {
             "status": "complete",
             "purpose": "final_service_ast_ensemble",
-            "training_contract": {
-                "model_seeds": [42, 52, 62],
-            },
+            "pretrained_model": (
+                EXPECTED_AST_PRETRAINED_MODEL
+            ),
+            "fixed_epoch": EXPECTED_AST_FIXED_EPOCH,
+            "model_seeds": [42, 52, 62],
+            "ensemble_method": (
+                EXPECTED_AST_ENSEMBLE_METHOD
+            ),
+            "primary_pooling": (
+                EXPECTED_AST_PRIMARY_POOLING
+            ),
         },
     )
 
@@ -222,7 +313,7 @@ def _create_ast_artifacts(
                     "정상": 0,
                     "치매": 1,
                 },
-                "transformers_version": "5.15.1",
+                "transformers_version": "5.16.1",
             },
         )
         _write_json(
@@ -235,14 +326,6 @@ def _create_ast_artifacts(
                 "sampling_rate": 16000,
             },
         )
-        _write_json(
-            seed_directory
-            / "training_complete.json",
-            {
-                "seed": seed,
-            },
-        )
-
 
 def _create_kcelectra_artifacts(
     root: Path,
@@ -356,11 +439,21 @@ def _create_fusion_artifacts(
         fusion_directory
         / "final_fusion_lr_contract.json",
         {
+            "model_version": FUSION_DIRECTORY_NAME,
+            "ast_ensemble_method": (
+                EXPECTED_AST_ENSEMBLE_METHOD
+            ),
             "feature_order": list(
                 EXPECTED_FUSION_FEATURE_ORDER,
             ),
             "class_order": [0, 1],
-            "default_threshold": 0.5,
+            "default_binary_threshold": 0.5,
+            "service_lower_threshold": (
+                EXPECTED_SCREENING_THRESHOLD
+            ),
+            "service_upper_threshold": (
+                EXPECTED_REVIEW_THRESHOLD
+            ),
         },
     )
 
