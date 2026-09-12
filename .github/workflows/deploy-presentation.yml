@@ -1,0 +1,52 @@
+name: Deploy presentation server
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - backend/**
+      - ai-server/**
+      - deploy/**
+      - .dockerignore
+      - .github/workflows/deploy-presentation.yml
+
+concurrency:
+  group: presentation-server
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to GCE
+    runs-on: ubuntu-latest
+    environment: presentation
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Rebuild services on the VM
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_ZONE: ${{ vars.GCP_ZONE }}
+          GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
+        run: |
+          gcloud compute ssh "${GCP_VM_NAME}" \
+            --project "${GCP_PROJECT_ID}" \
+            --zone "${GCP_ZONE}" \
+            --command 'set -Eeuo pipefail
+              cd /opt/neulbom/app
+              git fetch origin develop
+              git switch develop
+              git merge --ff-only origin/develop
+              ./deploy/scripts/deploy.sh'
