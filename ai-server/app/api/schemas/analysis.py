@@ -282,14 +282,18 @@ class FinalAnalysisResult(APIModel):
     )
     model_version: Literal[
         "final_fusion_lr_"
-        "21subjects_core4_ast_v1"
+        "21subjects_ast20_mean_logit_3seed_v2"
     ]
     model_score: float = Field(
         ge=0,
         le=1,
     )
-    decision_threshold: Literal[0.461]
-    review_threshold: Literal[0.802]
+    decision_threshold: Literal[
+        0.38592870327757767
+    ]
+    review_threshold: Literal[
+        0.8061380697921943
+    ]
     threshold_version: Literal[
         "fusion-threshold-v2"
     ]

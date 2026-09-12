@@ -14,6 +14,8 @@ from app.inference.fusion import (
     _validate_loaded_pipeline,
 )
 from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
     RiskLevel,
     RiskThresholdPolicy,
 )
@@ -87,8 +89,12 @@ def test_runs_fusion_with_exact_feature_order() -> None:
     assert result.model_score == (
         pytest.approx(0.7)
     )
-    assert result.decision_threshold == 0.461
-    assert result.review_threshold == 0.802
+    assert result.decision_threshold == (
+        EXPECTED_SCREENING_THRESHOLD
+    )
+    assert result.review_threshold == (
+        EXPECTED_REVIEW_THRESHOLD
+    )
     assert (
         result.threshold_version
         == "fusion-threshold-v2"
@@ -104,7 +110,9 @@ def test_runs_fusion_with_exact_feature_order() -> None:
 def test_screening_threshold_is_inclusive() -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.461,
+            model_score=(
+                EXPECTED_SCREENING_THRESHOLD
+            ),
         ),
     )
 
@@ -123,7 +131,10 @@ def test_score_below_screening_threshold_is_stable(
 ) -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.460999,
+            model_score=(
+                EXPECTED_SCREENING_THRESHOLD
+                - 1e-12
+            ),
         ),
     )
 
@@ -141,7 +152,7 @@ def test_score_below_screening_threshold_is_stable(
 def test_review_threshold_is_inclusive() -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.802,
+            model_score=EXPECTED_REVIEW_THRESHOLD,
         ),
     )
 
@@ -160,7 +171,9 @@ def test_score_below_review_threshold_needs_monitoring(
 ) -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.801999,
+            model_score=(
+                EXPECTED_REVIEW_THRESHOLD - 1e-12
+            ),
         ),
     )
 

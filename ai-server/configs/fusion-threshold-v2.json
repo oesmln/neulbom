@@ -1,8 +1,8 @@
 {
   "schema_version": "fusion-threshold-policy-schema-v1",
   "threshold_version": "fusion-threshold-v2",
-  "screening_threshold": 0.461,
-  "review_threshold": 0.802,
+  "screening_threshold": 0.38592870327757767,
+  "review_threshold": 0.8061380697921943,
   "risk_levels": [
     "stable",
     "monitoring_needed",

@@ -15,6 +15,10 @@ from app.inference.artifacts import (
     ArtifactValidationError,
     discover_model_artifacts,
 )
+from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
+)
 
 
 def test_discovers_valid_model_artifacts(
@@ -192,6 +196,28 @@ def test_rejects_wrong_fusion_model_version(
     with pytest.raises(
         ArtifactValidationError,
         match="fusion model_version",
+    ):
+        discover_model_artifacts(tmp_path)
+
+
+def test_rejects_wrong_fusion_service_threshold(
+    tmp_path: Path,
+) -> None:
+    _create_valid_artifact_tree(tmp_path)
+
+    contract_path = (
+        tmp_path
+        / "fusion"
+        / FUSION_DIRECTORY_NAME
+        / "final_fusion_lr_contract.json"
+    )
+    contract = _read_json(contract_path)
+    contract["service_lower_threshold"] = 0.5
+    _write_json(contract_path, contract)
+
+    with pytest.raises(
+        ArtifactValidationError,
+        match="service lower threshold",
     ):
         discover_model_artifacts(tmp_path)
 
@@ -422,6 +448,12 @@ def _create_fusion_artifacts(
             ),
             "class_order": [0, 1],
             "default_binary_threshold": 0.5,
+            "service_lower_threshold": (
+                EXPECTED_SCREENING_THRESHOLD
+            ),
+            "service_upper_threshold": (
+                EXPECTED_REVIEW_THRESHOLD
+            ),
         },
     )
 

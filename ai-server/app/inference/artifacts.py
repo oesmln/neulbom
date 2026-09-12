@@ -4,6 +4,11 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
+from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
+)
+
 EXPECTED_SEEDS = (42, 52, 62)
 
 AST_DIRECTORY_NAME = (
@@ -641,6 +646,16 @@ def _validate_fusion_artifacts(
             "fusion training default_threshold",
         )
     )
+    service_lower_threshold = _get_json_value(
+        contract,
+        ("service_lower_threshold",),
+        "fusion service lower threshold",
+    )
+    service_upper_threshold = _get_json_value(
+        contract,
+        ("service_upper_threshold",),
+        "fusion service upper threshold",
+    )
     class_order = _get_json_value(
         contract,
         ("class_order",),
@@ -671,6 +686,16 @@ def _validate_fusion_artifacts(
         "fusion training default_threshold",
         training_default_threshold,
         0.5,
+    )
+    _require_equal(
+        "fusion service lower threshold",
+        service_lower_threshold,
+        EXPECTED_SCREENING_THRESHOLD,
+    )
+    _require_equal(
+        "fusion service upper threshold",
+        service_upper_threshold,
+        EXPECTED_REVIEW_THRESHOLD,
     )
 
     return (

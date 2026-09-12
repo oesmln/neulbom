@@ -13,8 +13,10 @@ EXPECTED_SCHEMA_VERSION = (
 EXPECTED_THRESHOLD_VERSION = (
     "fusion-threshold-v2"
 )
-EXPECTED_SCREENING_THRESHOLD = 0.461
-EXPECTED_REVIEW_THRESHOLD = 0.802
+EXPECTED_SCREENING_THRESHOLD = (
+    0.38592870327757767
+)
+EXPECTED_REVIEW_THRESHOLD = 0.8061380697921943
 
 
 class RiskThresholdPolicyError(ValueError):
@@ -92,7 +94,8 @@ class RiskThresholdPolicy:
         ):
             raise RiskThresholdPolicyError(
                 "screening_threshold는 "
-                "0.461이어야 합니다.",
+                f"{EXPECTED_SCREENING_THRESHOLD}이어야 "
+                "합니다.",
             )
 
         if (
@@ -101,7 +104,8 @@ class RiskThresholdPolicy:
         ):
             raise RiskThresholdPolicyError(
                 "review_threshold는 "
-                "0.802여야 합니다.",
+                f"{EXPECTED_REVIEW_THRESHOLD}여야 "
+                "합니다.",
             )
 
         if risk_levels != EXPECTED_RISK_LEVELS:
