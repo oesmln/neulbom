@@ -8,6 +8,7 @@ on:
     paths:
       - backend/**
       - ai-server/**
+      - frontend/**
       - deploy/**
       - .dockerignore
       - .github/workflows/deploy-presentation.yml

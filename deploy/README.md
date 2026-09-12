@@ -1,8 +1,9 @@
 # 발표용 서버 배포
 
-GCP Compute Engine VM 한 대에서 Nginx, Spring Boot, FastAPI AI 서버,
-PostgreSQL을 Docker Compose로 실행한다. Redis는 현재 애플리케이션에서 사용하지
-않으므로 포함하지 않는다. 외부에는 Nginx의 80/443 포트만 공개된다.
+GCP Compute Engine VM 한 대에서 Expo Web 정적 빌드를 포함한 Nginx, Spring Boot,
+FastAPI AI 서버, PostgreSQL을 Docker Compose로 실행한다. Redis는 현재
+애플리케이션에서 사용하지 않으므로 포함하지 않는다. 외부에는 Nginx의 80/443
+포트만 공개된다.
 
 ## 1. VM 준비
 
@@ -103,12 +104,23 @@ VM의 `/opt/neulbom/app`에는 저장소가 clone되어 있어야 하고, privat
 
 ## 6. 프론트엔드 연결
 
-EAS `preview` environment에 호스트만 설정한다. `/api/v1`은 앱 코드가 붙인다.
+동일한 공개 주소의 `/`에서는 Expo Web 앱이 열리고 `/api/v1`은 백엔드로 전달된다.
+웹 빌드에도 호스트만 주입되며 `/api/v1`은 앱 코드가 붙인다. 카카오·네이버 웹
+callback은 각각 아래 주소로 빌드된다.
+
+```text
+https://api.neulbom.example/auth/callback/kakao
+https://api.neulbom.example/auth/callback/naver
+```
+
+실제 주소를 provider 콘솔과 백엔드 allowlist에도 똑같이 등록해야 한다.
+EAS `preview` environment에도 같은 호스트만 설정한다.
 
 ```ini
 EXPO_PUBLIC_API_BASE_URL=https://api.neulbom.example
 ```
 
-환경변수 또는 프론트 코드가 바뀌면 Preview APK를 다시 빌드해 설치한다. 서버 변경은
-자동 배포 완료 후 반영되며, 진행 중인 요청은 재시작 시 실패할 수 있으므로 발표 중에는
+프론트 코드가 `develop`에 반영되면 자동 배포가 Expo Web 정적 파일을 다시 빌드한다.
+APK는 자동 갱신되지 않으므로 환경변수나 프론트 코드가 바뀌면 Preview APK를 다시
+빌드해 설치한다. 진행 중인 요청은 서버 재시작 시 실패할 수 있으므로 발표 중에는
 배포하지 않는다.

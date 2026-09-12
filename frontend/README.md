@@ -41,6 +41,17 @@ npm run eas:build:android:preview
 `preview` profile은 내부 배포용 APK를 만든다. API 주소나 JavaScript 번들이 바뀌면
 APK를 다시 빌드하고 발표 기기에 설치해야 한다.
 
+## 발표용 Web 빌드
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=https://api.neulbom.example \
+  npx expo export --platform web --output-dir dist
+```
+
+운영 Compose에서는 이 빌드를 Nginx 이미지 안에 포함한다. 공개 주소의 `/`은 웹 앱,
+`/api/v1`은 Spring Boot API로 연결되며 새로고침한 SPA 경로도 `index.html`로
+돌아간다.
+
 ## 오프라인 녹음 재전송
 
 답변 녹음은 업로드 전에 앱 영속 저장소에 복사합니다. Native는 앱 전용 문서 디렉터리, Web은 IndexedDB를 사용하며 queue metadata에 음성 내용이나 사용자 이름을 기록하지 않습니다.

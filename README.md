@@ -102,3 +102,4 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 - [Frontend README](frontend/README.md)
 - [Backend README](backend/README.md)
 - [AI Server README](ai-server/README.md)
+- [발표용 배포 README](deploy/README.md)

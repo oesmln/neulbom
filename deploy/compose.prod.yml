@@ -8,7 +8,16 @@ x-logging: &default-logging
 
 services:
   nginx:
-    image: nginx:1.28-alpine
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.web
+      args:
+        EXPO_PUBLIC_API_BASE_URL: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}"
+        EXPO_PUBLIC_KAKAO_CLIENT_ID: "${KAKAO_CLIENT_ID:-}"
+        EXPO_PUBLIC_KAKAO_REDIRECT_URI: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}/auth/callback/kakao"
+        EXPO_PUBLIC_NAVER_CLIENT_ID: "${NAVER_CLIENT_ID:-}"
+        EXPO_PUBLIC_NAVER_REDIRECT_URI: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}/auth/callback/naver"
+    image: neulbom-frontend-web:${IMAGE_TAG:-presentation}
     restart: unless-stopped
     depends_on:
       backend:
