@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -10,6 +11,7 @@ from app.inference.fusion import (
     FusionFeatures,
     FusionInferenceError,
     FusionInferenceService,
+    _validate_loaded_pipeline,
 )
 from app.inference.risk_policy import (
     RiskLevel,
@@ -279,6 +281,60 @@ def test_rejects_wrong_feature_order() -> None:
             ),
             model_version="test-fusion-v1",
         )
+
+
+def test_validates_standardized_fusion_contract_values(
+) -> None:
+    feature_order = EXPECTED_FUSION_FEATURE_ORDER
+    class_order = (0, 1)
+    scaler_mean = np.asarray(
+        [0.3, -0.1, 0.4, 0.8],
+        dtype=np.float64,
+    )
+    scaler_scale = np.asarray(
+        [1.3, 0.07, 0.27, 0.42],
+        dtype=np.float64,
+    )
+    coefficient = np.asarray(
+        [[-0.1, 0.5, 1.0, 0.4]],
+        dtype=np.float64,
+    )
+    intercept = np.asarray(
+        [-0.05],
+        dtype=np.float64,
+    )
+    pipeline = SimpleNamespace(
+        feature_names_in_=np.asarray(feature_order),
+        classes_=np.asarray(class_order),
+        n_features_in_=len(feature_order),
+        named_steps={
+            "scaler": SimpleNamespace(
+                mean_=scaler_mean,
+                scale_=scaler_scale,
+            ),
+            "lr": SimpleNamespace(
+                coef_=coefficient,
+                intercept_=intercept,
+            ),
+        },
+    )
+    contract = {
+        "scaler_mean": scaler_mean.tolist(),
+        "scaler_scale": scaler_scale.tolist(),
+        "lr_coef_standardized": (
+            coefficient[0].tolist()
+        ),
+        "lr_intercept_standardized": (
+            intercept.tolist()
+        ),
+    }
+
+    _validate_loaded_pipeline(
+        pipeline=pipeline,
+        contract=contract,
+        feature_order=feature_order,
+        class_order=class_order,
+    )
 
 
 def _service(
