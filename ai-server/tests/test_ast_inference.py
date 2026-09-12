@@ -75,20 +75,36 @@ class FakeAstModel:
 
 @pytest.fixture
 def service() -> AstInferenceService:
+    return _service()
+
+
+def _service(
+    seed_biases: tuple[
+        float,
+        float,
+        float,
+    ] = (0.0, 0.2, 0.4),
+) -> AstInferenceService:
     return AstInferenceService(
         feature_extractor=FakeFeatureExtractor(),
         seed_runtimes=(
             AstSeedRuntime(
                 seed=42,
-                model=FakeAstModel(0.0),
+                model=FakeAstModel(
+                    seed_biases[0],
+                ),
             ),
             AstSeedRuntime(
                 seed=52,
-                model=FakeAstModel(0.2),
+                model=FakeAstModel(
+                    seed_biases[1],
+                ),
             ),
             AstSeedRuntime(
                 seed=62,
-                model=FakeAstModel(0.4),
+                model=FakeAstModel(
+                    seed_biases[2],
+                ),
             ),
         ),
         question_category_map={
@@ -206,6 +222,43 @@ def test_ensembles_segments_and_pools_hierarchy(
         sqrt(2)
         + 3
     )
+    seed42_logit = (
+        0.3 * sqrt(2)
+        + 0.2
+        + 0.4
+        + 0.6
+    ) / (
+        sqrt(2)
+        + 3
+    )
+    seed_results = {
+        seed_result.seed: (
+            seed_result.dementia_logit
+        )
+        for seed_result
+        in result.seed_person_results
+    }
+
+    assert tuple(seed_results) == (
+        42,
+        52,
+        62,
+    )
+    assert seed_results[42] == pytest.approx(
+        seed42_logit,
+    )
+    assert seed_results[52] == pytest.approx(
+        seed42_logit + 0.2,
+    )
+    assert seed_results[62] == pytest.approx(
+        seed42_logit + 0.4,
+    )
+    assert expected_logit == pytest.approx(
+        np.mean(
+            tuple(seed_results.values()),
+        ),
+    )
+
     expected_probability = (
         1.0
         / (
@@ -222,6 +275,88 @@ def test_ensembles_segments_and_pools_hierarchy(
     )
     assert result.seed_count == 3
     assert result.model_version == "test-ast-v1"
+
+
+def test_applies_sigmoid_after_averaging_seed_person_logits(
+) -> None:
+    service = _service(
+        seed_biases=(-4.0, 0.0, 2.0),
+    )
+    result = service.infer(
+        (
+            AstClipInput(
+                question_code="orientation_year",
+                audio=_audio(0.0),
+            ),
+            AstClipInput(
+                question_code=(
+                    "memory_registration_first"
+                ),
+                audio=_audio(0.0),
+            ),
+            AstClipInput(
+                question_code=(
+                    "attention_digit_span_4"
+                ),
+                audio=_audio(0.0),
+            ),
+            AstClipInput(
+                question_code=(
+                    "language_semantic_fluency"
+                ),
+                audio=_audio(0.0),
+            ),
+        ),
+    )
+
+    expected_seed_logits = (
+        -4.0,
+        0.0,
+        2.0,
+    )
+    actual_seed_logits = tuple(
+        seed_result.dementia_logit
+        for seed_result
+        in result.seed_person_results
+    )
+    expected_logit = float(
+        np.mean(expected_seed_logits),
+    )
+    expected_probability = (
+        1.0
+        / (
+            1.0
+            + exp(-expected_logit)
+        )
+    )
+    old_probability_average = float(
+        np.mean(
+            [
+                1.0
+                / (
+                    1.0
+                    + exp(-seed_logit)
+                )
+                for seed_logit
+                in expected_seed_logits
+            ],
+        ),
+    )
+
+    assert actual_seed_logits == pytest.approx(
+        expected_seed_logits,
+    )
+    assert result.dementia_logit == pytest.approx(
+        expected_logit,
+    )
+    assert result.dementia_probability == (
+        pytest.approx(expected_probability)
+    )
+    assert result.dementia_probability != (
+        pytest.approx(
+            old_probability_average,
+        )
+    )
 
 
 def test_discards_remainder_shorter_than_one_second(
