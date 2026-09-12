@@ -34,6 +34,9 @@ services:
         source: "${TLS_CERTS_HOST_PATH:?TLS_CERTS_HOST_PATH must be set}"
         target: /etc/nginx/certs
         read_only: true
+      - type: bind
+        source: "${ACME_WEBROOT_HOST_PATH:?ACME_WEBROOT_HOST_PATH must be set}"
+        target: /var/www/certbot
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/nginx-health"]
       interval: 30s

@@ -20,22 +20,74 @@ sudo chown -R "$USER":"$USER" /opt/neulbom
 
 AI 모델 파일은 `/opt/neulbom/models`에 직접 업로드한다. 저장소에는 커밋하지 않는다.
 
-## 2. 도메인과 TLS
+## 2. DuckDNS와 TLS
 
-Cloudflare DNS/Proxy 또는 DuckDNS와 Let's Encrypt로 공개 도메인을 VM에 연결한다.
-Nginx가 사용하는 인증서는 아래 이름으로 준비한다.
+도메인은 DuckDNS 고정 주소를 사용한다. 먼저 GCP에서 고정 외부 IP를 예약하고,
+DuckDNS 콘솔에서 해당 IP를 A 레코드로 연결한다. VM을 중지했다가 다시 시작해도
+고정 IP와 주소가 유지되도록 반드시 고정 IP를 사용한다.
+
+Ubuntu VM에 Certbot을 설치한다.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y certbot
+sudo mkdir -p /opt/neulbom/acme /opt/neulbom/certs
+```
+
+`deploy/.env`에 실제 DuckDNS 주소를 입력하고 처음에는 HTTP 구성으로 Nginx를
+실행한다.
+
+```ini
+PUBLIC_API_HOST=neulbom.duckdns.org
+NGINX_CONFIG_FILE=http.conf
+TLS_CERTS_HOST_PATH=/opt/neulbom/certs
+ACME_WEBROOT_HOST_PATH=/opt/neulbom/acme
+```
+
+```bash
+./deploy/scripts/deploy.sh
+sudo certbot certonly --webroot \
+  -w /opt/neulbom/acme \
+  -d neulbom.duckdns.org \
+  --email 관리자이메일 \
+  --agree-tos \
+  --no-eff-email
+```
+
+인증서를 Nginx가 읽을 수 있는 운영 경로로 복사한다.
+
+```bash
+sudo cp -L /etc/letsencrypt/live/neulbom.duckdns.org/fullchain.pem /opt/neulbom/certs/fullchain.pem
+sudo cp -L /etc/letsencrypt/live/neulbom.duckdns.org/privkey.pem /opt/neulbom/certs/privkey.pem
+sudo chmod 644 /opt/neulbom/certs/fullchain.pem
+sudo chmod 600 /opt/neulbom/certs/privkey.pem
+```
+
+그 다음 HTTPS 구성으로 바꾸고 Nginx를 재시작한다.
+
+```ini
+NGINX_CONFIG_FILE=https.conf
+```
+
+```bash
+docker compose --env-file deploy/.env -f deploy/compose.prod.yml up -d nginx
+```
+
+인증서 만료 전 자동 갱신은 다음 스크립트를 주기적으로 실행한다.
+
+```bash
+./deploy/scripts/renew-certificate.sh neulbom.duckdns.org
+```
+
+Nginx가 사용하는 인증서는 아래 이름으로 유지한다.
 
 ```text
 /opt/neulbom/certs/fullchain.pem
 /opt/neulbom/certs/privkey.pem
 ```
 
-Cloudflare를 사용하면 SSL/TLS 모드는 `Full (strict)`로 설정하고 Cloudflare Origin
-Certificate 또는 공개 CA 인증서를 사용한다. Flexible 모드는 사용하지 않는다.
-
-인증서 준비 전 origin 연결만 점검할 때는 `.env`의
-`NGINX_CONFIG_FILE=http.conf`를 사용할 수 있다. 이 구성은 평문 HTTP이므로 APK나
-실제 발표 연결에는 사용하지 않는다.
+인증서 준비 전 origin 연결만 점검할 때는 `NGINX_CONFIG_FILE=http.conf`를 사용할
+수 있다. 이 구성은 평문 HTTP이므로 실제 앱 연결에는 사용하지 않는다.
 
 ## 3. 환경변수
 
