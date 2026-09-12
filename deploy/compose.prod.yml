@@ -1,0 +1,170 @@
+name: neulbom
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: bind
+        source: "./nginx/${NGINX_CONFIG_FILE:-https.conf}"
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+      - type: bind
+        source: "${TLS_CERTS_HOST_PATH:?TLS_CERTS_HOST_PATH must be set}"
+        target: /etc/nginx/certs
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app
+    logging: *default-logging
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: neulbom-backend:${IMAGE_TAG:-presentation}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8080
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-neulbom}
+      DB_USERNAME: "${POSTGRES_USER:-neulbom}"
+      DB_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
+      DB_POOL_MAX_SIZE: "${DB_POOL_MAX_SIZE:-15}"
+      DB_POOL_MIN_IDLE: "${DB_POOL_MIN_IDLE:-3}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set}"
+      JWT_ISSUER: "${JWT_ISSUER:-neulbom}"
+      JWT_ACCESS_TOKEN_TTL: "${JWT_ACCESS_TOKEN_TTL:-15m}"
+      JWT_REFRESH_TOKEN_TTL: "${JWT_REFRESH_TOKEN_TTL:-30d}"
+      AI_SERVER_ENABLED: "true"
+      AI_SERVER_BASE_URL: http://ai-server:8000
+      AI_SERVER_SERVICE_TOKEN: "${AI_SERVER_SERVICE_TOKEN:?AI_SERVER_SERVICE_TOKEN must be set}"
+      AI_SERVER_CONNECT_TIMEOUT: "${AI_SERVER_CONNECT_TIMEOUT:-3s}"
+      AI_SERVER_READ_TIMEOUT: "${AI_SERVER_READ_TIMEOUT:-30s}"
+      AI_SERVER_RETRY_COUNT: "${AI_SERVER_RETRY_COUNT:-2}"
+      AI_SERVER_SIGNED_URL_TTL: "${AI_SERVER_SIGNED_URL_TTL:-10m}"
+      AI_AUDIO_PUBLIC_BASE_URL: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}"
+      AI_AUDIO_SIGNING_SECRET: "${AI_AUDIO_SIGNING_SECRET:?AI_AUDIO_SIGNING_SECRET must be set}"
+      FILE_STORAGE_TYPE: persistent-volume
+      FILE_STORAGE_LOCAL_ROOT: /data/uploads
+      APP_MAX_UPLOAD_SIZE: "${APP_MAX_UPLOAD_SIZE:-25MB}"
+      APP_MAX_REQUEST_SIZE: "${APP_MAX_REQUEST_SIZE:-30MB}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS must be set}"
+      EXTERNAL_API_ALLOW_FALLBACK: "false"
+      STT_PROVIDER: "${STT_PROVIDER:-google}"
+      GOOGLE_STT_PROJECT_ID: "${GOOGLE_STT_PROJECT_ID:?GOOGLE_STT_PROJECT_ID must be set}"
+      GOOGLE_STT_LOCATION: "${GOOGLE_STT_LOCATION:-us}"
+      GOOGLE_STT_MODEL: "${GOOGLE_STT_MODEL:-chirp_3}"
+      GOOGLE_STT_LANGUAGE: "${GOOGLE_STT_LANGUAGE:-ko-KR}"
+      GOOGLE_TTS_PROJECT_ID: "${GOOGLE_TTS_PROJECT_ID:-}"
+      GOOGLE_TTS_LANGUAGE_CODE: "${GOOGLE_TTS_LANGUAGE_CODE:-ko-KR}"
+      GOOGLE_TTS_DEFAULT_VOICE: "${GOOGLE_TTS_DEFAULT_VOICE:-ko-KR-Neural2-A}"
+      GOOGLE_TTS_CLEAR_VOICE: "${GOOGLE_TTS_CLEAR_VOICE:-ko-KR-Neural2-C}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      KAKAO_CLIENT_ID: "${KAKAO_CLIENT_ID:-}"
+      KAKAO_CLIENT_SECRET: "${KAKAO_CLIENT_SECRET:-}"
+      KAKAO_ALLOWED_REDIRECT_URIS: "${KAKAO_ALLOWED_REDIRECT_URIS:-}"
+      NAVER_CLIENT_ID: "${NAVER_CLIENT_ID:-}"
+      NAVER_CLIENT_SECRET: "${NAVER_CLIENT_SECRET:-}"
+      NAVER_ALLOWED_REDIRECT_URIS: "${NAVER_ALLOWED_REDIRECT_URIS:-}"
+      MAIL_ENABLED: "${MAIL_ENABLED:-false}"
+      MAIL_HOST: "${MAIL_HOST:-}"
+      MAIL_PORT: "${MAIL_PORT:-587}"
+      MAIL_USERNAME: "${MAIL_USERNAME:-}"
+      MAIL_PASSWORD: "${MAIL_PASSWORD:-}"
+      MAIL_FROM: "${MAIL_FROM:-}"
+    volumes:
+      - backend-uploads:/data/uploads
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app
+      - data
+    logging: *default-logging
+
+  ai-server:
+    build:
+      context: ../ai-server
+      dockerfile: Dockerfile
+    image: neulbom-ai-server:${IMAGE_TAG:-presentation}
+    restart: unless-stopped
+    init: true
+    environment:
+      AI_SERVER_APP_ENV: production
+      AI_SERVER_LOG_LEVEL: "${AI_SERVER_LOG_LEVEL:-INFO}"
+      AI_SERVER_CONTRACTS_DIR: /app/contracts
+      AI_SERVER_ARTIFACTS_DIR: /app/artifacts/models
+      AI_SERVER_ANALYSIS_DB_PATH: /app/data/analyses.sqlite3
+      AI_SERVER_IDEMPOTENCY_DB_PATH: /app/data/idempotency.sqlite3
+      AI_SERVER_SERVICE_TOKEN: "${AI_SERVER_SERVICE_TOKEN:?AI_SERVER_SERVICE_TOKEN must be set}"
+      AI_SERVER_AUDIO_DOWNLOAD_TIMEOUT_SECONDS: "${AI_SERVER_AUDIO_DOWNLOAD_TIMEOUT_SECONDS:-30}"
+      AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS: "${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}"
+      AI_SERVER_MAX_AUDIO_DOWNLOAD_BYTES: "${AI_SERVER_MAX_AUDIO_DOWNLOAD_BYTES:-33554432}"
+      AI_SERVER_ANALYSIS_PROCESSING_TIMEOUT_SECONDS: "${AI_SERVER_ANALYSIS_PROCESSING_TIMEOUT_SECONDS:-300}"
+    volumes:
+      - type: bind
+        source: "${AI_SERVER_MODEL_ARTIFACTS_HOST_PATH:?AI_SERVER_MODEL_ARTIFACTS_HOST_PATH must be set}"
+        target: /app/artifacts/models
+        read_only: true
+      - ai-server-data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - app
+    logging: *default-logging
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-neulbom}"
+      POSTGRES_USER: "${POSTGRES_USER:-neulbom}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - data
+    logging: *default-logging
+
+volumes:
+  backend-uploads:
+  ai-server-data:
+  postgres-data:
+
+networks:
+  app:
+  data:
+    internal: true

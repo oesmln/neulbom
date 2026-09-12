@@ -17,7 +17,7 @@ class ProductionSecurityValidatorTest {
                 secureJwt(),
                 secureAi(),
                 secureCors(),
-                objectStorage()).afterPropertiesSet())
+                persistentVolumeStorage()).afterPropertiesSet())
                 .doesNotThrowAnyException();
     }
 
@@ -29,11 +29,28 @@ class ProductionSecurityValidatorTest {
                 Duration.ofMinutes(15),
                 Duration.ofDays(30));
 
-        assertRejected(jwt, secureAi(), secureCors(), objectStorage(), "기본 JWT");
+        assertRejected(jwt, secureAi(), secureCors(), persistentVolumeStorage(), "기본 JWT");
     }
 
     @Test
     void rejectsHttpAiServerUrl() {
+        AiServerProperties ai = new AiServerProperties(
+                true,
+                "http://ai.example.com:8000",
+                "s".repeat(32),
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(30),
+                2,
+                Duration.ofMinutes(5),
+                "https://api.example.com",
+                "a".repeat(32),
+                false);
+
+        assertRejected(secureJwt(), ai, secureCors(), persistentVolumeStorage(), "HTTPS");
+    }
+
+    @Test
+    void acceptsComposeInternalAiServerUrl() {
         AiServerProperties ai = new AiServerProperties(
                 true,
                 "http://ai-server:8000",
@@ -46,7 +63,9 @@ class ProductionSecurityValidatorTest {
                 "a".repeat(32),
                 false);
 
-        assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "HTTPS");
+        assertThatCode(() -> validator(
+                secureJwt(), ai, secureCors(), persistentVolumeStorage()).afterPropertiesSet())
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -63,7 +82,7 @@ class ProductionSecurityValidatorTest {
                 "a".repeat(32),
                 true);
 
-        assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "로컬 HTTP");
+        assertRejected(secureJwt(), ai, secureCors(), persistentVolumeStorage(), "로컬 HTTP");
     }
 
     @Test
@@ -80,7 +99,7 @@ class ProductionSecurityValidatorTest {
                 "short",
                 false);
 
-        assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "32자");
+        assertRejected(secureJwt(), ai, secureCors(), persistentVolumeStorage(), "32자");
     }
 
     @Test
@@ -90,7 +109,7 @@ class ProductionSecurityValidatorTest {
                 List.of("GET"),
                 List.of("Authorization"));
 
-        assertRejected(secureJwt(), secureAi(), cors, objectStorage(), "CORS");
+        assertRejected(secureJwt(), secureAi(), cors, persistentVolumeStorage(), "CORS");
     }
 
     @Test
@@ -104,6 +123,32 @@ class ProductionSecurityValidatorTest {
                 List.of("wav"));
 
         assertRejected(secureJwt(), secureAi(), secureCors(), storage, "로컬 파일 저장소");
+    }
+
+    @Test
+    void rejectsRelativePersistentVolumePath() {
+        StorageProperties storage = new StorageProperties(
+                "persistent-volume",
+                "./uploads",
+                "neulbom",
+                DataSize.ofMegabytes(25),
+                List.of("audio/wav"),
+                List.of("wav"));
+
+        assertRejected(secureJwt(), secureAi(), secureCors(), storage, "절대경로");
+    }
+
+    @Test
+    void rejectsStorageTypeWithoutAnAdapter() {
+        StorageProperties storage = new StorageProperties(
+                "gcs",
+                "/data/uploads",
+                "neulbom-production",
+                DataSize.ofMegabytes(25),
+                List.of("audio/wav"),
+                List.of("wav"));
+
+        assertRejected(secureJwt(), secureAi(), secureCors(), storage, "persistent-volume");
     }
 
     private void assertRejected(
@@ -156,10 +201,10 @@ class ProductionSecurityValidatorTest {
                 List.of("Authorization", "Content-Type"));
     }
 
-    private StorageProperties objectStorage() {
+    private StorageProperties persistentVolumeStorage() {
         return new StorageProperties(
-                "gcs",
-                "./uploads",
+                "persistent-volume",
+                "/data/uploads",
                 "neulbom-production",
                 DataSize.ofMegabytes(25),
                 List.of("audio/wav"),

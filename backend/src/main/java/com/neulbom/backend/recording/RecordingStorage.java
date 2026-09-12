@@ -24,9 +24,7 @@ public class RecordingStorage {
     }
 
     public String store(UUID recordingId, MultipartFile file) {
-        if (!"local".equalsIgnoreCase(properties.type())) {
-            throw new ExternalServiceUnavailableException("현재 파일 저장소 adapter가 local만 지원합니다.");
-        }
+        requireFilesystemStorage();
         String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
         if (!StringUtils.hasText(extension)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "지원하지 않는 파일 확장자입니다.", "허용된 확장자를 확인하세요.");
@@ -50,9 +48,7 @@ public class RecordingStorage {
     }
 
     public StoredAudio load(String storageKey) {
-        if (!"local".equalsIgnoreCase(properties.type())) {
-            throw new ExternalServiceUnavailableException("현재 파일 저장소 adapter가 local만 지원합니다.");
-        }
+        requireFilesystemStorage();
         if (!StringUtils.hasText(storageKey)) {
             throw new ExternalServiceUnavailableException("녹음 파일 저장 키가 없습니다.");
         }
@@ -74,5 +70,13 @@ public class RecordingStorage {
     }
 
     public record StoredAudio(byte[] content, String filename, String contentType) {
+    }
+
+    private void requireFilesystemStorage() {
+        if (!"local".equalsIgnoreCase(properties.type())
+                && !"persistent-volume".equalsIgnoreCase(properties.type())) {
+            throw new ExternalServiceUnavailableException(
+                    "현재 파일 저장소 adapter가 local 또는 persistent-volume만 지원합니다.");
+        }
     }
 }

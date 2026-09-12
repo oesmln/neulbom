@@ -44,13 +44,21 @@ public class ProductionSecurityValidator implements InitializingBean {
         if (aiServerProperties.allowInsecureLocalAudioUrl()) {
             throw unsafe("운영 환경에서는 로컬 HTTP 음성 URL을 허용할 수 없습니다.");
         }
-        requireHttps("AI_SERVER_BASE_URL", aiServerProperties.baseUrl());
+        requireSecureAiServerUrl(aiServerProperties.baseUrl());
         requireSecret("AI_SERVER_SERVICE_TOKEN", aiServerProperties.serviceToken());
         requireHttps("AI_AUDIO_PUBLIC_BASE_URL", aiServerProperties.audioPublicBaseUrl());
         requireSecret("AI_AUDIO_SIGNING_SECRET", aiServerProperties.audioSigningSecret());
 
         if ("local".equalsIgnoreCase(storageProperties.type())) {
             throw unsafe("운영 환경에서는 로컬 파일 저장소를 사용할 수 없습니다.");
+        }
+        if ("persistent-volume".equalsIgnoreCase(storageProperties.type())) {
+            if (!StringUtils.hasText(storageProperties.localRoot())
+                    || !java.nio.file.Path.of(storageProperties.localRoot()).isAbsolute()) {
+                throw unsafe("persistent-volume 저장 경로는 절대경로여야 합니다.");
+            }
+        } else {
+            throw unsafe("현재 지원되는 운영 파일 저장소는 persistent-volume입니다.");
         }
 
         if (corsProperties.allowedOrigins() == null || corsProperties.allowedOrigins().isEmpty()) {
@@ -81,6 +89,25 @@ public class ProductionSecurityValidator implements InitializingBean {
                 || isLoopbackHost(uri.getHost())) {
             throw unsafe(name + "은 유효한 HTTPS URL이어야 합니다.");
         }
+    }
+
+    private void requireSecureAiServerUrl(String value) {
+        URI uri = parseUri("AI_SERVER_BASE_URL", value);
+        if (isComposeAiServerUrl(uri)) {
+            return;
+        }
+        requireHttps("AI_SERVER_BASE_URL", value);
+    }
+
+    private boolean isComposeAiServerUrl(URI uri) {
+        String path = uri.getPath();
+        return "http".equalsIgnoreCase(uri.getScheme())
+                && "ai-server".equalsIgnoreCase(uri.getHost())
+                && uri.getPort() == 8000
+                && (path == null || path.isBlank() || "/".equals(path))
+                && uri.getUserInfo() == null
+                && uri.getQuery() == null
+                && uri.getFragment() == null;
     }
 
     private URI parseUri(String name, String value) {
