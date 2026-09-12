@@ -21,6 +21,11 @@ spring:
       hibernate:
         format_sql: false
 
+app:
+  ai-server:
+    # 로컬 AI 서버 연동에서만 host.docker.internal/localhost HTTP 주소를 허용한다.
+    allow-insecure-local-audio-url: ${AI_AUDIO_ALLOW_INSECURE_LOCAL_AUDIO_URL:true}
+
 logging:
   level:
     org.hibernate.SQL: ${SQL_LOG_LEVEL:WARN}

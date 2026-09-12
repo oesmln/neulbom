@@ -43,9 +43,27 @@ class ProductionSecurityValidatorTest {
                 2,
                 Duration.ofMinutes(5),
                 "https://api.example.com",
-                "a".repeat(32));
+                "a".repeat(32),
+                false);
 
         assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "HTTPS");
+    }
+
+    @Test
+    void rejectsLocalAudioModeInProduction() {
+        AiServerProperties ai = new AiServerProperties(
+                true,
+                "https://ai.example.com",
+                "s".repeat(32),
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(30),
+                2,
+                Duration.ofMinutes(5),
+                "https://api.example.com",
+                "a".repeat(32),
+                true);
+
+        assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "로컬 HTTP");
     }
 
     @Test
@@ -59,7 +77,8 @@ class ProductionSecurityValidatorTest {
                 2,
                 Duration.ofMinutes(5),
                 "https://api.example.com",
-                "short");
+                "short",
+                false);
 
         assertRejected(secureJwt(), ai, secureCors(), objectStorage(), "32자");
     }
@@ -126,7 +145,8 @@ class ProductionSecurityValidatorTest {
                 2,
                 Duration.ofMinutes(5),
                 "https://api.example.com",
-                "a".repeat(32));
+                "a".repeat(32),
+                false);
     }
 
     private CorsProperties secureCors() {

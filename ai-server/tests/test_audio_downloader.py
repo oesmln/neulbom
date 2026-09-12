@@ -116,6 +116,118 @@ def test_downloads_webm_audio_with_opus_content_type() -> None:
     assert result.size_bytes == len(AUDIO_CONTENT)
 
 
+def test_downloads_local_audio_over_http_in_local_mode() -> None:
+    def resolver(hostname: str, port: int) -> list[str]:
+        assert hostname == "host.docker.internal"
+        assert port == 8080
+        return ["192.168.65.2"]
+
+    async def scenario():
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(
+                status_code=200,
+                headers={
+                    "content-type": "audio/wav",
+                    "content-length": str(len(AUDIO_CONTENT)),
+                },
+                content=AUDIO_CONTENT,
+                request=request,
+            ),
+        )
+
+        async with httpx.AsyncClient(
+            transport=transport,
+        ) as client:
+            downloader = SignedAudioDownloader(
+                client=client,
+                max_size_bytes=1024,
+                allowed_hosts=frozenset({"host.docker.internal"}),
+                allow_local_urls=True,
+                resolver=resolver,
+            )
+
+            return await downloader.download(
+                signed_url=(
+                    "http://host.docker.internal:8080/"
+                    "api/v1/internal/ai-audio/test"
+                ),
+                expires_at=_future_expiration(),
+                declared_content_type="audio/wav",
+                declared_size_bytes=len(AUDIO_CONTENT),
+            )
+
+    result = asyncio.run(scenario())
+
+    assert result.content == AUDIO_CONTENT
+
+
+def test_rejects_local_http_when_local_mode_is_disabled() -> None:
+    request_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(200, content=AUDIO_CONTENT, request=request)
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            downloader = SignedAudioDownloader(
+                client=client,
+                max_size_bytes=1024,
+                allowed_hosts=frozenset({"host.docker.internal"}),
+                resolver=lambda _host, _port: ["192.168.65.2"],
+            )
+
+            with pytest.raises(AudioDownloadError) as captured:
+                await downloader.download(
+                    signed_url="http://host.docker.internal:8080/audio.wav",
+                    expires_at=_future_expiration(),
+                    declared_content_type="audio/wav",
+                    declared_size_bytes=len(AUDIO_CONTENT),
+                )
+
+            assert captured.value.retryable is False
+
+    asyncio.run(scenario())
+    assert request_count == 0
+
+
+def test_rejects_local_http_resolving_to_public_ip() -> None:
+    request_count = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal request_count
+        request_count += 1
+        return httpx.Response(200, content=AUDIO_CONTENT, request=request)
+
+    async def scenario() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+        ) as client:
+            downloader = SignedAudioDownloader(
+                client=client,
+                max_size_bytes=1024,
+                allowed_hosts=frozenset({"host.docker.internal"}),
+                allow_local_urls=True,
+                resolver=lambda _host, _port: ["93.184.216.34"],
+            )
+
+            with pytest.raises(AudioDownloadError) as captured:
+                await downloader.download(
+                    signed_url="http://host.docker.internal:8080/audio.wav",
+                    expires_at=_future_expiration(),
+                    declared_content_type="audio/wav",
+                    declared_size_bytes=len(AUDIO_CONTENT),
+                )
+
+            assert captured.value.retryable is False
+
+    asyncio.run(scenario())
+    assert request_count == 0
+
+
 def test_rejects_expired_url_without_request() -> None:
     request_count = 0
 

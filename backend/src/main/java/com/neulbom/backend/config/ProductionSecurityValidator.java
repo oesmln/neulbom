@@ -41,6 +41,9 @@ public class ProductionSecurityValidator implements InitializingBean {
         if (!aiServerProperties.enabled()) {
             throw unsafe("운영 환경에서는 통합 AI 서버가 활성화되어야 합니다.");
         }
+        if (aiServerProperties.allowInsecureLocalAudioUrl()) {
+            throw unsafe("운영 환경에서는 로컬 HTTP 음성 URL을 허용할 수 없습니다.");
+        }
         requireHttps("AI_SERVER_BASE_URL", aiServerProperties.baseUrl());
         requireSecret("AI_SERVER_SERVICE_TOKEN", aiServerProperties.serviceToken());
         requireHttps("AI_AUDIO_PUBLIC_BASE_URL", aiServerProperties.audioPublicBaseUrl());

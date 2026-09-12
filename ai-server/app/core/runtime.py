@@ -130,6 +130,9 @@ async def lifespan(
                         settings
                         .max_audio_download_bytes
                     ),
+                    allow_local_urls=(
+                        settings.allows_local_audio_urls
+                    ),
                     allowed_hosts=(
                         settings
                         .allowed_audio_download_hosts

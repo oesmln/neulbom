@@ -135,7 +135,7 @@ def test_compose_uses_container_paths() -> None:
     ] == "/app/data/idempotency.sqlite3"
     assert environment[
         "AI_SERVER_APP_ENV"
-    ] == "production"
+    ] == "${AI_SERVER_APP_ENV:?AI_SERVER_APP_ENV must be set}"
     assert (
         "AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS"
         in environment

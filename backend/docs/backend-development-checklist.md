@@ -745,6 +745,7 @@
 - [ ] 배포 환경의 HTTPS object storage 또는 공개 backend origin으로 signed URL 다운로드를 확인한다. (#127)
 - [x] AI 음성 다운로드 호스트 allowlist와 공개 IP DNS 검증으로 SSRF를 차단한다. (#135)
 - [x] AI signed URL과 계약에서 `audio/webm`(WebM/Opus)을 전달한다.
+- [ ] 로컬 프로필에서 Cloudflare 없이 허용된 로컬 signed URL로 AI 분석을 실행한다. (#147)
 - [ ] recording 업로드 완료 이벤트를 만든다.
 - [ ] STT 작업을 예약한다.
 - [ ] AST 작업을 예약한다.

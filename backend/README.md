@@ -48,15 +48,17 @@ gcloud auth application-default login
 AI_SERVER_ENABLED=true
 AI_SERVER_BASE_URL=http://localhost:8000
 AI_SERVER_SERVICE_TOKEN=AI-서버와-동일한-서비스-토큰
-AI_AUDIO_PUBLIC_BASE_URL=https://AI-컨테이너가-접근할-수-있는-백엔드-origin
+AI_AUDIO_PUBLIC_BASE_URL=http://host.docker.internal:8080
 AI_AUDIO_SIGNING_SECRET=32자-이상의-별도-HMAC-비밀값
 ```
 
-백엔드가 Docker에서 실행되면 `AI_SERVER_BASE_URL=http://host.docker.internal:8000`, 같은 Compose 네트워크이면 `http://ai-server:8000`을 사용합니다. AI 서버는 음성 URL에 HTTPS를 강제하므로 `AI_AUDIO_PUBLIC_BASE_URL`에 `localhost` HTTP 주소를 사용할 수 없습니다. 로컬 실제 통합 테스트에는 HTTPS tunnel 또는 HTTPS object storage 주소를 사용합니다.
+로컬에서 AI 서버를 Docker로 실행하면 `host.docker.internal`을 사용합니다. AI 서버까지 호스트에서 직접 실행하면 `AI_AUDIO_PUBLIC_BASE_URL=http://localhost:8080`으로 바꾸고 AI 서버의 `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=localhost`를 사용합니다. 로컬 프로필에서는 이 두 로컬 주소에 한해 HTTP signed URL을 허용하며, 운영 환경은 공개 HTTPS origin만 허용합니다.
+
+백엔드가 Docker에서 실행되면 `AI_SERVER_BASE_URL=http://host.docker.internal:8000`, 같은 Compose 네트워크이면 `http://ai-server:8000`을 사용합니다. 로컬 환경변수는 [`../scripts/prepare-cist-ai-local-env.sh`](../scripts/prepare-cist-ai-local-env.sh)를 인자 없이 실행해 기본값을 구성할 수 있습니다. HTTPS tunnel을 사용하는 운영 유사 테스트가 필요하면 기존처럼 공개 HTTPS origin을 인자로 전달합니다.
 
 백엔드 연동 계약은 저장소의 `ai-server/contracts/ai-server-openapi-v1.yaml`, `cist-v1.json`, `wrong-event-v1.json`이며 빌드 시 같은 파일이 백엔드 classpath의 `contracts/`로 포함됩니다.
 
-macOS에서 앱·백엔드·AI Docker·HTTPS signed URL을 함께 확인하는 절차는 [`../docs/cist-ai-local-integration-test.md`](../docs/cist-ai-local-integration-test.md)를 따릅니다.
+macOS에서 앱·백엔드·AI Docker·signed URL을 함께 확인하는 절차는 [`../docs/cist-ai-local-integration-test.md`](../docs/cist-ai-local-integration-test.md)를 따릅니다.
 
 ## 카카오·네이버 OAuth
 

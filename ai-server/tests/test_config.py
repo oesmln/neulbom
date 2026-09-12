@@ -10,6 +10,7 @@ def test_default_settings() -> None:
     settings = Settings(_env_file=None)
 
     assert settings.app_env == "local"
+    assert settings.allows_local_audio_urls is True
     assert settings.log_level == "INFO"
     assert settings.contracts_dir == (
         PROJECT_ROOT / "contracts"
@@ -93,6 +94,7 @@ def test_environment_variables_override_defaults(
     settings = Settings(_env_file=None)
 
     assert settings.app_env == "test"
+    assert settings.allows_local_audio_urls is True
     assert settings.log_level == "DEBUG"
     assert settings.contracts_dir == (
         PROJECT_ROOT / "custom-contracts"
@@ -122,3 +124,14 @@ def test_environment_variables_override_defaults(
         .analysis_processing_timeout_seconds
         == 120.0
     )
+
+
+def test_production_disables_local_audio_urls(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "AI_SERVER_APP_ENV",
+        "production",
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.allows_local_audio_urls is False

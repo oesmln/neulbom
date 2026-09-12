@@ -211,13 +211,16 @@ Copy-Item .env.example .env
 ```dotenv
 AI_SERVER_APP_ENV=local
 AI_SERVER_SERVICE_TOKEN=충분히-긴-서비스간-인증-토큰
-AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=백엔드-공개-호스트.example.com
+# Docker AI 서버가 호스트 백엔드에 접근하는 로컬 주소
+AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=host.docker.internal
 AI_SERVER_ARTIFACTS_DIR=C:/외부경로/artifacts/models
 AI_SERVER_ANALYSIS_DB_PATH=data/analyses.sqlite3
 AI_SERVER_IDEMPOTENCY_DB_PATH=data/idempotency.sqlite3
 ```
 
 `.env`에는 실제 토큰과 절대경로가 포함될 수 있으므로 Git에 커밋하지 않습니다.
+
+로컬에서 AI 서버를 호스트 프로세스로 직접 실행하면 `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=localhost`로 바꾸고 백엔드의 `AI_AUDIO_PUBLIC_BASE_URL`도 `http://localhost:8080`으로 맞춥니다. 로컬 프로필에서만 명시적으로 허용된 `localhost`, `host.docker.internal` HTTP 주소를 사용할 수 있으며 운영 프로필은 HTTPS signed URL만 허용합니다.
 
 ### 3. 서버 실행
 
@@ -266,11 +269,14 @@ Invoke-RestMethod http://localhost:8000/health/ready
 Docker용 `.env`에는 다음 값을 설정합니다.
 
 ```dotenv
+AI_SERVER_APP_ENV=local
 AI_SERVER_SERVICE_TOKEN=충분히-긴-서비스간-인증-토큰
-AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=백엔드-공개-호스트.example.com
+AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS=host.docker.internal
 AI_SERVER_MODEL_ARTIFACTS_HOST_PATH=C:/외부경로/artifacts/models
 AI_SERVER_PORT=8000
 ```
+
+Compose는 `.env`의 `AI_SERVER_APP_ENV`를 컨테이너에 전달합니다. 로컬 실행은 `local`, 운영 배포는 반드시 `production`으로 설정합니다.
 
 설정 검증:
 
@@ -423,7 +429,7 @@ Idempotency-Key: analysis-create-{고유값}
 
 ## signed URL 재시도
 
-음성은 AI 서버에 직접 업로드하지 않고 HTTPS signed URL로 전달합니다.
+음성은 AI 서버에 직접 업로드하지 않고 signed URL로 전달합니다. 로컬 프로필에서는 허용된 호스트의 HTTP 주소도 사용할 수 있고, 운영 프로필에서는 HTTPS signed URL만 허용합니다.
 
 권장 유효시간은 30분입니다.
 

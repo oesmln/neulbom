@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 || "$1" != https://* ]]; then
-  echo "Usage: $0 https://your-public-backend-origin" >&2
+if [[ $# -gt 1 || ( $# -eq 1 && "$1" != https://* ) ]]; then
+  echo "Usage: $0 [https://your-public-backend-origin]" >&2
+  echo "Without an argument, configure the local Docker AI server path." >&2
   exit 1
 fi
 
@@ -11,7 +12,15 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$script_dir/.." && pwd)"
 backend_env="$repo_dir/backend/.env"
 ai_env="$repo_dir/ai-server/.env"
-public_origin="${1%/}"
+if [[ $# -eq 1 ]]; then
+  public_origin="${1%/}"
+  public_host="${public_origin#https://}"
+  public_host="${public_host%%/*}"
+  public_host="${public_host%%:*}"
+else
+  public_origin="http://host.docker.internal:8080"
+  public_host="host.docker.internal"
+fi
 
 if [[ ! -f "$backend_env" ]]; then
   cp "$repo_dir/backend/.env.example" "$backend_env"
@@ -42,7 +51,9 @@ update_env() {
 service_token="$(openssl rand -hex 32)"
 signing_secret="$(openssl rand -hex 32)"
 
+update_env "$ai_env" AI_SERVER_APP_ENV local
 update_env "$ai_env" AI_SERVER_SERVICE_TOKEN "$service_token"
+update_env "$ai_env" AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS "$public_host"
 update_env "$backend_env" AI_SERVER_ENABLED true
 update_env "$backend_env" AI_SERVER_BASE_URL http://localhost:8000
 update_env "$backend_env" AI_SERVER_SERVICE_TOKEN "$service_token"
