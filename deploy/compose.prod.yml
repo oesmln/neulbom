@@ -17,7 +17,7 @@ services:
         EXPO_PUBLIC_KAKAO_REDIRECT_URI: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}/auth/callback/kakao"
         EXPO_PUBLIC_NAVER_CLIENT_ID: "${NAVER_CLIENT_ID:-}"
         EXPO_PUBLIC_NAVER_REDIRECT_URI: "https://${PUBLIC_API_HOST:?PUBLIC_API_HOST must be set}/auth/callback/naver"
-    image: neulbom-frontend-web:${IMAGE_TAG:-presentation}
+    image: neulbom-frontend-web:${IMAGE_TAG:-production}
     restart: unless-stopped
     depends_on:
       backend:
@@ -47,7 +47,7 @@ services:
     build:
       context: ..
       dockerfile: backend/Dockerfile
-    image: neulbom-backend:${IMAGE_TAG:-presentation}
+    image: neulbom-backend:${IMAGE_TAG:-production}
     restart: unless-stopped
     init: true
     depends_on:
@@ -119,7 +119,7 @@ services:
     build:
       context: ../ai-server
       dockerfile: Dockerfile
-    image: neulbom-ai-server:${IMAGE_TAG:-presentation}
+    image: neulbom-ai-server:${IMAGE_TAG:-production}
     restart: unless-stopped
     init: true
     environment:

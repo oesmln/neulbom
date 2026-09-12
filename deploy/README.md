@@ -1,4 +1,4 @@
-# 발표용 서버 배포
+# 운영 서버 배포
 
 GCP Compute Engine VM 한 대에서 Expo Web 정적 빌드를 포함한 Nginx, Spring Boot,
 FastAPI AI 서버, PostgreSQL을 Docker Compose로 실행한다. Redis는 현재
@@ -83,9 +83,9 @@ Compose의 `backend-uploads`, `ai-server-data`, `postgres-data` 볼륨은 컨테
 
 ## 5. 자동 배포
 
-`.github/workflows/deploy-presentation.yml`은 `develop`의 서버 관련 파일이 바뀌면
+`.github/workflows/deploy-production.yml`은 `develop`의 서버 관련 파일이 바뀌면
 VM에 접속해 fast-forward 갱신 후 Compose를 다시 빌드한다. GitHub Environment
-`presentation`에 다음 값을 등록한다.
+`production`에 다음 값을 등록한다.
 
 - Variables: `GCP_PROJECT_ID`, `GCP_ZONE`, `GCP_VM_NAME`
 - Secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`

@@ -27,7 +27,7 @@ npm run ios
 npm run android
 ```
 
-## 발표용 Android APK
+## Android APK 빌드
 
 `EXPO_PUBLIC_API_BASE_URL`에는 `/api/v1`을 제외한 운영 HTTPS 호스트를 설정한다.
 카카오·네이버 redirect URI도 각 provider 콘솔에 등록한 값과 일치시킨다.
@@ -41,7 +41,7 @@ npm run eas:build:android:preview
 `preview` profile은 내부 배포용 APK를 만든다. API 주소나 JavaScript 번들이 바뀌면
 APK를 다시 빌드하고 발표 기기에 설치해야 한다.
 
-## 발표용 Web 빌드
+## Web 빌드
 
 ```bash
 EXPO_PUBLIC_API_BASE_URL=https://api.neulbom.example \
