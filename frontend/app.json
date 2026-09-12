@@ -16,6 +16,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.neulbom.memocare",
       "adaptiveIcon": {
         "backgroundColor": "#5A8F68"
       }
