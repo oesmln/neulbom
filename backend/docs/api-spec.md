@@ -1594,18 +1594,18 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 
 #### signed URL과 환경 설정
 
-백엔드는 HMAC-SHA256으로 서명된 `GET /api/v1/internal/ai-audio/{recording_id}` URL을 발급한다. URL은 만료 시각과 서명을 포함하며 AI 서버 계약에 따라 공개 origin은 HTTPS여야 한다. 원본 음성 endpoint는 유효한 서명과 만료 시각을 통과한 요청에만 파일을 반환한다.
+백엔드는 HMAC-SHA256으로 서명된 `GET /api/v1/internal/ai-audio/{recording_id}` URL을 발급한다. URL은 만료 시각과 서명을 포함하며 운영 공개 origin은 HTTPS여야 한다. `local` 프로필에서는 AI 서버가 로컬에서 실행되는 경우에 한해 `localhost`, `127.0.0.1`, `host.docker.internal` 또는 `gateway.docker.internal`의 HTTP origin을 사용할 수 있다. 원본 음성 endpoint는 유효한 서명과 만료 시각을 통과한 요청에만 파일을 반환한다.
 
 AI 분석 음성 MIME은 `audio/wav`, `audio/mp4`, `audio/mpeg`, `audio/webm`(WebM/Opus)를 지원한다. 백엔드는 저장된 녹음의 MIME을 signed URL 응답에 전달하고 AI 서버는 해당 형식으로 다운로드·전처리한다.
 
-AI 서버는 `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS`에 등록된 HTTPS 443 호스트만 다운로드한다. 요청 직전에 DNS의 모든 A·AAAA 결과가 공개 IP인지 검사하며 loopback, 사설망, link-local, 클라우드 메타데이터 주소를 포함한 비공개 IP를 거부한다. HTTP redirect는 따르지 않는다.
+AI 서버는 `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS`에 등록된 호스트만 다운로드한다. `production`에서는 HTTPS 443과 공개 IP DNS 결과만 허용하며, `local`·`test`·`development`에서는 명시적으로 허용된 로컬 호스트의 HTTP 주소와 loopback·사설 IP만 허용한다. link-local·예약·미지정 IP와 클라우드 메타데이터 주소는 모든 환경에서 거부하며 HTTP redirect는 따르지 않는다.
 
 | 환경변수 | 설명 |
 | --- | --- |
 | `AI_SERVER_ENABLED` | 통합 AI 서버 연동 활성화 여부 |
 | `AI_SERVER_BASE_URL` | 로컬 `http://localhost:8000`, 백엔드 Docker `http://host.docker.internal:8000`, Compose `http://ai-server:8000` |
 | `AI_SERVER_SERVICE_TOKEN` | AI 서버와 동일한 서비스 간 Bearer Token |
-| `AI_AUDIO_PUBLIC_BASE_URL` | AI 컨테이너가 접근 가능한 백엔드 HTTPS 공개 origin |
+| `AI_AUDIO_PUBLIC_BASE_URL` | 로컬은 AI 서버가 접근 가능한 `http://host.docker.internal:8080` 또는 `http://localhost:8080`, 운영은 백엔드 HTTPS 공개 origin |
 | `AI_AUDIO_SIGNING_SECRET` | signed URL HMAC 키, 최소 32자 |
 | `AI_SERVER_AUDIO_DOWNLOAD_ALLOWED_HOSTS` | AI 서버가 signed URL 다운로드를 허용할 쉼표 구분 호스트 목록 |
 

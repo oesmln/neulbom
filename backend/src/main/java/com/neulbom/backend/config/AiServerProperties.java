@@ -15,7 +15,8 @@ public record AiServerProperties(
         int retryCount,
         Duration signedUrlTtl,
         String audioPublicBaseUrl,
-        String audioSigningSecret
+        String audioSigningSecret,
+        boolean allowInsecureLocalAudioUrl
 ) {
 
     public boolean configured() {

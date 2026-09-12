@@ -20,6 +20,16 @@ _CONTENT_TYPE_ALIASES = {
     "audio/webm": "audio/webm",
 }
 
+_LOCAL_AUDIO_HOSTS = frozenset(
+    {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "host.docker.internal",
+        "gateway.docker.internal",
+    },
+)
+
 
 class AudioDownloadReason(StrEnum):
     AUDIO_URL_EXPIRED = "AUDIO_URL_EXPIRED"
@@ -57,6 +67,7 @@ class SignedAudioDownloader:
         client: httpx.AsyncClient,
         max_size_bytes: int,
         allowed_hosts: frozenset[str],
+        allow_local_urls: bool = False,
         resolver: Callable[
             [str, int], list[str]
         ] | None = None,
@@ -68,6 +79,7 @@ class SignedAudioDownloader:
 
         self._client = client
         self._max_size_bytes = max_size_bytes
+        self._allow_local_urls = allow_local_urls
         self._allowed_hosts = frozenset(
             host.strip().lower().rstrip(".")
             for host in allowed_hosts
@@ -88,6 +100,7 @@ class SignedAudioDownloader:
             signed_url,
             allowed_hosts=self._allowed_hosts,
             resolver=self._resolver,
+            allow_local_urls=self._allow_local_urls,
         )
         _validate_expiration(expires_at)
 
@@ -260,6 +273,7 @@ async def _validate_signed_url(
     *,
     allowed_hosts: frozenset[str],
     resolver: Callable[[str, int], list[str]],
+    allow_local_urls: bool = False,
 ) -> None:
     parsed = urlsplit(signed_url)
     hostname = (
@@ -270,13 +284,23 @@ async def _validate_signed_url(
     except ValueError:
         _raise_unsafe_url()
 
+    scheme = parsed.scheme.lower()
+    is_local_http = (
+        allow_local_urls
+        and scheme == "http"
+        and hostname in _LOCAL_AUDIO_HOSTS
+    )
+
     if (
-        parsed.scheme.lower() != "https"
+        (scheme != "https" and not is_local_http)
         or not hostname
         or parsed.username is not None
         or parsed.password is not None
         or parsed.fragment
-        or port not in {None, 443}
+        or (
+            scheme == "https"
+            and port not in {None, 443}
+        )
     ):
         _raise_unsafe_url()
 
@@ -287,7 +311,7 @@ async def _validate_signed_url(
         addresses = await asyncio.to_thread(
             resolver,
             hostname,
-            port or 443,
+            port or (80 if is_local_http else 443),
         )
     except (OSError, ValueError) as error:
         raise AudioDownloadError(
@@ -304,8 +328,25 @@ async def _validate_signed_url(
             resolved_ip = ipaddress.ip_address(address)
         except ValueError:
             _raise_unsafe_url()
-        if not resolved_ip.is_global:
+        if is_local_http:
+            if not _is_allowed_local_address(
+                resolved_ip,
+            ):
+                _raise_unsafe_url()
+        elif not resolved_ip.is_global:
             _raise_unsafe_url()
+
+
+def _is_allowed_local_address(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> bool:
+    return (
+        (address.is_loopback or address.is_private)
+        and not address.is_link_local
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
+    )
 
 
 def _resolve_host(hostname: str, port: int) -> list[str]:

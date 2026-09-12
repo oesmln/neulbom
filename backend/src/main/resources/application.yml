@@ -63,6 +63,7 @@ app:
     signed-url-ttl: ${AI_SERVER_SIGNED_URL_TTL:30m}
     audio-public-base-url: ${AI_AUDIO_PUBLIC_BASE_URL:}
     audio-signing-secret: ${AI_AUDIO_SIGNING_SECRET:}
+    allow-insecure-local-audio-url: ${AI_AUDIO_ALLOW_INSECURE_LOCAL_AUDIO_URL:false}
   scheduler:
     enabled: ${APP_SCHEDULER_ENABLED:true}
     daily-report-cron: ${APP_DAILY_REPORT_CRON:0 5 0 * * *}

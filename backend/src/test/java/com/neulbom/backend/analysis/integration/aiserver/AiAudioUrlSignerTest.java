@@ -50,6 +50,31 @@ class AiAudioUrlSignerTest {
     }
 
     @Test
+    void acceptsLocalHttpOriginWhenLocalModeIsEnabled() {
+        AiAudioUrlSigner signer = signer(
+                "http://host.docker.internal:8080",
+                "test-signing-secret-at-least-32-characters",
+                true);
+
+        var audio = signer.issue(recording(UUID.randomUUID(), "audio/mp4"));
+
+        assertThat(audio.signedUrl().getScheme()).isEqualTo("http");
+        assertThat(audio.signedUrl().getHost()).isEqualTo("host.docker.internal");
+    }
+
+    @Test
+    void rejectsPublicHttpOriginEvenWhenLocalModeIsEnabled() {
+        AiAudioUrlSigner signer = signer(
+                "http://backend.example.com:8080",
+                "test-signing-secret-at-least-32-characters",
+                true);
+
+        assertThatThrownBy(() -> signer.issue(recording(UUID.randomUUID(), "audio/mp4")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("HTTPS");
+    }
+
+    @Test
     void acceptsWebmAudioFormatInTheAiContract() {
         AiAudioUrlSigner signer = signer("https://backend.test", "test-signing-secret-at-least-32-characters");
 
@@ -59,6 +84,10 @@ class AiAudioUrlSignerTest {
     }
 
     private AiAudioUrlSigner signer(String publicBaseUrl, String secret) {
+        return signer(publicBaseUrl, secret, false);
+    }
+
+    private AiAudioUrlSigner signer(String publicBaseUrl, String secret, boolean allowLocalHttp) {
         return new AiAudioUrlSigner(
                 new AiServerProperties(
                         true,
@@ -69,7 +98,8 @@ class AiAudioUrlSignerTest {
                         2,
                         Duration.ofMinutes(30),
                         publicBaseUrl,
-                        secret),
+                        secret,
+                        allowLocalHttp),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

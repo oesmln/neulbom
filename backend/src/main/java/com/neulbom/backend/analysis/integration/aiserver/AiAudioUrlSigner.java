@@ -6,6 +6,8 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.crypto.Mac;
@@ -23,6 +25,13 @@ import org.springframework.util.StringUtils;
 @Component
 public class AiAudioUrlSigner {
 
+    private static final Set<String> LOCAL_AUDIO_HOSTS = Set.of(
+            "localhost",
+            "127.0.0.1",
+            "::1",
+            "host.docker.internal",
+            "gateway.docker.internal");
+
     private final AiServerProperties properties;
     private final Clock clock;
 
@@ -39,8 +48,9 @@ public class AiAudioUrlSigner {
         String baseUrl = properties.audioPublicBaseUrl().trim().replaceAll("/+$", "");
         URI uri = URI.create(baseUrl + "/api/v1/internal/ai-audio/" + recording.getId()
                 + "?expires_at=" + expiresEpoch + "&signature=" + signature);
-        if (!"https".equalsIgnoreCase(uri.getScheme())) {
-            throw new ExternalServiceUnavailableException("AI 음성 공개 주소는 HTTPS여야 합니다.");
+        if (!isAllowedAudioOrigin(uri)) {
+            throw new ExternalServiceUnavailableException(
+                    "AI 음성 공개 주소는 운영 환경에서 HTTPS여야 하며, 로컬에서는 허용된 로컬 주소만 사용할 수 있습니다.");
         }
         return new AudioResource(
                 uri,
@@ -80,6 +90,24 @@ public class AiAudioUrlSigner {
         if (!properties.audioSigningConfigured() || properties.audioSigningSecret().length() < 32) {
             throw new ExternalServiceUnavailableException("AI 음성 signed URL 설정이 완료되지 않았습니다.");
         }
+    }
+
+    private boolean isAllowedAudioOrigin(URI uri) {
+        if (uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null) {
+            return false;
+        }
+        if ("https".equalsIgnoreCase(uri.getScheme())) {
+            return true;
+        }
+        return properties.allowInsecureLocalAudioUrl()
+                && "http".equalsIgnoreCase(uri.getScheme())
+                && LOCAL_AUDIO_HOSTS.contains(normalizeHost(uri.getHost()));
+    }
+
+    private String normalizeHost(String host) {
+        return host.toLowerCase(Locale.ROOT)
+                .replace("[", "")
+                .replace("]", "");
     }
 
     private String standardMimeType(String mimeType) {

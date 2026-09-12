@@ -24,6 +24,10 @@ LogLevel = Literal[
     "CRITICAL",
 ]
 
+LOCAL_APP_ENVIRONMENTS = frozenset(
+    {"local", "test", "development"},
+)
+
 
 class Settings(BaseSettings):
     """환경변수와 .env 파일에서 AI 서버 설정을 읽는다."""
@@ -110,6 +114,11 @@ class Settings(BaseSettings):
             for host in self.audio_download_allowed_hosts.split(",")
             if host.strip()
         )
+
+    @property
+    def allows_local_audio_urls(self) -> bool:
+        """로컬 환경에서만 host 전용 HTTP 음성 URL을 허용한다."""
+        return self.app_env in LOCAL_APP_ENVIRONMENTS
 
 
 @lru_cache

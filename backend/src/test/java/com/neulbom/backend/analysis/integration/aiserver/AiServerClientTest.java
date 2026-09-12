@@ -179,7 +179,8 @@ class AiServerClientTest {
                         0,
                         Duration.ofMinutes(30),
                         "https://backend.test",
-                        "test-signing-secret-at-least-32-characters"),
+                        "test-signing-secret-at-least-32-characters",
+                        false),
                 objectMapper);
     }
 }
