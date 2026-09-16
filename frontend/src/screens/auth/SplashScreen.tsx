@@ -46,7 +46,7 @@ export default function SplashScreen() {
         <Pressable
           onPress={__DEV__ ? cycleShape : undefined}
           accessibilityRole="image"
-          accessibilityLabel="메모이 캐릭터"
+          accessibilityLabel="늘봄 캐릭터"
         >
           <Memoi3D character={character} height={200} style={{ width: 200 }} />
         </Pressable>
@@ -59,14 +59,16 @@ export default function SplashScreen() {
         </View>
 
         <Text style={styles.tagline}>
-          매일 성장형 AI 캐릭터와 함께하는{"\n"}
-          <Text style={styles.taglineStrong}>인지 활력 케어</Text>
+          <Text style={styles.taglineStrong}>늘 곁에서 오늘을 살펴봅니다</Text>{"\n"}
+          {"\n"}
+          매일 나누는 작은 대화가{"\n"}
+          오늘의 안부가 되고, 내일의 안심이 됩니다.
         </Text>
 
         <View style={styles.bubble}>
           <Text style={styles.bubbleText}>
-            "안녕하세요! 저는 <Text style={styles.bubbleStrong}>메모이</Text>예요.{"\n"}
-            함께 뇌 건강을 지켜볼게요! 🌿"
+            "반가워요. 오늘 하루는 어떠셨어요?{"\n"}
+            저와 천천히 이야기 나눠요."
           </Text>
         </View>
       </View>
@@ -123,6 +125,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 24,
   },
-  bubbleStrong: { color: "rgba(255,255,255,0.9)", fontWeight: fontWeight.bold },
   footer: { paddingHorizontal: spacing.xxl - 4, paddingBottom: spacing.xxl + 4 },
 });

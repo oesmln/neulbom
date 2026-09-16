@@ -133,7 +133,9 @@ export default function ElderHomeScreen() {
 
           <Memoi3D character={DEFAULT_MEMOI} height={116} style={{ width: 150 }} />
           <Text style={styles.greeting}>{greeting}</Text>
-          <Text style={styles.name}>{userName ? `${userName} 어르신` : "어르신"}</Text>
+          {/* 본인 화면에서는 '어르신' 호칭 대신 이름을 그대로 부른다. 보호자 화면의
+              '어르신' 표기는 피보호자를 가리키는 말이라 그대로 둔다. */}
+          <Text style={styles.name}>{userName ? `${userName}님` : "반가워요"}</Text>
           {data ? (
             <View style={styles.streak}>
               <Text style={styles.streakLabel}>

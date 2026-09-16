@@ -17,7 +17,8 @@ import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
-import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { withParticle } from "@/utils/format";
 
 /**
  * AI emotional Q&A — the daily conversation, answered by voice.
@@ -49,7 +50,7 @@ const SAMPLE_ANSWERS = [
 export default function ElderAiChatScreen() {
   const navigation = useNavigation<ElderNav>();
   const { userId, characterName } = useApp();
-  const companionName = characterName?.trim() || "메모이";
+  const companionName = characterName?.trim() || DEFAULT_CHARACTER_NAME;
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
@@ -196,7 +197,7 @@ export default function ElderAiChatScreen() {
           spinnerColor={colors.primary}
           style={{ width: 170 }}
         />
-        <Text style={styles.stageStatus}>{voice.speaking ? `${companionName}가 말하고 있어요` : companionName}</Text>
+        <Text style={styles.stageStatus}>{voice.speaking ? `${withParticle(companionName, "이", "가")} 말하고 있어요` : companionName}</Text>
         <View style={styles.stageVoiceToggle}>
           <VoicePlaybackButton
             enabled={voice.enabled}

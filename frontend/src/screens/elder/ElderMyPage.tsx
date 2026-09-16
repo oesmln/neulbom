@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { ElderMyPageNav, RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
+import { DEFAULT_CHARACTER_NAME } from "@/components/memoiCharacters";
 import { auth, game, reports, users } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { ApiError, apiErrorMessage } from "@/api/errors";
@@ -136,7 +137,7 @@ export default function ElderMyPageScreen() {
   };
 
   const openNameEditor = () => {
-    setNameDraft(character.data?.display_name || characterName || "메모이");
+    setNameDraft(character.data?.display_name || characterName || DEFAULT_CHARACTER_NAME);
     setNameError(null);
     setNameModalOpen(true);
   };
@@ -173,7 +174,7 @@ export default function ElderMyPageScreen() {
 
   const { level: levelNumber, xp_current, xp_goal, xp_remaining } = character.data;
   const meta = levelMeta(levelNumber);
-  const displayName = character.data.display_name || characterName || "메모이";
+  const displayName = character.data.display_name || characterName || DEFAULT_CHARACTER_NAME;
   const span = Math.max(1, xp_goal - meta.min);
   const level = {
     ...meta,

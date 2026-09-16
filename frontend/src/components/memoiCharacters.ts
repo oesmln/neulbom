@@ -22,6 +22,14 @@ export type MemoiCharacter = {
   module: number;
 };
 
+/**
+ * 사용자가 캐릭터 이름을 정하기 전에 화면에 쓰는 기본 이름.
+ *
+ * 온보딩에서 이름을 입력받아 `character_name`으로 저장하므로 이 값이 보이는
+ * 구간은 이름을 정하기 전뿐이다. 화면마다 다른 기본값을 쓰지 않도록 한곳에 둔다.
+ */
+export const DEFAULT_CHARACTER_NAME = "늘봄";
+
 export const MEMOI_CHARACTERS: MemoiCharacter[] = [
   // The plain red bean, no accessories. This is the character the app ships
   // with; the rest are growth stages waiting on `GET /character/{user_id}` to

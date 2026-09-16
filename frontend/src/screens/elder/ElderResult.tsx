@@ -11,7 +11,8 @@ import { apiErrorMessage } from "@/api/errors";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
-import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
+import { withParticle } from "@/utils/format";
 
 /**
  * What the elder sees after a session — and deliberately not a score.
@@ -44,7 +45,7 @@ export default function ElderResultScreen() {
   const sessionId = route.params?.sessionId ?? null;
   const mode = route.params?.mode ?? "daily";
   const { userName, characterName, completeBaseline } = useApp();
-  const companionName = characterName?.trim() || "메모이";
+  const companionName = characterName?.trim() || DEFAULT_CHARACTER_NAME;
   const baseline = mode === "baseline";
   const [aiPolling, setAiPolling] = React.useState(baseline);
   const [resultPolling, setResultPolling] = React.useState(!baseline);
@@ -181,7 +182,7 @@ export default function ElderResultScreen() {
           ) : (
               <SpeechBubble
                 text={baseline
-                  ? message || `이제 ${companionName}와 매일 편하게 이야기할 수 있어요.`
+                  ? message || `이제 ${withParticle(companionName, "과", "와")} 매일 편하게 이야기할 수 있어요.`
                   : `${userName ? `${userName}님, ` : ""}${message}`}
                 side="below"
               />
