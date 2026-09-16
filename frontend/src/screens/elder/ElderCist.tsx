@@ -44,6 +44,52 @@ function domainOf(question: QuestionResponse): string {
   }
 }
 
+/**
+ * 듣고 그대로 따라 말하거나 거꾸로 말해야 하는 문항.
+ *
+ * 이 문항들의 `content`는 "안내 문장: 제시 내용" 형태라, 전문을 그대로 그리면
+ * 외워야 할 문장이나 숫자가 화면에 남아 답을 읽을 수 있다. 화면에는 안내 문장만
+ * 남기고 제시 내용은 음성으로만 전달한다. 음성(`useSpeechPlayback`)에는 전문을
+ * 그대로 넘기므로 문항 원문이나 채점 계약은 바뀌지 않는다.
+ */
+const SPOKEN_ONLY_QUESTION_CODES = new Set([
+  "memory_registration_first",
+  "memory_registration_second",
+  "attention_digit_span_4",
+  "attention_digit_span_5",
+  "attention_word_reverse",
+]);
+
+/**
+ * 답변 인식 결과를 화면에 남기면 안 되는 문항.
+ *
+ * 기억 등록 문항은 들은 문장을 그대로 따라 말하므로 인식 결과가 곧 외워야 할
+ * 문장이다. 뒤에서 같은 문장을 지연 회상으로 다시 묻기 때문에, 녹음 직후 결과와
+ * 누적 대화 카드 모두에서 답변 문구를 숨긴다.
+ */
+const ANSWER_HIDDEN_QUESTION_CODES = new Set([
+  "memory_registration_first",
+  "memory_registration_second",
+]);
+
+/** 답변 인식 결과를 숨겨야 하는 문항인지 확인한다. */
+function isAnswerHiddenQuestion(question: QuestionResponse): boolean {
+  return !!question.question_code && ANSWER_HIDDEN_QUESTION_CODES.has(question.question_code);
+}
+
+/** 제시 내용을 음성으로만 전달해야 하는 문항인지 확인한다. */
+function isSpokenOnlyQuestion(question: QuestionResponse): boolean {
+  return !!question.question_code && SPOKEN_ONLY_QUESTION_CODES.has(question.question_code);
+}
+
+/** 화면에 표시할 문항 문구. 제시 내용을 가려야 하는 문항은 안내 문장만 남긴다. */
+function displayContentOf(question: QuestionResponse): string {
+  if (!isSpokenOnlyQuestion(question)) return question.content;
+  const separator = question.content.indexOf(":");
+  if (separator < 0) return question.content;
+  return question.content.slice(0, separator).trim();
+}
+
 type CompletedTurn = {
   questionId: Uuid;
   domain: string;
@@ -156,8 +202,11 @@ export default function ElderCistScreen() {
     const completedTurn: CompletedTurn = {
       questionId: question.question_id,
       domain: domainOf(question),
-      question: question.content,
-      answer: answerTextForTurn(isListenQuestion, currentTranscript),
+      question: displayContentOf(question),
+      // 외워야 할 문장을 따라 말한 답은 뒤의 지연 회상 전에 다시 보이면 안 된다.
+      answer: isAnswerHiddenQuestion(question)
+        ? "음성 답변을 완료했어요."
+        : answerTextForTurn(isListenQuestion, currentTranscript),
     };
 
     try {
@@ -278,8 +327,13 @@ export default function ElderCistScreen() {
             <Badge label={domainOf(question)} />
 
             <View style={{ gap: spacing.md }}>
-              <Text style={styles.prompt}>{question.content}</Text>
+              <Text style={styles.prompt}>{displayContentOf(question)}</Text>
               {question.hint ? <Text style={styles.hint}>{question.hint}</Text> : null}
+              {isSpokenOnlyQuestion(question) ? (
+                <Text style={styles.hint}>
+                  음성으로 들려드릴게요. 잘 듣고 답해 주세요. 다시 들으려면 아래 버튼을 길게 눌러 주세요.
+                </Text>
+              ) : null}
               <VoicePlaybackButton
                 enabled={voice.enabled}
                 loading={voice.loading}
@@ -312,6 +366,7 @@ export default function ElderCistScreen() {
                   setAnswered(true);
                 }}
                 onTranscript={setCurrentTranscript}
+                hideTranscript={isAnswerHiddenQuestion(question)}
               />
             )}
 
@@ -363,6 +418,7 @@ function MicRecorder({
   disabled,
   onAnswer,
   onTranscript,
+  hideTranscript = false,
 }: {
   userId: Uuid | null;
   sessionId: Uuid | null;
@@ -371,6 +427,8 @@ function MicRecorder({
   disabled: boolean;
   onAnswer: (recordingId: Uuid) => void;
   onTranscript: (transcript: string) => void;
+  /** 기억 등록 문항처럼 인식 결과가 곧 정답인 경우 결과 카드를 그리지 않는다. */
+  hideTranscript?: boolean;
 }) {
   const [transcript, setTranscript] = React.useState<string | null>(null);
   const recording = useAnswerRecording(
@@ -464,7 +522,7 @@ function MicRecorder({
       </Pressable>
 
       <Text style={styles.status}>{status}</Text>
-      {transcript ? (
+      {transcript && !hideTranscript ? (
         <View style={styles.transcriptCard}>
           <Text style={styles.transcriptLabel}>음성 인식 결과</Text>
           <Text style={styles.transcriptText}>{transcript}</Text>
