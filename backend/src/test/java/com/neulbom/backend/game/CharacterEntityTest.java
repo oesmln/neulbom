@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class CharacterEntityTest {
 
     @Test
-    void cumulativeXpUsesFiveConfiguredLevelsAndStopsAtLevelFive() {
+    void cumulativeXpUsesSixConfiguredLevelsAndStopsAtLevelSix() {
         Instant now = Instant.parse("2026-08-17T00:00:00Z");
         CharacterEntity character = new CharacterEntity(
                 UUID.randomUUID(), 1, "메모이", "egg", 0, 100, null, "[]", now, now);
@@ -28,10 +28,13 @@ class CharacterEntityTest {
         assertProgress(character, 4, 600, 1_000, "flower");
 
         character.awardXp(400, now);
-        assertProgress(character, 5, 1_000, 1_000, "star");
+        assertProgress(character, 5, 1_000, 1_500, "star");
 
         character.awardXp(500, now);
-        assertProgress(character, 5, 1_500, 1_000, "star");
+        assertProgress(character, 6, 1_500, 1_500, "star");
+
+        character.awardXp(500, now);
+        assertProgress(character, 6, 2_000, 1_500, "star");
     }
 
     private void assertProgress(CharacterEntity character, int level, int xp, int goal, String stage) {
