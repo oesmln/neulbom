@@ -3,7 +3,7 @@ package com.neulbom.backend.game;
 /** Central character progression and reward policy shared by every XP source. */
 public final class XpPolicy {
 
-    public static final int MAX_LEVEL = 5;
+    public static final int MAX_LEVEL = 6;
     public static final int DAILY_XP_CAP = 100;
 
     public static final int GAME_PARTICIPATION_XP = 3;
@@ -11,7 +11,7 @@ public final class XpPolicy {
     public static final int EMOTIONAL_QA_XP = 20;
     public static final int FIRST_CIST_XP = 30;
 
-    private static final int[] LEVEL_MINIMUMS = {0, 100, 300, 600, 1_000};
+    private static final int[] LEVEL_MINIMUMS = {0, 100, 300, 600, 1_000, 1_500};
 
     private XpPolicy() {
     }

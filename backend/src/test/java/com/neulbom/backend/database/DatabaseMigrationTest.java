@@ -162,6 +162,24 @@ class DatabaseMigrationTest {
     }
 
     @Test
+    void charactersAllowLevelSixAndRejectHigherLevels() {
+        UUID levelSixUserId = UUID.randomUUID();
+        UUID levelSevenUserId = UUID.randomUUID();
+        insertUser(levelSixUserId, "level-six-" + levelSixUserId + "@example.com");
+        insertUser(levelSevenUserId, "level-seven-" + levelSevenUserId + "@example.com");
+
+        int inserted = jdbcTemplate.update(
+                "INSERT INTO characters (user_id, level, xp_current, xp_goal, stage) VALUES (?, 6, 1500, 1500, 'star')",
+                levelSixUserId);
+
+        assertThat(inserted).isEqualTo(1);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "INSERT INTO characters (user_id, level, xp_current, xp_goal, stage) VALUES (?, 7, 2000, 2000, 'star')",
+                levelSevenUserId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void dailySummariesRejectDuplicateUserAndLocalDate() {
         UUID userId = UUID.randomUUID();
         insertUser(userId, "daily-summary-" + userId + "@example.com");
