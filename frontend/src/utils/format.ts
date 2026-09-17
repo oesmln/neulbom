@@ -82,3 +82,17 @@ export function moodEmoji(mood: string | null, level: number | null): string {
   if (mood === "neutral" || level === 3) return "😐";
   return "😊";
 }
+
+/**
+ * 이름 뒤에 붙는 조사를 받침에 맞춰 고른다.
+ *
+ * 캐릭터 이름은 사용자가 직접 정하므로 문장에 조사를 고정해 두면 "늘봄와"처럼
+ * 어색한 문장이 나온다. 한글 음절은 유니코드에서 초성·중성·종성 순으로 배열되어
+ * 있어 `(코드 - 0xAC00) % 28`이 0이면 받침이 없다.
+ */
+export function withParticle(word: string, withBatchim: string, withoutBatchim: string): string {
+  const last = word.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return `${word}${withoutBatchim}`;
+  return `${word}${(code - 0xac00) % 28 === 0 ? withoutBatchim : withBatchim}`;
+}

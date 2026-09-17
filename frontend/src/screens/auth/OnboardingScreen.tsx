@@ -10,10 +10,11 @@ import type { OnboardingStep } from "@/api/types";
 import { Button, Card, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
-import { DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import type { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
+import { withParticle } from "@/utils/format";
 import { colors, fontSize, fontWeight, radius, spacing } from "@/theme";
 
 type Step = "intro" | "character" | "baseline";
@@ -25,10 +26,11 @@ const STEP_META: Array<{ key: Step; label: string }> = [
 ];
 
 function stepLine(step: Step, characterName: string) {
-  if (step === "intro") return "안녕하세요! 저는 메모이예요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요.";
+  if (step === "intro") return "반가워요. 매일 편하게 이야기하며 인지 건강을 함께 살펴볼게요.";
   if (step === "character") return "제가 어떤 이름으로 불리면 좋을까요?";
-  const name = characterName.trim() || "메모이";
-  return `좋아요. 이제 ${name}와 함께 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요.`;
+  // 이름은 사용자가 정하므로 조사를 고정하면 "늘봄와"처럼 어색해진다.
+  const name = withParticle(characterName.trim() || DEFAULT_CHARACTER_NAME, "과", "와");
+  return `좋아요. 이제 ${name} 함께 현재 상태를 알아보기 위한 간단한 CIST 검사를 진행할게요. 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요.`;
 }
 
 function apiStep(step: Step): OnboardingStep {
@@ -49,7 +51,7 @@ export default function OnboardingScreen() {
     if (onboardingStep === "baseline") return "baseline";
     return "intro";
   });
-  const [name, setName] = React.useState(characterName ?? "늘봄");
+  const [name, setName] = React.useState(characterName ?? DEFAULT_CHARACTER_NAME);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
@@ -59,7 +61,7 @@ export default function OnboardingScreen() {
 
   const persistStep = async (next: Step, extra?: { completed?: boolean }) => {
     if (!userId) return;
-    const normalizedName = name.trim() || "늘봄";
+    const normalizedName = name.trim() || DEFAULT_CHARACTER_NAME;
     await users.updateProfile(userId, {
       onboarding_step: apiStep(next),
       character_name: normalizedName,
@@ -154,7 +156,7 @@ export default function OnboardingScreen() {
       {step === "baseline" ? (
         <ConversationStep
           line={line}
-          guide={`${name.trim() || "메모이"}의 질문을 듣고 마이크를 눌러 천천히 답해 주세요.`}
+          guide={`${name.trim() || DEFAULT_CHARACTER_NAME}의 질문을 듣고 마이크를 눌러 천천히 답해 주세요.`}
           buttonLabel="검사 시작하기"
           busy={busy}
           onPress={() => navigation.reset({

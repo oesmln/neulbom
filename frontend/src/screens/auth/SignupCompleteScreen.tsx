@@ -58,7 +58,7 @@ export default function SignupCompleteScreen() {
           <Text style={styles.description}>
             {isGuardian
               ? "어르신을 연결하면 활동 기록과 리포트를 확인할 수 있어요."
-              : "기본정보와 고령자 기능 동의를 확인한 뒤 메모이와 첫 만남을 시작해요."}
+              : "기본정보와 고령자 기능 동의를 확인한 뒤 첫 만남을 시작해요."}
           </Text>
         </View>
 
