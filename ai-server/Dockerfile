@@ -33,7 +33,14 @@ COPY app ./app
 
 RUN python -m pip install \
         --upgrade pip \
+    && python -m pip install \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.13.0+cpu" \
+        "torchaudio==2.11.0+cpu" \
     && python -m pip install .
+
+RUN python -c \
+    "import torch, torchaudio; assert torch.version.cuda is None"
 
 COPY contracts ./contracts
 COPY configs ./configs
