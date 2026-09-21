@@ -1,0 +1,17 @@
+.git
+.github
+.idea
+.vscode
+frontend
+**/.env
+**/.env.*
+!**/.env.example
+**/.gradle
+**/build
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+ai-server/artifacts
+ai-server/data
+backend/uploads
+deploy
