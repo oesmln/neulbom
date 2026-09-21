@@ -4,18 +4,34 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 
+from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
+)
+
 EXPECTED_SEEDS = (42, 52, 62)
 
 AST_DIRECTORY_NAME = (
-    "final_ast_service_21subjects_"
-    "4layer_specaug_seed_ensemble_v1"
+    "final_ast_core4_epoch6_3seed_ensemble"
 )
 KCELECTRA_DIRECTORY_NAME = (
     "final_kcelectra_service_"
     "352clips_seed_ensemble_v1"
 )
 FUSION_DIRECTORY_NAME = (
-    "final_fusion_lr_21subjects_core4_ast_v1"
+    "final_fusion_lr_21subjects_"
+    "ast20_mean_logit_3seed_v2"
+)
+
+EXPECTED_AST_PRETRAINED_MODEL = (
+    "MIT/ast-finetuned-audioset-10-10-0.4593"
+)
+EXPECTED_AST_FIXED_EPOCH = 6
+EXPECTED_AST_ENSEMBLE_METHOD = (
+    "mean_person_logit"
+)
+EXPECTED_AST_PRIMARY_POOLING = (
+    "core4_category_sqrt_clip"
 )
 
 EXPECTED_FUSION_FEATURE_ORDER = (
@@ -37,7 +53,6 @@ class AstSeedArtifacts:
     model_path: Path
     config_path: Path
     preprocessor_config_path: Path
-    training_complete_path: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +86,8 @@ class ModelArtifactBundle:
     fusion_pipeline_path: Path
     fusion_contract_path: Path
 
-    transformers_version: str
+    ast_transformers_version: str
+    kcelectra_transformers_version: str
     ast_sampling_rate: int
     kcelectra_max_length: int
     fusion_feature_order: tuple[str, ...]
@@ -117,12 +133,6 @@ def discover_model_artifacts(
         resolved_root,
     )
 
-    _require_equal(
-        "AST와 KcELECTRA transformers_version",
-        kcelectra_transformers_version,
-        ast_transformers_version,
-    )
-
     return ModelArtifactBundle(
         root=resolved_root,
         ast_directory=ast_directory,
@@ -139,7 +149,12 @@ def discover_model_artifacts(
         fusion_directory=fusion_directory,
         fusion_pipeline_path=fusion_pipeline_path,
         fusion_contract_path=fusion_contract_path,
-        transformers_version=ast_transformers_version,
+        ast_transformers_version=(
+            ast_transformers_version
+        ),
+        kcelectra_transformers_version=(
+            kcelectra_transformers_version
+        ),
         ast_sampling_rate=ast_sampling_rate,
         kcelectra_max_length=kcelectra_max_length,
         fusion_feature_order=fusion_feature_order,
@@ -190,12 +205,33 @@ def _validate_ast_artifacts(
     )
     _require_json_value(
         ensemble,
-        (
-            "training_contract",
-            "model_seeds",
-        ),
+        ("model_seeds",),
         list(EXPECTED_SEEDS),
         "AST model seeds",
+    )
+    _require_json_value(
+        ensemble,
+        ("pretrained_model",),
+        EXPECTED_AST_PRETRAINED_MODEL,
+        "AST pretrained model",
+    )
+    _require_json_value(
+        ensemble,
+        ("fixed_epoch",),
+        EXPECTED_AST_FIXED_EPOCH,
+        "AST fixed epoch",
+    )
+    _require_json_value(
+        ensemble,
+        ("ensemble_method",),
+        EXPECTED_AST_ENSEMBLE_METHOD,
+        "AST ensemble method",
+    )
+    _require_json_value(
+        ensemble,
+        ("primary_pooling",),
+        EXPECTED_AST_PRIMARY_POOLING,
+        "AST primary pooling",
     )
 
     seed_artifacts: list[AstSeedArtifacts] = []
@@ -221,11 +257,6 @@ def _validate_ast_artifacts(
             seed_directory
             / "preprocessor_config.json"
         )
-        training_complete_path = (
-            seed_directory
-            / "training_complete.json"
-        )
-
         _require_nonempty_file(
             model_path,
             f"AST seed {seed} model",
@@ -239,11 +270,6 @@ def _validate_ast_artifacts(
             preprocessor_path,
             f"AST seed {seed} preprocessor",
         )
-        training_complete = _load_json(
-            training_complete_path,
-            f"AST seed {seed} training metadata",
-        )
-
         _require_json_value(
             config,
             ("model_type",),
@@ -265,13 +291,6 @@ def _validate_ast_artifacts(
             "ASTFeatureExtractor",
             f"AST seed {seed} feature extractor",
         )
-        _require_json_value(
-            training_complete,
-            ("seed",),
-            seed,
-            f"AST seed {seed} training seed",
-        )
-
         transformers_version = _get_json_value(
             config,
             ("transformers_version",),
@@ -314,9 +333,6 @@ def _validate_ast_artifacts(
                 config_path=config_path,
                 preprocessor_config_path=(
                     preprocessor_path
-                ),
-                training_complete_path=(
-                    training_complete_path
                 ),
             ),
         )
@@ -613,12 +629,32 @@ def _validate_fusion_artifacts(
         ("feature_order",),
         "fusion feature_order",
     )
+    model_version = _get_json_value(
+        contract,
+        ("model_version",),
+        "fusion model_version",
+    )
+    ast_ensemble_method = _get_json_value(
+        contract,
+        ("ast_ensemble_method",),
+        "fusion AST ensemble method",
+    )
     training_default_threshold = (
         _get_json_value(
             contract,
-            ("default_threshold",),
+            ("default_binary_threshold",),
             "fusion training default_threshold",
         )
+    )
+    service_lower_threshold = _get_json_value(
+        contract,
+        ("service_lower_threshold",),
+        "fusion service lower threshold",
+    )
+    service_upper_threshold = _get_json_value(
+        contract,
+        ("service_upper_threshold",),
+        "fusion service upper threshold",
     )
     class_order = _get_json_value(
         contract,
@@ -626,6 +662,16 @@ def _validate_fusion_artifacts(
         "fusion class_order",
     )
 
+    _require_equal(
+        "fusion model_version",
+        model_version,
+        FUSION_DIRECTORY_NAME,
+    )
+    _require_equal(
+        "fusion AST ensemble method",
+        ast_ensemble_method,
+        EXPECTED_AST_ENSEMBLE_METHOD,
+    )
     _require_equal(
         "fusion feature_order",
         feature_order,
@@ -640,6 +686,16 @@ def _validate_fusion_artifacts(
         "fusion training default_threshold",
         training_default_threshold,
         0.5,
+    )
+    _require_equal(
+        "fusion service lower threshold",
+        service_lower_threshold,
+        EXPECTED_SCREENING_THRESHOLD,
+    )
+    _require_equal(
+        "fusion service upper threshold",
+        service_upper_threshold,
+        EXPECTED_REVIEW_THRESHOLD,
     )
 
     return (

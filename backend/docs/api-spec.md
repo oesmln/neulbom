@@ -1586,7 +1586,7 @@ Q11(`memory_delayed_free_recall`) 답변의 녹음·STT 결과로 recognition pl
 
 #### `GET /sessions/{session_id}/cist-ai/analyses`
 
-AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed` 중 하나다. `completed`에서만 `result`가 존재하며 `model_score`, `model_version`, `decision_threshold`, `review_threshold`, `threshold_version`, `risk_flag`, `risk_level`을 변형하지 않고 별도 컬럼과 원본 JSON에 함께 저장한다. `risk_level`은 `stable`, `monitoring_needed`, `review_needed` 중 하나이며 화면의 세부 단계를 표시할 때 사용한다. `risk_flag`는 하위 호환 필드로 `model_score >= 0.461`일 때 true이고, 중간 단계와 상위 단계를 구분하지 않는다.
+AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed` 중 하나다. `completed`에서만 `result`가 존재하며 `model_score`, `model_version`, `decision_threshold`, `review_threshold`, `threshold_version`, `risk_flag`, `risk_level`을 변형하지 않고 별도 컬럼과 원본 JSON에 함께 저장한다. `risk_level`은 `stable`, `monitoring_needed`, `review_needed` 중 하나이며 화면의 세부 단계를 표시할 때 사용한다. `risk_flag`는 하위 호환 필드로 `model_score >= decision_threshold`일 때 true이고, 현재 `decision_threshold`는 `0.38592870327757767`이다. 이 필드는 중간 단계와 상위 단계를 구분하지 않는다.
 
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 

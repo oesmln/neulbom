@@ -46,6 +46,12 @@ class AstClipResult:
 
 
 @dataclass(frozen=True, slots=True)
+class AstSeedPersonResult:
+    seed: int
+    dementia_logit: float
+
+
+@dataclass(frozen=True, slots=True)
 class AstCategoryResult:
     category: str
     dementia_logit: float
@@ -57,6 +63,10 @@ class AstCategoryResult:
 class AstInferenceResult:
     model_version: str
     seed_count: int
+    seed_person_results: tuple[
+        AstSeedPersonResult,
+        ...,
+    ]
     dementia_logit: float
     dementia_probability: float
     category_results: tuple[
@@ -233,7 +243,16 @@ class AstInferenceService:
             )
 
         observed_question_codes: set[str] = set()
-        clip_results: list[AstClipResult] = []
+        seed_clip_results: dict[
+            int,
+            list[AstClipResult],
+        ] = {
+            runtime.seed: []
+            for runtime in self._seed_runtimes
+        }
+        ensemble_clip_results: list[
+            AstClipResult
+        ] = []
 
         for clip in clips:
             question_code = clip.question_code
@@ -281,46 +300,90 @@ class AstInferenceService:
             category = self._question_category_map[
                 question_code
             ]
-            segment_logits = (
-                self._infer_clip_segments(
+            segment_logits_by_seed = (
+                self._infer_clip_segments_by_seed(
                     clip.audio,
                 )
             )
-            clip_logit = float(
-                np.mean(
-                    np.asarray(
-                        segment_logits,
-                        dtype=np.float64,
+
+            for runtime, segment_logits in zip(
+                self._seed_runtimes,
+                segment_logits_by_seed,
+                strict=True,
+            ):
+                seed_clip_results[
+                    runtime.seed
+                ].append(
+                    self._build_clip_result(
+                        question_code=question_code,
+                        category=category,
+                        segment_logits=segment_logits,
+                    ),
+                )
+
+            segment_matrix = np.asarray(
+                segment_logits_by_seed,
+                dtype=np.float64,
+            )
+            ensemble_segment_logits = tuple(
+                float(value)
+                for value in segment_matrix.mean(
+                    axis=0,
+                )
+            )
+            ensemble_clip_results.append(
+                self._build_clip_result(
+                    question_code=question_code,
+                    category=category,
+                    segment_logits=(
+                        ensemble_segment_logits
                     ),
                 ),
             )
 
-            if not isfinite(clip_logit):
-                raise AstInferenceError(
-                    "AST 클립 logit이 "
-                    "유효하지 않습니다.",
-                )
+        seed_person_results: list[
+            AstSeedPersonResult
+        ] = []
 
-            clip_results.append(
-                AstClipResult(
-                    question_code=question_code,
-                    category=category,
-                    segment_logits=segment_logits,
-                    dementia_logit=clip_logit,
-                    segment_count=len(
-                        segment_logits,
+        for runtime in self._seed_runtimes:
+            seed_category_results = (
+                self._pool_categories(
+                    seed_clip_results[
+                        runtime.seed
+                    ],
+                )
+            )
+            seed_person_results.append(
+                AstSeedPersonResult(
+                    seed=runtime.seed,
+                    dementia_logit=(
+                        self._pool_person_logit(
+                            seed_category_results,
+                        )
                     ),
                 ),
+            )
+
+        final_logit = float(
+            np.mean(
+                [
+                    result.dementia_logit
+                    for result
+                    in seed_person_results
+                ],
+                dtype=np.float64,
+            ),
+        )
+
+        if not isfinite(final_logit):
+            raise AstInferenceError(
+                "AST seed 앙상블 logit이 "
+                "유효하지 않습니다.",
             )
 
         category_results = (
             self._pool_categories(
-                clip_results,
-            )
-        )
-        final_logit = (
-            self._pool_person_logit(
-                category_results,
+                ensemble_clip_results,
             )
         )
         probability = _sigmoid(
@@ -332,16 +395,21 @@ class AstInferenceService:
             seed_count=len(
                 self._seed_runtimes,
             ),
+            seed_person_results=tuple(
+                seed_person_results,
+            ),
             dementia_logit=final_logit,
             dementia_probability=probability,
             category_results=category_results,
-            clip_results=tuple(clip_results),
+            clip_results=tuple(
+                ensemble_clip_results,
+            ),
         )
 
-    def _infer_clip_segments(
+    def _infer_clip_segments_by_seed(
         self,
         audio: ProcessedAudio,
-    ) -> tuple[float, ...]:
+    ) -> tuple[tuple[float, ...], ...]:
         segments = create_ast_segments(
             audio,
         )
@@ -394,18 +462,6 @@ class AstInferenceService:
                     seed_logits.append(
                         dementia_logits,
                     )
-
-                ensemble_logits = (
-                    torch.stack(
-                        seed_logits,
-                        dim=0,
-                    )
-                    .mean(dim=0)
-                    .detach()
-                    .cpu()
-                    .to(torch.float64)
-                    .numpy()
-                )
         except AstInferenceError:
             raise
         except Exception as error:
@@ -413,17 +469,62 @@ class AstInferenceService:
                 "AST 모델 추론에 실패했습니다.",
             ) from error
 
-        if not np.isfinite(
-            ensemble_logits,
-        ).all():
-            raise AstInferenceError(
-                "AST segment logit에 "
-                "유효하지 않은 값이 있습니다.",
+        seed_segment_logits: list[
+            tuple[float, ...]
+        ] = []
+
+        for dementia_logits in seed_logits:
+            values = (
+                dementia_logits
+                .detach()
+                .cpu()
+                .to(torch.float64)
+                .numpy()
             )
 
-        return tuple(
-            float(value)
-            for value in ensemble_logits
+            if not np.isfinite(values).all():
+                raise AstInferenceError(
+                    "AST seed별 segment logit에 "
+                    "유효하지 않은 값이 있습니다.",
+                )
+
+            seed_segment_logits.append(
+                tuple(
+                    float(value)
+                    for value in values
+                ),
+            )
+
+        return tuple(seed_segment_logits)
+
+    def _build_clip_result(
+        self,
+        *,
+        question_code: str,
+        category: str,
+        segment_logits: tuple[float, ...],
+    ) -> AstClipResult:
+        clip_logit = float(
+            np.mean(
+                np.asarray(
+                    segment_logits,
+                    dtype=np.float64,
+                ),
+            ),
+        )
+
+        if not isfinite(clip_logit):
+            raise AstInferenceError(
+                "AST 클립 logit이 "
+                "유효하지 않습니다.",
+            )
+
+        return AstClipResult(
+            question_code=question_code,
+            category=category,
+            segment_logits=segment_logits,
+            dementia_logit=clip_logit,
+            segment_count=len(segment_logits),
         )
 
     def _pool_categories(

@@ -378,9 +378,13 @@ def run_inference_smoke(
             "artifact_seconds": (
                 artifact_seconds
             ),
-            "transformers_version": (
+            "ast_transformers_version": (
                 artifacts
-                .transformers_version
+                .ast_transformers_version
+            ),
+            "kcelectra_transformers_version": (
+                artifacts
+                .kcelectra_transformers_version
             ),
         },
         "ast": ast_report,

@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -10,8 +11,11 @@ from app.inference.fusion import (
     FusionFeatures,
     FusionInferenceError,
     FusionInferenceService,
+    _validate_loaded_pipeline,
 )
 from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
     RiskLevel,
     RiskThresholdPolicy,
 )
@@ -85,8 +89,12 @@ def test_runs_fusion_with_exact_feature_order() -> None:
     assert result.model_score == (
         pytest.approx(0.7)
     )
-    assert result.decision_threshold == 0.461
-    assert result.review_threshold == 0.802
+    assert result.decision_threshold == (
+        EXPECTED_SCREENING_THRESHOLD
+    )
+    assert result.review_threshold == (
+        EXPECTED_REVIEW_THRESHOLD
+    )
     assert (
         result.threshold_version
         == "fusion-threshold-v2"
@@ -102,7 +110,9 @@ def test_runs_fusion_with_exact_feature_order() -> None:
 def test_screening_threshold_is_inclusive() -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.461,
+            model_score=(
+                EXPECTED_SCREENING_THRESHOLD
+            ),
         ),
     )
 
@@ -121,7 +131,10 @@ def test_score_below_screening_threshold_is_stable(
 ) -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.460999,
+            model_score=(
+                EXPECTED_SCREENING_THRESHOLD
+                - 1e-12
+            ),
         ),
     )
 
@@ -139,7 +152,7 @@ def test_score_below_screening_threshold_is_stable(
 def test_review_threshold_is_inclusive() -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.802,
+            model_score=EXPECTED_REVIEW_THRESHOLD,
         ),
     )
 
@@ -158,7 +171,9 @@ def test_score_below_review_threshold_needs_monitoring(
 ) -> None:
     service = _service(
         FakeFusionPipeline(
-            model_score=0.801999,
+            model_score=(
+                EXPECTED_REVIEW_THRESHOLD - 1e-12
+            ),
         ),
     )
 
@@ -279,6 +294,60 @@ def test_rejects_wrong_feature_order() -> None:
             ),
             model_version="test-fusion-v1",
         )
+
+
+def test_validates_standardized_fusion_contract_values(
+) -> None:
+    feature_order = EXPECTED_FUSION_FEATURE_ORDER
+    class_order = (0, 1)
+    scaler_mean = np.asarray(
+        [0.3, -0.1, 0.4, 0.8],
+        dtype=np.float64,
+    )
+    scaler_scale = np.asarray(
+        [1.3, 0.07, 0.27, 0.42],
+        dtype=np.float64,
+    )
+    coefficient = np.asarray(
+        [[-0.1, 0.5, 1.0, 0.4]],
+        dtype=np.float64,
+    )
+    intercept = np.asarray(
+        [-0.05],
+        dtype=np.float64,
+    )
+    pipeline = SimpleNamespace(
+        feature_names_in_=np.asarray(feature_order),
+        classes_=np.asarray(class_order),
+        n_features_in_=len(feature_order),
+        named_steps={
+            "scaler": SimpleNamespace(
+                mean_=scaler_mean,
+                scale_=scaler_scale,
+            ),
+            "lr": SimpleNamespace(
+                coef_=coefficient,
+                intercept_=intercept,
+            ),
+        },
+    )
+    contract = {
+        "scaler_mean": scaler_mean.tolist(),
+        "scaler_scale": scaler_scale.tolist(),
+        "lr_coef_standardized": (
+            coefficient[0].tolist()
+        ),
+        "lr_intercept_standardized": (
+            intercept.tolist()
+        ),
+    }
+
+    _validate_loaded_pipeline(
+        pipeline=pipeline,
+        contract=contract,
+        feature_order=feature_order,
+        class_order=class_order,
+    )
 
 
 def _service(

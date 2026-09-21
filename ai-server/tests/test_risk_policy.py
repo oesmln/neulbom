@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 
 from app.inference.risk_policy import (
+    EXPECTED_REVIEW_THRESHOLD,
+    EXPECTED_SCREENING_THRESHOLD,
     RiskLevel,
     RiskThresholdPolicy,
     RiskThresholdPolicyError,
@@ -31,26 +33,32 @@ def test_loads_three_level_risk_policy() -> None:
     )
     assert (
         policy.screening_threshold
-        == 0.461
+        == 0.38592870327757767
     )
-    assert policy.review_threshold == 0.802
+    assert (
+        policy.review_threshold
+        == 0.8061380697921943
+    )
 
 
 @pytest.mark.parametrize(
     ("model_score", "expected_level"),
     [
         (0.0, RiskLevel.STABLE),
-        (0.460999, RiskLevel.STABLE),
         (
-            0.461,
+            EXPECTED_SCREENING_THRESHOLD - 1e-12,
+            RiskLevel.STABLE,
+        ),
+        (
+            EXPECTED_SCREENING_THRESHOLD,
             RiskLevel.MONITORING_NEEDED,
         ),
         (
-            0.801999,
+            EXPECTED_REVIEW_THRESHOLD - 1e-12,
             RiskLevel.MONITORING_NEEDED,
         ),
         (
-            0.802,
+            EXPECTED_REVIEW_THRESHOLD,
             RiskLevel.REVIEW_NEEDED,
         ),
         (
@@ -79,11 +87,15 @@ def test_risk_flag_uses_screening_threshold() -> None:
     )
 
     assert (
-        policy.is_risk_flagged(0.460999)
+        policy.is_risk_flagged(
+            EXPECTED_SCREENING_THRESHOLD - 1e-12,
+        )
         is False
     )
     assert (
-        policy.is_risk_flagged(0.461)
+        policy.is_risk_flagged(
+            EXPECTED_SCREENING_THRESHOLD,
+        )
         is True
     )
 
@@ -169,8 +181,12 @@ def _valid_payload() -> dict:
         "threshold_version": (
             "fusion-threshold-v2"
         ),
-        "screening_threshold": 0.461,
-        "review_threshold": 0.802,
+        "screening_threshold": (
+            EXPECTED_SCREENING_THRESHOLD
+        ),
+        "review_threshold": (
+            EXPECTED_REVIEW_THRESHOLD
+        ),
         "risk_levels": [
             "stable",
             "monitoring_needed",

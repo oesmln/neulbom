@@ -460,7 +460,9 @@ def _validate_loaded_pipeline(
                 "intercept_",
                 None,
             ),
-            contract.get("lr_intercept"),
+            contract.get(
+                "lr_intercept_standardized",
+            ),
             "logistic regression intercept",
         ),
     )

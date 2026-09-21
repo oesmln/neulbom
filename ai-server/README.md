@@ -13,7 +13,7 @@ AST 음향 분석, KcELECTRA 텍스트 분석, 보조 실패 사건, 응답 지�
 - 음성 mono·16kHz 전처리
 - Silero VAD 기반 첫 발화 및 응답 지연 계산
 - 문항별 정오 판정과 보조 `wrong_event` 계산
-- AST seed 42·52·62 앙상블
+- AST seed 42·52·62 대상자 logit 평균 앙상블
 - KcELECTRA seed 42·52·62 앙상블
 - Logistic Regression fusion 추론
 - 비동기 분석 작업 생성·조회·재시도
@@ -61,8 +61,10 @@ AI 서버와 백엔드는 다음 파일을 버전별 불변 기준본으로 사�
 
 - 문항 집합: `cist-v1`
 - 보조 실패 사건 규칙: `wrong-event-v1`
-- 하위 선별 임계값: `0.461`
-- 상위 확인 임계값: `0.802`
+- AST 모델: `final_ast_core4_epoch6_3seed_ensemble`
+- Fusion 모델: `final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2`
+- 하위 선별 임계값: `0.38592870327757767`
+- 상위 확인 임계값: `0.8061380697921943`
 - 임계값 버전: `fusion-threshold-v2`
 
 ### 최종 위험 단계
@@ -73,14 +75,14 @@ threshold를 적용하여 다음 세 단계로 구분합니다.
 
 | 점수 범위 | `risk_level` | 화면 표시 |
 |---|---|---|
-| `p < 0.461` | `stable` | 안정적 |
-| `0.461 <= p < 0.802` | `monitoring_needed` | 꾸준한 관찰 필요 |
-| `p >= 0.802` | `review_needed` | 확인 필요 |
+| `p < 0.38592870327757767` | `stable` | 안정적 |
+| `0.38592870327757767 <= p < 0.8061380697921943` | `monitoring_needed` | 꾸준한 관찰 필요 |
+| `p >= 0.8061380697921943` | `review_needed` | 확인 필요 |
 
 기존 연동 호환성을 위해 `risk_flag`도 함께 반환합니다.
 
 ```text
-risk_flag = model_score >= 0.461
+risk_flag = model_score >= 0.38592870327757767
 ```
 
 최종 결과 예시는 다음과 같습니다.
@@ -88,8 +90,8 @@ risk_flag = model_score >= 0.461
 ```json
 {
   "model_score": 0.823,
-  "decision_threshold": 0.461,
-  "review_threshold": 0.802,
+  "decision_threshold": 0.38592870327757767,
+  "review_threshold": 0.8061380697921943,
   "threshold_version": "fusion-threshold-v2",
   "risk_flag": true,
   "risk_level": "review_needed"
@@ -100,7 +102,7 @@ risk_flag = model_score >= 0.461
 `threshold_version`, `risk_flag`, `risk_level`을 재계산하지 않고
 그대로 저장하고 프론트엔드에 전달합니다.
 
-`0.461`과 `0.802`는 21명의 내부 OOF 결과를 바탕으로 선정한
+`0.38592870327757767`과 `0.8061380697921943`은 21명의 내부 OOF 결과를 바탕으로 선정한
 졸업과제 프로토타입의 잠정 운영 기준이며 외부 검증된 임상 기준이
 아닙니다. 결과 화면에서는 의학적 진단이나 확진 결과가 아닌 참고용
 스크리닝 결과임을 안내해야 합니다.
@@ -112,13 +114,12 @@ risk_flag = model_score >= 0.461
 ```text
 artifacts/models/
 ├─ ast/
-│  └─ final_ast_service_21subjects_4layer_specaug_seed_ensemble_v1/
+│  └─ final_ast_core4_epoch6_3seed_ensemble/
 │     ├─ ensemble_config.json
 │     ├─ seed_42/
 │     │  ├─ model.safetensors
 │     │  ├─ config.json
-│     │  ├─ preprocessor_config.json
-│     │  └─ training_complete.json
+│     │  └─ preprocessor_config.json
 │     ├─ seed_52/
 │     │  └─ ...
 │     └─ seed_62/
@@ -139,7 +140,7 @@ artifacts/models/
 │     └─ seed_62/
 │        └─ ...
 └─ fusion/
-   └─ final_fusion_lr_21subjects_core4_ast_v1/
+   └─ final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2/
       ├─ final_fusion_lr_pipeline.joblib
       └─ final_fusion_lr_contract.json
 ```
@@ -152,14 +153,16 @@ artifacts/models/
 - 파일이 비어 있지 않은지
 - seed 42·52·62 구성
 - 모델 및 tokenizer 설정
-- transformers 버전 일치
+- 모델별 transformers 버전 및 seed 간 일치
 - AST sampling rate
 - KcELECTRA max length
-- fusion 특징 순서와 학습 당시 기본 임계값
+- AST epoch, pooling 및 대상자 logit 평균 앙상블 방식
+- fusion 모델 버전, 특징 순서와 학습 당시 기본 임계값
+- fusion 아티팩트와 운영 정책의 하위·상위 임계값 일치
 
 검증에 실패하면 `/health/live`는 정상 응답하지만 `/health/ready`는 `503 MODEL_ARTIFACTS_UNAVAILABLE`을 반환합니다.
 
-Fusion 모델 아티팩트의 `default_threshold=0.5`는 모델 학습 및
+Fusion 모델 아티팩트의 `default_binary_threshold=0.5`는 모델 학습 및
 기존 평가 당시의 기준값입니다. 실제 서비스의 위험 단계 판정에는
 이 값을 직접 사용하지 않습니다.
 
@@ -169,9 +172,14 @@ Fusion 모델 아티팩트의 `default_threshold=0.5`는 모델 학습 및
 configs/fusion-threshold-v2.json
 ```
 
-학습 모델의 계수와 확률 출력 방식은 변경하지 않고, 모델이 출력한
-동일한 연속형 위험 점수에 운영 정책의 `0.461`과 `0.802`를
-적용합니다.
+AST는 각 seed에서 세그먼트, 클립, Core4 문항 범주 순서로 logit을
+집계하고 클립 수의 제곱근으로 범주를 가중하여 대상자 logit을
+계산합니다. 최종 AST 특징은 seed 42·52·62의 대상자 logit을 산술
+평균한 값이며, seed별 확률을 평균한 뒤 logit으로 되돌리는 방식은
+사용하지 않습니다.
+
+Fusion 모델이 출력한 연속형 위험 점수에는 운영 정책의
+`0.38592870327757767`과 `0.8061380697921943`을 적용합니다.
 
 운영 threshold 정책 파일의 Schema, 버전, 임계값 및 위험 단계는
 Fusion 추론 서비스가 최초 로딩될 때 검증합니다.

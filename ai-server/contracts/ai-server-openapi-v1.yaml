@@ -10,8 +10,8 @@ info:
   x-contract-id: ai-server-openapi-v1
   x-question-set-version: cist-v1
   x-wrong-event-rule-version: wrong-event-v1
-  x-default-threshold: 0.461
-  x-review-threshold: 0.802
+  x-default-threshold: 0.38592870327757767
+  x-review-threshold: 0.8061380697921943
   x-threshold-version: fusion-threshold-v2
 
 servers:
@@ -1128,7 +1128,7 @@ components:
           $ref: '#/components/schemas/WrongEventRuleVersion'
         model_version:
           type: string
-          const: final_fusion_lr_21subjects_core4_ast_v1
+          const: final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2
         model_score:
           type: number
           format: double
@@ -1138,12 +1138,12 @@ components:
         decision_threshold:
           type: number
           format: double
-          const: 0.461
+          const: 0.38592870327757767
           description: Lower screening threshold
         review_threshold:
           type: number
           format: double
-          const: 0.802
+          const: 0.8061380697921943
           description: Upper threshold for stronger risk signals
         threshold_version:
           type: string
@@ -1342,9 +1342,9 @@ x-business-validation-rules:
 
   - id: RISK_LEVEL_CONSISTENCY
     description: >-
-      risk_level must be stable when model_score < 0.461,
-      monitoring_needed when 0.461 <= model_score < 0.802,
-      and review_needed when model_score >= 0.802.
+      risk_level must be stable when model_score < 0.38592870327757767,
+      monitoring_needed when 0.38592870327757767 <= model_score < 0.8061380697921943,
+      and review_needed when model_score >= 0.8061380697921943.
     enforced_by:
       - ai_server
       - contract_test

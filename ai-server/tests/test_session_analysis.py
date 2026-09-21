@@ -166,11 +166,13 @@ class FakeFusionService:
         return FusionInferenceResult(
             model_version=(
                 "final_fusion_lr_"
-                "21subjects_core4_ast_v1"
+                "21subjects_ast20_mean_logit_3seed_v2"
             ),
             model_score=0.8,
-            decision_threshold=0.461,
-            review_threshold=0.802,
+            decision_threshold=(
+                0.38592870327757767
+            ),
+            review_threshold=0.8061380697921943,
             threshold_version=(
                 "fusion-threshold-v2"
             ),
@@ -443,10 +445,10 @@ def test_completes_full_session_pipeline(
         assert result["model_score"] == 0.8
         assert result[
             "decision_threshold"
-        ] == 0.461
+        ] == 0.38592870327757767
         assert result[
             "review_threshold"
-        ] == 0.802
+        ] == 0.8061380697921943
         assert result[
             "threshold_version"
         ] == "fusion-threshold-v2"
