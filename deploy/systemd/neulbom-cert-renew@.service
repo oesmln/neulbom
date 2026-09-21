@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew the Neulbom TLS certificate for %i
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/neulbom/app
+ExecStart=/opt/neulbom/app/deploy/scripts/renew-certificate.sh %i

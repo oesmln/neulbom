@@ -20,6 +20,11 @@ sudo chown -R "$USER":"$USER" /opt/neulbom
 
 AI 모델 파일은 `/opt/neulbom/models`에 직접 업로드한다. 저장소에는 커밋하지 않는다.
 
+GCE 생성 시 별도 영구 디스크를 `neulbom-data` 장치 이름으로 연결하고
+`deploy/scripts/bootstrap-vm.sh`를 startup script로 지정하면 `/opt/neulbom` 마운트와
+Docker Engine, Compose, Certbot 설치가 자동으로 수행된다. Docker의 data root도 이
+영구 디스크에 두므로 named volume과 이미지가 VM 부팅 디스크와 분리된다.
+
 ## 2. DuckDNS와 TLS
 
 도메인은 DuckDNS 고정 주소를 사용한다. 먼저 GCP에서 고정 외부 IP를 예약하고,
@@ -77,6 +82,14 @@ docker compose --env-file deploy/.env -f deploy/compose.prod.yml up -d nginx
 
 ```bash
 ./deploy/scripts/renew-certificate.sh neulbom.duckdns.org
+```
+
+VM에서는 저장소에 포함된 systemd unit을 설치해 매일 갱신 여부를 확인한다.
+
+```bash
+sudo cp deploy/systemd/neulbom-cert-renew@.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now neulbom-cert-renew@neulbom.duckdns.org.timer
 ```
 
 Nginx가 사용하는 인증서는 아래 이름으로 유지한다.
