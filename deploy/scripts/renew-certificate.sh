@@ -23,4 +23,3 @@ sudo chmod 644 "${certificate_target}/fullchain.pem"
 sudo chmod 600 "${certificate_target}/privkey.pem"
 
 docker compose --env-file "${deploy_env_file}" -f "${compose_file}" restart nginx
-
