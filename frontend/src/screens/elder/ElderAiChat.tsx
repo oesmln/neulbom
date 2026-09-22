@@ -33,7 +33,7 @@ import { withParticle } from "@/utils/format";
  * window is still timed from text length, while answers are recorded, uploaded,
  * and attached to the saved answer through `recording_id`.
  */
-const INTRO_LINE = "어르신, 오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
+const INTRO_LINE = "오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
 
 /**
  * Stands in for what STT would return, and only without a server — against a
