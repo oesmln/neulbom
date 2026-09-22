@@ -11,6 +11,7 @@
  */
 
 import * as Crypto from "expo-crypto";
+import { File } from "expo-file-system";
 import { Platform } from "react-native";
 
 import { USE_MOCK_API, APP_TIMEZONE } from "./config";
@@ -440,12 +441,12 @@ export const recordings = {
       const bytes = await source.arrayBuffer();
       form.append("audio_file", new Blob([bytes], { type: mimeType }), fileName);
     } else {
-      form.append("audio_file", {
-        uri: input.uri,
-        name: fileName,
-        type: mimeType,
-        // React Native's FormData accepts this descriptor on native platforms.
-      } as unknown as Blob);
+      // Expo SDK 54+ swaps in its own `fetch`, and that implementation only
+      // accepts a string, a `Blob`, or an object exposing `bytes()` as a form
+      // part. React Native's `{uri, name, type}` descriptor now throws
+      // "Unsupported FormDataPart implementation", so the audio goes up as an
+      // `expo-file-system` `File`, which implements the `Blob` interface.
+      form.append("audio_file", new File(input.uri) as unknown as Blob, fileName);
     }
     return uploadMultipart(
       "/recordings",
