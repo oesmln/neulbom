@@ -18,8 +18,8 @@ import org.springframework.util.StringUtils;
 @Component
 public class AiContractValidator {
 
-    private static final BigDecimal DECISION_THRESHOLD = new BigDecimal("0.461");
-    private static final BigDecimal REVIEW_THRESHOLD = new BigDecimal("0.802");
+    private static final BigDecimal DECISION_THRESHOLD = new BigDecimal("0.38592870327757767");
+    private static final BigDecimal REVIEW_THRESHOLD = new BigDecimal("0.8061380697921943");
     private static final String THRESHOLD_VERSION = "fusion-threshold-v2";
 
     private final CistContractCatalog catalog;
