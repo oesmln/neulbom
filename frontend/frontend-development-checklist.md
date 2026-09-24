@@ -91,7 +91,7 @@
       상태 전이 `device_saved → server_pending → server_uploaded → analysis_completed`, 실패 시 `failed`
 - [x] `client_recording_id` (기기 생성 UUID) 멱등 보장 — 재전송해도 중복 생성 없음 (#61)
 - [x] `Idempotency-Key` 헤더 지원
-- [x] 듣고 따라 말하는 문항(문장·숫자·단어 거꾸로)의 제시 내용을 화면에 노출하지 않고 음성으로만 전달한다. (#152)
+- [x] 듣고 따라 말하는 문항(문장·숫자·단어 거꾸로)의 제시 내용을 화면에 노출하지 않고 음성으로만 전달한다. 화면에는 원문 대신 코드별 고정 안내 문구를 쓴다. (#152, #160)
 - [x] 기억 등록 문항(문장 따라 말하기 1·2회)은 지연 회상 전에 답변 인식 결과와 누적 대화 카드의 답변 문구를 표시하지 않는다. (#152)
 - [x] `POST /sessions/{id}/answers` 문항별 답변 저장 및 AI `REPLACE_RESPONSE` 지정 문항 재녹음 (#133)
 - [ ] `PATCH /sessions/{id}/end` 종료 + 경험치 적립 상태 수신
