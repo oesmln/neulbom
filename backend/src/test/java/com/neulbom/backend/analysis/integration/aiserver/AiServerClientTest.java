@@ -145,8 +145,8 @@ class AiServerClientTest {
                             "wrong_event_rule_version":"wrong-event-v1",
                             "model_version":"final_fusion_lr_21subjects_core4_ast_v1",
                             "model_score":0.823,
-                            "decision_threshold":0.461,
-                            "review_threshold":0.802,
+                            "decision_threshold":0.38592870327757767,
+                            "review_threshold":0.8061380697921943,
                             "threshold_version":"fusion-threshold-v2",
                             "risk_flag":true,
                             "risk_level":"review_needed",
@@ -158,8 +158,8 @@ class AiServerClientTest {
 
         var result = client(builder).getAnalysis(analysisId);
 
-        assertThat(result.result().decisionThreshold()).isEqualByComparingTo("0.461");
-        assertThat(result.result().reviewThreshold()).isEqualByComparingTo("0.802");
+        assertThat(result.result().decisionThreshold()).isEqualByComparingTo("0.38592870327757767");
+        assertThat(result.result().reviewThreshold()).isEqualByComparingTo("0.8061380697921943");
         assertThat(result.result().thresholdVersion()).isEqualTo("fusion-threshold-v2");
         assertThat(result.result().riskFlag()).isTrue();
         assertThat(result.result().riskLevel()).isEqualTo("review_needed");
