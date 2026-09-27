@@ -334,13 +334,15 @@ export default function ElderCistScreen() {
                   음성으로 들려드릴게요. 잘 듣고 답해 주세요. 다시 들으려면 아래 버튼을 길게 눌러 주세요.
                 </Text>
               ) : null}
-              <VoicePlaybackButton
-                enabled={voice.enabled}
-                loading={voice.loading}
-                speaking={voice.speaking}
-                onPress={voice.toggle}
-                onReplay={voice.replay}
-              />
+              <View style={styles.voiceToggle}>
+                <VoicePlaybackButton
+                  enabled={voice.enabled}
+                  loading={voice.loading}
+                  speaking={voice.speaking}
+                  onPress={voice.toggle}
+                  onReplay={voice.replay}
+                />
+              </View>
               {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
             </View>
 
@@ -370,23 +372,26 @@ export default function ElderCistScreen() {
               />
             )}
 
-            <View style={{ marginTop: "auto", paddingTop: spacing.sm }}>
-              {submissionError ? (
-                <Text style={styles.submissionError}>{submissionError}</Text>
-              ) : null}
-              <Button
-                label={isQ11PlanningStep
-                  ? "다음 문항"
-                  : isLast
-                    ? (retryMode ? "재분석 요청" : "검사 완료")
-                    : "다음 문항"}
-                disabled={!canAdvance || submitting || !session.data}
-                onPress={() => void advance()}
-              />
-            </View>
           </View>
         ) : null}
       </ScrollView>
+
+      {question ? (
+        <View style={styles.footer}>
+          {submissionError ? (
+            <Text style={styles.submissionError}>{submissionError}</Text>
+          ) : null}
+          <Button
+            label={isQ11PlanningStep
+              ? "다음 문항"
+              : isLast
+                ? (retryMode ? "재분석 요청" : "검사 완료")
+                : "다음 문항"}
+            disabled={!canAdvance || submitting || !session.data}
+            onPress={() => void advance()}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -580,6 +585,14 @@ const styles = StyleSheet.create({
   },
   completedTurnStatus: { fontSize: fontSize.caption, color: colors.success, fontWeight: fontWeight.semibold },
   currentTurn: { gap: spacing.xl },
+  voiceToggle: { alignItems: "flex-start" },
+  footer: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+  },
   currentLabel: { fontSize: fontSize.caption, color: colors.primaryDark, fontWeight: fontWeight.semibold },
   questionBubble: {
     alignSelf: "flex-start",
