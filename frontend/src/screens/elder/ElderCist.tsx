@@ -90,18 +90,6 @@ function displayContentOf(question: QuestionResponse): string {
   return question.content;
 }
 
-type CompletedTurn = {
-  questionId: Uuid;
-  domain: string;
-  question: string;
-  answer: string;
-};
-
-function answerTextForTurn(isListenQuestion: boolean, transcript: string | null): string {
-  const cleaned = transcript?.trim();
-  return cleaned || (isListenQuestion ? "질문을 들었어요." : "음성 답변을 완료했어요.");
-}
-
 export default function ElderCistScreen() {
   const navigation = useNavigation<ElderNav>();
   const route = useRoute<RouteProp<ElderStackParamList, "ElderCist">>();
@@ -115,14 +103,12 @@ export default function ElderCistScreen() {
   const [answered, setAnswered] = React.useState(false);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [currentTranscript, setCurrentTranscript] = React.useState<string | null>(null);
-  const [completedTurns, setCompletedTurns] = React.useState<CompletedTurn[]>([]);
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
   const [recognitionPlan, setRecognitionPlan] = React.useState<CistRecognitionPlanResponse | null>(null);
   const [recordingAttempt, setRecordingAttempt] = React.useState(0);
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
-  const scrollRef = React.useRef<ScrollView>(null);
 
   const session = useApi(
     () => retrySessionId
@@ -172,20 +158,11 @@ export default function ElderCistScreen() {
     setSubmissionError(null);
   }, [index]);
 
-  React.useEffect(() => {
-    if (!question) return;
-    const timer = setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [completedTurns.length, question?.question_id]);
-
   const goBack = () => {
     if (recognitionPlanBoundary) return;
     if (index > 0) {
       const previousQuestion = list[index - 1];
       if (previousQuestion) delete answerClientIds.current[previousQuestion.question_id];
-      setCompletedTurns((current) => current.slice(0, Math.max(0, index - 1)));
       setIndex(index - 1);
       setListened(false);
       setAnswered(false);
@@ -199,16 +176,6 @@ export default function ElderCistScreen() {
     setSubmitting(true);
     setSubmissionError(null);
     const sessionId = session.data.session_id;
-    const completedTurn: CompletedTurn = {
-      questionId: question.question_id,
-      domain: domainOf(question),
-      question: displayContentOf(question),
-      // 외워야 할 문장을 따라 말한 답은 뒤의 지연 회상 전에 다시 보이면 안 된다.
-      answer: isAnswerHiddenQuestion(question)
-        ? "음성 답변을 완료했어요."
-        : answerTextForTurn(isListenQuestion, currentTranscript),
-    };
-
     try {
       await sessions.saveAnswer(sessionId, {
         client_answer_id:
@@ -235,7 +202,6 @@ export default function ElderCistScreen() {
           return;
         }
         setRecognitionPlan(plan);
-        setCompletedTurns((current) => [...current, completedTurn]);
         setListened(false);
         setAnswered(false);
         setIndex(index + 1);
@@ -257,7 +223,6 @@ export default function ElderCistScreen() {
         navigation.replace("ElderResult", { sessionId, mode: "baseline" });
         return;
       }
-      setCompletedTurns((current) => [...current, completedTurn]);
       setListened(false);
       setAnswered(false);
       setIndex(index + 1);
@@ -301,7 +266,6 @@ export default function ElderCistScreen() {
       </View>
 
       <ScrollView
-        ref={scrollRef}
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
       >
@@ -317,23 +281,13 @@ export default function ElderCistScreen() {
           />
         ) : null}
 
-        {completedTurns.map((turn) => (
-          <CompletedTurnCard key={turn.questionId} turn={turn} />
-        ))}
-
         {question ? (
           <View style={styles.currentTurn}>
-            {completedTurns.length > 0 ? <Text style={styles.currentLabel}>다음 질문</Text> : null}
             <Badge label={domainOf(question)} />
 
             <View style={{ gap: spacing.md }}>
               <Text style={styles.prompt}>{displayContentOf(question)}</Text>
               {question.hint ? <Text style={styles.hint}>{question.hint}</Text> : null}
-              {isSpokenOnlyQuestion(question) ? (
-                <Text style={styles.hint}>
-                  음성으로 들려드릴게요. 잘 듣고 답해 주세요. 다시 들으려면 아래 버튼을 길게 눌러 주세요.
-                </Text>
-              ) : null}
               <View style={styles.voiceToggle}>
                 <VoicePlaybackButton
                   enabled={voice.enabled}
@@ -393,25 +347,6 @@ export default function ElderCistScreen() {
         </View>
       ) : null}
     </SafeAreaView>
-  );
-}
-
-function CompletedTurnCard({ turn }: { turn: CompletedTurn }) {
-  return (
-    <View style={styles.completedTurn}>
-      <View style={styles.completedTurnHeader}>
-        <Badge label={turn.domain} />
-        <Text style={styles.completedTurnStatus}>답변 완료</Text>
-      </View>
-      <View style={styles.questionBubble}>
-        <Text style={styles.bubbleLabel}>질문</Text>
-        <Text style={styles.historyQuestion}>{turn.question}</Text>
-      </View>
-      <View style={styles.answerBubble}>
-        <Text style={styles.bubbleLabel}>내 답변</Text>
-        <Text style={styles.historyAnswer}>{turn.answer}</Text>
-      </View>
-    </View>
   );
 }
 
@@ -585,7 +520,7 @@ const styles = StyleSheet.create({
   },
   completedTurnStatus: { fontSize: fontSize.caption, color: colors.success, fontWeight: fontWeight.semibold },
   currentTurn: { gap: spacing.xl },
-  voiceToggle: { alignItems: "flex-start" },
+  voiceToggle: { alignItems: "center" },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
