@@ -317,14 +317,16 @@ function ChatRecorder({
       <Text style={styles.recorderHint}>
         {disabled
           ? `${companionName}의 질문을 들은 뒤 답변해 주세요`
-          : recording.syncStatus === "pending"
-          ? "기기에 저장됨 · 연결되면 자동 전송"
-          : recording.syncStatus === "failed"
-            ? "전송 대기 중 · 눌러서 다시 시도"
-            : recording.uploading
-          ? "녹음을 저장하고 있어요"
           : recording.isRecording
             ? `${seconds}초 녹음 중 · 완료하려면 다시 눌러 주세요`
+          : recording.uploading
+            ? "녹음을 저장하고 있어요"
+          : recording.syncStatus === "pending"
+            ? "기기에 저장됨 · 연결되면 자동 전송"
+          : recording.syncStatus === "failed"
+            ? recording.canResend
+              ? "전송 대기 중 · 눌러서 다시 시도"
+              : "눌러서 다시 녹음해 주세요"
             : "버튼을 눌러 말씀해 주세요"}
       </Text>
       <Pressable
