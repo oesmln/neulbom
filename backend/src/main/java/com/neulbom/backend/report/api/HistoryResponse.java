@@ -10,6 +10,7 @@ public record HistoryResponse(
         List<HistoryRecordResponse> records,
         int total,
         String aggregation,
-        boolean sampleSufficient
+        boolean sampleSufficient,
+        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints
 ) {
 }

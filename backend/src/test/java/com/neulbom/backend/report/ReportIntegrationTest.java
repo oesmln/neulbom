@@ -53,6 +53,8 @@ class ReportIntegrationTest {
     @Autowired private TranscriptRepository transcriptRepository;
     @Autowired private CognitiveAnalysisRepository cognitiveAnalysisRepository;
     @Autowired private CistAiAnalysisRepository cistAiAnalysisRepository;
+    @Autowired private com.neulbom.backend.analysis.CognitiveFeatureSnapshotService cognitiveFeatureSnapshotService;
+    @Autowired private com.neulbom.backend.analysis.DailyCognitiveEstimateService dailyCognitiveEstimateService;
     @Autowired private ScreeningResultRepository screeningResultRepository;
     @Autowired private SessionSummaryRepository sessionSummaryRepository;
     @Autowired private GuardianLinkRepository guardianLinkRepository;
@@ -111,7 +113,38 @@ class ReportIntegrationTest {
                         .with(jwtFor(guardian)).param("elder_id", elder.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(2))
-                .andExpect(jsonPath("$.ai_risk_trend_points[1].risk_score").value(0.35));
+                .andExpect(jsonPath("$.ai_risk_trend_points[1].risk_score").value(0.35))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].point_type").value("full_cist"))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].is_estimated").value(false));
+
+        var baseline = cognitiveFeatureSnapshotService.saveBaselineSnapshot(elder.getId(),
+                laterSession.getId(), later.getAnalysisId(), "cist-v1", "test-model", "test-threshold",
+                new BigDecimal("0.35"), "{\"step\":0}");
+        SessionEntity dailySession = new SessionEntity(uuidGenerator.generate(), elder.getId(),
+                "emotional_qa", 7, "{}", false, Instant.now());
+        dailySession.end(Instant.now());
+        sessionRepository.save(dailySession);
+        var daily = dailyCognitiveEstimateService.createDailyEstimate(elder.getId(), dailySession.getId());
+        dailyCognitiveEstimateService.completeDailyEstimate(daily.getEstimateId(),
+                new com.neulbom.backend.analysis.DailyEstimateCompletion(new BigDecimal("0.37"),
+                        new BigDecimal("0.02"), "test-model", "test-threshold", "stable",
+                        "{\"source\":\"ai\"}", Instant.now().plusSeconds(1), "{\"step\":1}"));
+
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(3))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].risk_score").value(0.37))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].point_type").value("daily_partial_estimate"))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].is_estimated").value(true))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].baseline_snapshot_id").value(baseline.getSnapshotId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].baseline_session_id").value(laterSession.getId().toString()));
+        mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId()).with(jwtFor(guardian)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(3));
+        mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(0));
 
         UserEntity stranger = saveUser("ai-trend-stranger", "guardian");
         mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", stranger.getId())
