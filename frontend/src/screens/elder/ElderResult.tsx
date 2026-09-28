@@ -48,14 +48,14 @@ export default function ElderResultScreen() {
   const companionName = characterName?.trim() || DEFAULT_CHARACTER_NAME;
   const baseline = mode === "baseline";
   const [aiPolling, setAiPolling] = React.useState(baseline);
-  const [resultPolling, setResultPolling] = React.useState(!baseline);
 
   const { data: result, error, reload } = useApi(
     () => reports.screeningResult(sessionId as string, "elder"),
     [sessionId],
     {
+      // 정서 문답은 그 자리에서 분석하지 않는다. 대화는 자정 배치에서 일기가 되고
+      // `result_status`는 계속 `pending`이라, 폴링하면 끝나지 않는 대기가 된다.
       enabled: !!sessionId && !baseline,
-      intervalMs: !baseline && resultPolling ? POLL_INTERVAL_MS : undefined,
     },
   );
 
@@ -74,19 +74,16 @@ export default function ElderResultScreen() {
   const [retrying, setRetrying] = React.useState(false);
   const [retryError, setRetryError] = React.useState<string | null>(null);
 
+  // 초기 검사는 분석이 끝나야 결과가 나오지만, 정서 문답은 응답을 받은 시점이
+  // 곧 마무리다.
   const resultSettled = baseline
     ? aiAnalysis?.status === "completed" || aiAnalysis?.status === "failed"
-    : result?.result_status === "completed" || result?.result_status === "failed";
+    : !!result;
 
   React.useEffect(() => {
     if (!baseline || !aiAnalysis) return;
     setAiPolling(["pending", "processing"].includes(aiAnalysis.status));
   }, [aiAnalysis, baseline]);
-
-  React.useEffect(() => {
-    if (baseline || !result) return;
-    setResultPolling(["pending", "processing"].includes(result.result_status));
-  }, [baseline, result]);
 
   React.useEffect(() => {
     if (baseline && resultSettled) void completeBaseline();
@@ -183,7 +180,9 @@ export default function ElderResultScreen() {
               <SpeechBubble
                 text={baseline
                   ? message || `이제 ${withParticle(companionName, "과", "와")} 매일 편하게 이야기할 수 있어요.`
-                  : `${userName ? `${userName}님, ` : ""}${message}`}
+                  : result?.result_status === "completed"
+                    ? `${userName ? `${userName}님, ` : ""}${message}`
+                    : `${userName ? `${userName}님, ` : ""}오늘 대화가 잘 마무리됐어요.`}
                 side="below"
               />
           )}
