@@ -10,7 +10,7 @@ import type { OnboardingStep } from "@/api/types";
 import { Button, Card, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
-import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import type { RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
@@ -176,7 +176,7 @@ type SpeechPlayback = ReturnType<typeof useSpeechPlayback>;
 function ConversationHeader({ line, voice }: { line: string; voice: SpeechPlayback }) {
   return (
     <View style={styles.characterBlock}>
-      <Memoi3D character={DEFAULT_MEMOI} mouthSet={DEFAULT_MOUTH_SET} speaking={voice.speaking} height={130} spinnerColor={colors.primary} style={{ width: 170 }} />
+      <Memoi3D character={DEFAULT_MEMOI} height={130} spinnerColor={colors.primary} style={{ width: 170 }} />
       <SpeechBubble text={line} side="below" />
       <VoicePlaybackButton
         enabled={voice.enabled}

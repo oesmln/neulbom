@@ -17,7 +17,7 @@ import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
-import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET, memoiForLevel } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, memoiForLevel } from "@/components/memoiCharacters";
 import { withParticle } from "@/utils/format";
 
 /**
@@ -57,8 +57,6 @@ export default function ElderAiChatScreen() {
     enabled: !!userId && isFocused,
   });
   const companionModel = memoiForLevel(character.data?.level);
-  // Only level 1 has matching mouth models. Keep evolved models visible during speech.
-  const mouthSet = companionModel.id === DEFAULT_MEMOI.id ? DEFAULT_MOUTH_SET : undefined;
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
@@ -152,8 +150,6 @@ export default function ElderAiChatScreen() {
         <View style={styles.introCharacter}>
           <Memoi3D
             character={companionModel}
-            mouthSet={mouthSet}
-            speaking={voice.speaking}
             height={180}
             spinnerColor={colors.primary}
             style={{ width: 220 }}
@@ -199,8 +195,6 @@ export default function ElderAiChatScreen() {
       <View style={styles.stage}>
         <Memoi3D
           character={companionModel}
-          mouthSet={mouthSet}
-          speaking={voice.speaking}
           height={130}
           spinnerColor={colors.primary}
           style={{ width: 170 }}
