@@ -56,6 +56,9 @@ class SessionIntegrationTest {
     private SessionQuestionSlotRepository sessionQuestionSlotRepository;
 
     @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
     private ConsentRepository consentRepository;
 
     @Autowired
@@ -361,6 +364,16 @@ class SessionIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(slots.stream()
                         .filter(slot -> "cist_bank".equals(slot.getQuestionSource())))
                 .hasSize(2);
+        var cistQuestionCodes = slots.stream()
+                .filter(slot -> "cist_bank".equals(slot.getQuestionSource()))
+                .map(slot -> questionRepository.findById(slot.getSourceQuestionId()).orElseThrow().getQuestionCode())
+                .toList();
+        org.assertj.core.api.Assertions.assertThat(cistQuestionCodes.stream()
+                        .filter(code -> code.startsWith("orientation_")))
+                .hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(cistQuestionCodes.stream()
+                        .filter(code -> code.startsWith("attention_")))
+                .hasSize(1);
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))

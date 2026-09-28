@@ -489,7 +489,8 @@ public class ReportService {
     private List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints(
             List<SessionEntity> sessions, LocalDate fromDate, LocalDate toDate) {
         Map<UUID, SessionEntity> cistSessions = sessions.stream()
-                .filter(session -> Set.of("cist", "baseline", "onboarding").contains(session.getSessionType()))
+                .filter(session -> Set.of("cist", "baseline", "onboarding", "emotional_qa")
+                        .contains(session.getSessionType()))
                 .filter(session -> inDateRange(session.getStartedAt(), fromDate, toDate))
                 .collect(Collectors.toMap(SessionEntity::getId, Function.identity()));
         if (cistSessions.isEmpty()) return List.of();

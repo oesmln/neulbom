@@ -324,7 +324,8 @@ public class SessionService {
                     session.getCurrentQuestionOrder(),
                     existing.getSyncStatus());
         }
-        if ("emotional_qa".equals(session.getSessionType())
+        if (SessionEntity.ACTIVE.equals(session.getStatus())
+                && "emotional_qa".equals(session.getSessionType())
                 && question.getDisplayOrder() != session.getCurrentQuestionOrder()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "현재 순서의 질문이 아닙니다.", "먼저 현재 질문에 답변하세요.");
         }
@@ -359,19 +360,39 @@ public class SessionService {
     }
 
     private boolean isAllowedAiRetryReplacement(SessionEntity session, QuestionEntity question) {
-        if (!Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())
-                || question.getQuestionCode() == null) {
+        String questionCode = aiQuestionCode(session, question);
+        if (questionCode == null) {
             return false;
         }
         return cistAiAnalysisRepository.findBySessionId(session.getId())
                 .filter(analysis -> "needs_retry".equals(analysis.getStatus()) && analysis.isRetryable())
-                .filter(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), question.getQuestionCode()))
+                .filter(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), questionCode))
                 .map(analysis -> hasNotSubmittedReplacement(
                         session.getId(),
                         question.getId(),
-                        question.getQuestionCode(),
+                        questionCode,
                         analysis.getSubmittedResponses()))
                 .orElse(false);
+    }
+
+    private String aiQuestionCode(SessionEntity session, QuestionEntity question) {
+        if (Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())) {
+            return question.getQuestionCode();
+        }
+        if (!"emotional_qa".equals(session.getSessionType())
+                || !"cist_bank".equals(question.getQuestionSource())) {
+            return null;
+        }
+        return sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(session.getId()).stream()
+                .filter(slot -> question.getId().equals(slot.getQuestionId()))
+                .map(SessionQuestionSlotEntity::getSourceQuestionId)
+                .filter(java.util.Objects::nonNull)
+                .map(questionRepository::findById)
+                .flatMap(java.util.Optional::stream)
+                .map(QuestionEntity::getQuestionCode)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean hasNotSubmittedReplacement(
@@ -671,11 +692,19 @@ public class SessionService {
                 .stream()
                 .filter(question -> STANDALONE_CIST_QUESTION_CODES.contains(question.getQuestionCode()))
                 .toList());
-        if (cistQuestions.size() < DAILY_CIST_QUESTION_COUNT) {
-            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "문제은행 문항이 부족합니다.", "시행 가능한 CIST 문항을 확인하세요.");
+        List<QuestionEntity> orientationQuestions = cistQuestions.stream()
+                .filter(question -> question.getQuestionCode().startsWith("orientation_"))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        List<QuestionEntity> attentionQuestions = cistQuestions.stream()
+                .filter(question -> question.getQuestionCode().startsWith("attention_"))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (orientationQuestions.isEmpty() || attentionQuestions.isEmpty()) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "문제은행 문항이 부족합니다.",
+                    "지남력·주의력 CIST 문항을 각각 확인하세요.");
         }
-        Collections.shuffle(cistQuestions);
-        cistQuestions = cistQuestions.subList(0, DAILY_CIST_QUESTION_COUNT);
+        Collections.shuffle(orientationQuestions);
+        Collections.shuffle(attentionQuestions);
+        cistQuestions = new ArrayList<>(List.of(orientationQuestions.get(0), attentionQuestions.get(0)));
 
         List<Integer> candidateOrders = new ArrayList<>();
         for (int order = 2; order <= DAILY_CONVERSATION_QUESTION_COUNT; order++) {

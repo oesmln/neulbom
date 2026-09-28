@@ -1,5 +1,6 @@
 package com.neulbom.backend.analysis;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -11,6 +12,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -28,6 +30,9 @@ import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.Analy
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisRetryItem;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisRetryRequest;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisStatusResponse;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisCreateRequest;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisResult;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisStatusResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.NotApplicableQuestionResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.QuestionResponseInput;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.RecognitionPlanRequest;
@@ -47,6 +52,8 @@ import com.neulbom.backend.session.AnswerRepository;
 import com.neulbom.backend.session.QuestionEntity;
 import com.neulbom.backend.session.QuestionRepository;
 import com.neulbom.backend.session.SessionEntity;
+import com.neulbom.backend.session.SessionQuestionSlotEntity;
+import com.neulbom.backend.session.SessionQuestionSlotRepository;
 import com.neulbom.backend.session.SessionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -60,6 +67,7 @@ public class CistAiAnalysisService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(AiServerContracts.TIMEZONE);
 
     private final SessionRepository sessionRepository;
+    private final SessionQuestionSlotRepository sessionQuestionSlotRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
     private final RecordingRepository recordingRepository;
@@ -77,6 +85,7 @@ public class CistAiAnalysisService {
 
     public CistAiAnalysisService(
             SessionRepository sessionRepository,
+            SessionQuestionSlotRepository sessionQuestionSlotRepository,
             QuestionRepository questionRepository,
             AnswerRepository answerRepository,
             RecordingRepository recordingRepository,
@@ -93,6 +102,7 @@ public class CistAiAnalysisService {
             Clock clock
     ) {
         this.sessionRepository = sessionRepository;
+        this.sessionQuestionSlotRepository = sessionQuestionSlotRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.recordingRepository = recordingRepository;
@@ -318,6 +328,256 @@ public class CistAiAnalysisService {
         return toResponse(entity);
     }
 
+    @Transactional
+    public CistAiAnalysisResponse createDailyAnalysis(UUID userId, UUID sessionId) {
+        SessionEntity session = ownedDailySessionForUpdate(userId, sessionId);
+        CistAiAnalysisEntity existing = analysisRepository.findBySessionId(sessionId).orElse(null);
+        if (existing != null) {
+            return toResponse(existing);
+        }
+        if (!SessionEntity.ENDED.equals(session.getStatus())) {
+            throw validation("종료된 일상 문답 세션만 인지 추이 분석을 요청할 수 있습니다.");
+        }
+
+        CistAiAnalysisEntity baseline = latestBaselineAnalysis(userId, session.getStartedAt());
+        if (baseline == null) {
+            throw validation("완료된 CIST 기준 분석과 특징 스냅샷이 필요합니다.");
+        }
+        UUID previousDailySessionId = previousDailySessionId(userId, session.getStartedAt(), baseline.getAnalysisId());
+        CistAiAnalysisEntity previousDailyAnalysis = previousDailySessionId == null
+                ? null : analysisRepository.findBySessionId(previousDailySessionId).orElse(null);
+        AiServerContracts.CognitiveFeatureSnapshot inputSnapshot = previousDailyAnalysis == null
+                ? read(baseline.getFeatureSnapshot(), AiServerContracts.CognitiveFeatureSnapshot.class)
+                : read(previousDailyAnalysis.getFeatureSnapshot(), AiServerContracts.CognitiveFeatureSnapshot.class);
+        if (inputSnapshot == null) {
+            throw validation("일상 인지 분석에 사용할 기준 특징 스냅샷이 없습니다.");
+        }
+
+        List<AdministeredQuestionResponse> responses = buildDailyResponses(sessionId);
+        BigDecimal baselineModelScore = baseline.getModelScore();
+        UUID analysisId = UUID.nameUUIDFromBytes(
+                ("neulbom:daily-cognitive-analysis:" + sessionId).getBytes(StandardCharsets.UTF_8));
+        DailyAnalysisCreateRequest request = new DailyAnalysisCreateRequest(
+                analysisId,
+                sessionId,
+                baseline.getAnalysisId(),
+                assessmentDate(session),
+                baselineModelScore,
+                inputSnapshot,
+                responses);
+        validator.validateDailyAnalysisCreate(request);
+
+        String key = "daily-analysis-create-" + sessionId;
+        String requestHash = hash(request);
+        var accepted = aiServerClient.createDailyCognitiveAnalysis(key, request);
+        if (!analysisId.equals(accepted.analysisId()) || !sessionId.equals(accepted.sessionId())
+                || !Set.of("pending", "processing").contains(accepted.status()) || accepted.createdAt() == null) {
+            throw validation("AI 서버 일상 분석 접수 응답이 요청과 일치하지 않습니다.");
+        }
+        var now = clock.instant();
+        CistAiAnalysisEntity entity = new CistAiAnalysisEntity(
+                analysisId,
+                sessionId,
+                accepted.status(),
+                key,
+                requestHash,
+                json(responseIdentities(responses)),
+                accepted.createdAt(),
+                now);
+        entity.linkBaselineAnalysis(baseline.getAnalysisId());
+        analysisRepository.save(entity);
+        AiServerOperationEntity operation = new AiServerOperationEntity(
+                uuidGenerator.generate(), sessionId, analysisId, "daily_analysis_create", 0, key, requestHash, now);
+        operation.complete(accepted.status(), now);
+        operationRepository.save(operation);
+        return toResponse(entity);
+    }
+
+    @Transactional
+    public CistAiAnalysisResponse refreshDailyAnalysis(UUID userId, UUID sessionId) {
+        ownedDailySession(userId, sessionId);
+        CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
+        if (Set.of("completed", "failed").contains(entity.getStatus())) {
+            return toResponse(entity);
+        }
+
+        DailyAnalysisStatusResponse result = aiServerClient.getDailyCognitiveAnalysis(entity.getAnalysisId());
+        validator.validateDailyAnalysisStatus(result, entity.getAnalysisId(), sessionId);
+        DailyAnalysisResult finalResult = result.result();
+        if (finalResult != null && !Objects.equals(entity.getBaselineAnalysisId(), finalResult.baselineAnalysisId())) {
+            throw validation("일상 분석 결과의 기준 분석 ID가 요청과 일치하지 않습니다.");
+        }
+        entity.updateStatus(
+                result.status(),
+                result.retryable(),
+                result.reasonCode(),
+                json(result.retryItems()),
+                json(finalResult),
+                finalResult == null ? null : finalResult.estimatedModelScore(),
+                finalResult == null ? null : finalResult.modelVersion(),
+                finalResult == null ? null : finalResult.decisionThreshold(),
+                finalResult == null ? null : finalResult.reviewThreshold(),
+                finalResult == null ? null : finalResult.thresholdVersion(),
+                finalResult == null ? null : finalResult.riskFlag(),
+                finalResult == null ? null : finalResult.riskLevel(),
+                result.updatedAt());
+        entity.updateFeatureSnapshot(finalResult == null ? null : json(finalResult.outputSnapshot()));
+        analysisRepository.save(entity);
+        return toResponse(entity);
+    }
+
+    @Transactional
+    public CistAiAnalysisResponse retryDailyAnalysis(UUID userId, UUID sessionId) {
+        ownedDailySession(userId, sessionId);
+        CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
+        if (!"needs_retry".equals(entity.getStatus()) || !entity.isRetryable()) {
+            throw validation("현재 일상 분석은 재시도 가능한 상태가 아닙니다.");
+        }
+
+        List<RetryItem> retryItems = readList(entity.getRetryItems(), new TypeReference<>() { });
+        Map<String, SubmittedResponse> previous = readMap(entity.getSubmittedResponses());
+        Map<String, AdministeredQuestionResponse> current = buildDailyResponses(sessionId).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AdministeredQuestionResponse::questionCode, response -> response));
+        List<AnalysisRetryItem> requestItems = new ArrayList<>();
+        Map<String, SubmittedResponse> updated = new LinkedHashMap<>(previous);
+        for (RetryItem retryItem : retryItems) {
+            AdministeredQuestionResponse response = current.get(retryItem.questionCode());
+            SubmittedResponse before = previous.get(retryItem.questionCode());
+            if (response == null || before == null) {
+                throw validation("일상 분석 재시도 문항의 기존·현재 응답을 찾을 수 없습니다.");
+            }
+            if ("REISSUE_AUDIO_URL".equals(retryItem.requiredAction())) {
+                if (!before.recordingId().equals(response.recordingId())
+                        || !before.responseId().equals(response.responseId())) {
+                    throw validation("URL 재발급은 기존 녹음·응답 ID를 유지해야 합니다.");
+                }
+                requestItems.add(new AiServerContracts.ReissueAudioUrlItem(
+                        response.questionCode(), response.recordingId(), response.responseId(), response.audio()));
+            } else if ("REPLACE_RESPONSE".equals(retryItem.requiredAction())) {
+                if (before.recordingId().equals(response.recordingId())
+                        || before.responseId().equals(response.responseId())) {
+                    throw validation("응답 교체는 새로운 녹음·응답 ID를 사용해야 합니다.");
+                }
+                requestItems.add(new AiServerContracts.ReplaceResponseItem(
+                        response.questionCode(), response.variantId(), response.recordingId(), response.responseId(),
+                        response.audio(), response.stt(), response.timing()));
+                updated.put(retryItem.questionCode(), new SubmittedResponse(response.recordingId(), response.responseId()));
+            } else {
+                throw validation("지원하지 않는 일상 분석 재시도 작업입니다.");
+            }
+        }
+        AnalysisRetryRequest request = new AnalysisRetryRequest(entity.getReasonCode(), requestItems);
+        int operationNumber = entity.getRetryCount() + 1;
+        String key = "daily-analysis-retry-" + entity.getAnalysisId() + "-" + operationNumber;
+        String requestHash = hash(request);
+        var accepted = aiServerClient.retryDailyCognitiveAnalysis(entity.getAnalysisId(), key, request);
+        if (!entity.getAnalysisId().equals(accepted.analysisId()) || !sessionId.equals(accepted.sessionId())
+                || !Set.of("pending", "processing").contains(accepted.status())) {
+            throw validation("AI 서버 일상 분석 재시도 응답이 요청과 일치하지 않습니다.");
+        }
+        var now = clock.instant();
+        entity.recordRetry(json(updated), accepted.status(), now);
+        analysisRepository.save(entity);
+        AiServerOperationEntity operation = new AiServerOperationEntity(
+                uuidGenerator.generate(), sessionId, entity.getAnalysisId(), "daily_analysis_retry",
+                operationNumber, key, requestHash, now);
+        operation.complete(accepted.status(), now);
+        operationRepository.save(operation);
+        return toResponse(entity);
+    }
+
+    private SessionEntity ownedDailySession(UUID userId, UUID sessionId) {
+        SessionEntity session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
+        if (!userId.equals(session.getUserId())) {
+            throw new AccessDeniedException("본인 일상 문답 세션만 분석할 수 있습니다.");
+        }
+        if (!"emotional_qa".equals(session.getSessionType())) {
+            throw validation("일상 문답 세션만 부분 갱신 분석을 요청할 수 있습니다.");
+        }
+        return session;
+    }
+
+    private SessionEntity ownedDailySessionForUpdate(UUID userId, UUID sessionId) {
+        SessionEntity session = sessionRepository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
+        if (!userId.equals(session.getUserId())) {
+            throw new AccessDeniedException("본인 일상 문답 세션만 분석할 수 있습니다.");
+        }
+        if (!"emotional_qa".equals(session.getSessionType())) {
+            throw validation("일상 문답 세션만 부분 갱신 분석을 요청할 수 있습니다.");
+        }
+        return session;
+    }
+
+    private CistAiAnalysisEntity latestBaselineAnalysis(UUID userId, java.time.Instant before) {
+        for (SessionEntity candidate : sessionRepository.findAllByUserIdOrderByStartedAtDesc(userId)) {
+            if (!Set.of("cist", "baseline", "onboarding").contains(candidate.getSessionType())
+                    || !SessionEntity.ENDED.equals(candidate.getStatus())
+                    || candidate.getEndedAt() == null || candidate.getEndedAt().isAfter(before)) {
+                continue;
+            }
+            CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
+            if (analysis != null && "completed".equals(analysis.getStatus())
+                    && analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())) {
+                return analysis;
+            }
+        }
+        return null;
+    }
+
+    private UUID previousDailySessionId(UUID userId, java.time.Instant before, UUID baselineAnalysisId) {
+        for (SessionEntity candidate : sessionRepository.findAllByUserIdOrderByStartedAtDesc(userId)) {
+            if (!"emotional_qa".equals(candidate.getSessionType())
+                    || !SessionEntity.ENDED.equals(candidate.getStatus())
+                    || candidate.getEndedAt() == null || candidate.getEndedAt().isAfter(before)) {
+                continue;
+            }
+            CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
+            if (analysis != null && "completed".equals(analysis.getStatus())
+                    && StringUtils.hasText(analysis.getFeatureSnapshot())
+                    && baselineAnalysisId.equals(analysis.getBaselineAnalysisId())) {
+                return candidate.getId();
+            }
+        }
+        return null;
+    }
+
+    private List<AdministeredQuestionResponse> buildDailyResponses(UUID sessionId) {
+        List<SessionQuestionSlotEntity> slots = sessionQuestionSlotRepository
+                .findAllBySessionIdOrderByQuestionOrderAsc(sessionId).stream()
+                .filter(slot -> "cist_bank".equals(slot.getQuestionSource()))
+                .toList();
+        if (slots.size() != 2 || slots.stream().anyMatch(slot -> slot.getQuestionId() == null
+                || slot.getSourceQuestionId() == null)) {
+            throw validation("일상 문답의 CIST 문제은행 문항 2개가 모두 준비되어야 합니다.");
+        }
+        Map<UUID, AnswerEntity> answers = latestAnswers(sessionId);
+        List<AdministeredQuestionResponse> responses = new ArrayList<>();
+        for (SessionQuestionSlotEntity slot : slots) {
+            QuestionEntity dailyQuestion = questionRepository.findByIdAndSessionIdAndActiveTrue(
+                            slot.getQuestionId(), sessionId)
+                    .orElseThrow(() -> validation("일상 CIST 문항이 생성되지 않았습니다."));
+            QuestionEntity sourceQuestion = questionRepository.findById(slot.getSourceQuestionId())
+                    .filter(QuestionEntity::isActive)
+                    .orElseThrow(() -> validation("일상 문항의 원본 CIST 문항을 찾을 수 없습니다."));
+            if (!StringUtils.hasText(sourceQuestion.getQuestionCode())
+                    || !StringUtils.hasText(dailyQuestion.getVariantId())
+                    || !dailyQuestion.getVariantId().equals(sourceQuestion.getVariantId())) {
+                throw validation("일상 CIST 문항의 계약 식별자가 올바르지 않습니다.");
+            }
+            AnswerEntity answer = answers.get(dailyQuestion.getId());
+            if (answer == null) {
+                throw validation("일상 CIST 문항 답변이 없습니다: " + sourceQuestion.getQuestionCode());
+            }
+            responses.add(administered(sourceQuestion.getQuestionCode(), dailyQuestion.getVariantId(), answer));
+        }
+        return List.copyOf(responses);
+    }
+
     private List<QuestionResponseInput> buildResponses(UUID sessionId, Set<String> selectedQuestionCodes) {
         Map<UUID, AnswerEntity> answers = latestAnswers(sessionId);
         List<QuestionResponseInput> responses = new ArrayList<>();
@@ -338,11 +598,15 @@ public class CistAiAnalysisService {
     }
 
     private AdministeredQuestionResponse administered(QuestionEntity question, AnswerEntity answer) {
-        if (!StringUtils.hasText(question.getQuestionCode()) || !StringUtils.hasText(question.getVariantId())) {
+        return administered(question.getQuestionCode(), question.getVariantId(), answer);
+    }
+
+    private AdministeredQuestionResponse administered(String questionCode, String variantId, AnswerEntity answer) {
+        if (!StringUtils.hasText(questionCode) || !StringUtils.hasText(variantId)) {
             throw validation("문항의 AI 계약 식별자가 없습니다.");
         }
         if (answer.getRecordingId() == null) {
-            throw validation("시행 문항에 녹음 ID가 없습니다: " + question.getQuestionCode());
+            throw validation("시행 문항에 녹음 ID가 없습니다: " + questionCode);
         }
         RecordingEntity recording = recordingRepository.findById(answer.getRecordingId())
                 .orElseThrow(() -> validation("답변 녹음을 찾을 수 없습니다."));
@@ -369,8 +633,8 @@ public class CistAiAnalysisService {
             rawTranscript = null;
         }
         var result = new AdministeredQuestionResponse(
-                question.getQuestionCode(),
-                question.getVariantId(),
+                questionCode,
+                variantId,
                 recording.getId(),
                 answer.getId(),
                 audioUrlSigner.issue(recording),
@@ -445,7 +709,9 @@ public class CistAiAnalysisService {
                 entity.getUpdatedAt());
     }
 
-    private Map<String, SubmittedResponse> responseIdentities(List<QuestionResponseInput> responses) {
+    private Map<String, SubmittedResponse> responseIdentities(
+            List<? extends QuestionResponseInput> responses
+    ) {
         Map<String, SubmittedResponse> identities = new LinkedHashMap<>();
         for (QuestionResponseInput response : responses) {
             if (response instanceof AdministeredQuestionResponse administered) {

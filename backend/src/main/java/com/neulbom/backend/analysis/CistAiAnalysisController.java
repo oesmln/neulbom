@@ -3,6 +3,7 @@ package com.neulbom.backend.analysis;
 import java.util.UUID;
 
 import com.neulbom.backend.analysis.api.CistAiAnalysisResponse;
+import com.neulbom.backend.analysis.api.DailyCognitiveAnalysisResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.RecognitionPlanResponse;
 import com.neulbom.backend.auth.service.AuthService;
 import org.springframework.http.HttpStatus;
@@ -59,6 +60,38 @@ public class CistAiAnalysisController {
     ) {
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(service.retryAnalysis(authenticatedUserId(jwt), sessionId));
+    }
+
+    @PostMapping("/daily-analyses")
+    public ResponseEntity<DailyCognitiveAnalysisResponse> createDailyAnalysis(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(dailyResponse(service.createDailyAnalysis(authenticatedUserId(jwt), sessionId)));
+    }
+
+    @GetMapping("/daily-analyses")
+    public DailyCognitiveAnalysisResponse refreshDailyAnalysis(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return dailyResponse(service.refreshDailyAnalysis(authenticatedUserId(jwt), sessionId));
+    }
+
+    @PostMapping("/daily-analyses/retry")
+    public ResponseEntity<DailyCognitiveAnalysisResponse> retryDailyAnalysis(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(dailyResponse(service.retryDailyAnalysis(authenticatedUserId(jwt), sessionId)));
+    }
+
+    private DailyCognitiveAnalysisResponse dailyResponse(CistAiAnalysisResponse response) {
+        return new DailyCognitiveAnalysisResponse(
+                response.analysisId(), response.sessionId(), response.status(), response.retryCount(),
+                response.retryable(), response.reasonCode(), response.createdAt(), response.updatedAt());
     }
 
     private UUID authenticatedUserId(Jwt jwt) {

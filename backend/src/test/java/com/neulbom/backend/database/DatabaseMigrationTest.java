@@ -43,6 +43,22 @@ class DatabaseMigrationTest {
                           AND column_name = 'feature_snapshot'
                         """,
                 Integer.class);
+        Integer baselineAnalysisLinkColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'cist_ai_analyses'
+                          AND column_name = 'baseline_analysis_id'
+                        """,
+                Integer.class);
+        String operationTypeConstraint = jdbcTemplate.queryForObject(
+                """
+                        SELECT pg_get_constraintdef(oid)
+                        FROM pg_constraint
+                        WHERE conname = 'ck_ai_server_operation_type'
+                        """,
+                String.class);
         Integer coreTableCount = jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
@@ -67,6 +83,8 @@ class DatabaseMigrationTest {
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(22);
         assertThat(featureSnapshotColumnCount).isEqualTo(1);
+        assertThat(baselineAnalysisLinkColumnCount).isEqualTo(1);
+        assertThat(operationTypeConstraint).contains("daily_analysis_create", "daily_analysis_retry");
         assertThat(coreTableCount).isEqualTo(37);
     }
 
