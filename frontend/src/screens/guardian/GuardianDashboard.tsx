@@ -80,6 +80,7 @@ function Indicator({ label, value, unit, color }: { label: string; value: string
 }
 
 export default function GuardianDashboardScreen() {
+  const isFocused = useIsFocused();
   const navigation = useNavigation<GuardianNav>();
   const isFocused = useIsFocused();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
@@ -106,8 +107,8 @@ export default function GuardianDashboardScreen() {
 
   const recentDiaries = useApi(
     () => diariesApi.listForUser(elderId as string, { limit: RECENT_DIARY_LIMIT }),
-    [elderId],
-    { enabled: !!elderId },
+    [elderId, isFocused],
+    { enabled: !!elderId && isFocused },
   );
 
   const header = (

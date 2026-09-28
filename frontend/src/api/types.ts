@@ -690,12 +690,14 @@ export interface ReportExportResponse {
 
 /* ── diaries & calendar ─────────────────────────────────────────────────── */
 
+export type DiaryReactionType = "heart" | "smile" | "cheer" | "pray" | "cry" | "message";
+
 export interface ReactionResponse {
   reaction_id: Uuid;
   diary_id: Uuid;
   reactor_id: Uuid;
   reactor_name: string | null;
-  reaction_type: string;
+  reaction_type: DiaryReactionType;
   message: string | null;
   created_at: IsoInstant;
 }

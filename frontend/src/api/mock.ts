@@ -20,6 +20,7 @@ import type {
   CistRecognitionPlanResponse,
   CounselingCentersResponse,
   DashboardResponse,
+  DiaryReactionType,
   DiariesResponse,
   DiaryDetailResponse,
   EldersResponse,
@@ -33,6 +34,7 @@ import type {
   NotificationsResponse,
   QuestionsResponse,
   QuestionResponse,
+  ReactionResponse,
   Role,
   ScreeningResultResponse,
   SessionEndResponse,
@@ -49,6 +51,29 @@ import type {
 export const MOCK_ELDER_ID = "11111111-1111-4111-8111-111111111111";
 export const MOCK_GUARDIAN_ID = "22222222-2222-4222-8222-222222222222";
 const MOCK_SESSION_ID = "33333333-3333-4333-8333-333333333333";
+const mockDiaryReactions = new Map<Uuid, ReactionResponse[]>();
+let mockReactionSequence = 0;
+
+export function mockReactions(diaryId: Uuid): ReactionResponse[] {
+  return [...(mockDiaryReactions.get(diaryId) ?? [])];
+}
+
+export function mockCreateReaction(diaryId: Uuid, reactionType: DiaryReactionType, message?: string): ReactionResponse {
+  const current = mockReactions(diaryId);
+  const existing = current.find((item) => item.reactor_id === MOCK_GUARDIAN_ID && item.reaction_type === reactionType);
+  if (existing) return existing;
+  const reaction: ReactionResponse = {
+    reaction_id: fixedId("bbbbbbbb", ++mockReactionSequence),
+    diary_id: diaryId,
+    reactor_id: MOCK_GUARDIAN_ID,
+    reactor_name: "김철수",
+    reaction_type: reactionType,
+    message: reactionType === "message" ? message?.trim() ?? null : null,
+    created_at: new Date().toISOString(),
+  };
+  mockDiaryReactions.set(diaryId, [...current, reaction]);
+  return reaction;
+}
 
 /** Deterministic id so repeated mock calls keep referring to the same row. */
 function fixedId(prefix: string, n: number): Uuid {
@@ -520,7 +545,7 @@ export function mockDiaries(): DiariesResponse {
     mood: d.mood,
     mood_level: d.level,
     written_at: daysAgo(d.ago).toISOString(),
-    reaction_count: i === 0 ? 2 : i === 1 ? 1 : i === 2 ? 3 : 0,
+    reaction_count: mockReactions(fixedId("aaaaaaaa", i + 1)).length,
   }));
   return { diaries, total: diaries.length, page: 1, limit: 20 };
 }
@@ -541,7 +566,7 @@ export function mockDiaryDetail(diaryId: Uuid): DiaryDetailResponse {
     written_at: item.written_at,
     created_at: item.written_at,
     updated_at: item.written_at,
-    reactions: [],
+    reactions: mockReactions(item.diary_id),
   };
 }
 

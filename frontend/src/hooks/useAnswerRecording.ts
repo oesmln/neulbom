@@ -43,8 +43,8 @@ export const MAX_ANSWER_RECORDING_DURATION_MS = 60_000;
 
 /**
  * 답변 녹음은 듣기용이 아니라 음성 인식용이다. `RecordingPresets.HIGH_QUALITY`는
- * 44.1kHz 스테레오로 담아 같은 길이라도 파일이 두 배 이상 커지고, 그만큼 전사가
- * 더 일찍 빈 결과로 돌아온다. 인식이 기대하는 모노 16kHz로 맞추면 업로드도 빨라진다.
+ * 44.1kHz 스테레오로 담아 같은 길이라도 파일이 두 배 이상 커진다. 인식이 기대하는
+ * 모노 16kHz로 맞추면 업로드가 빨라지고 전사도 안정적이다.
  */
 const ANSWER_RECORDING_OPTIONS: RecordingOptions = {
   ...RecordingPresets.HIGH_QUALITY,
