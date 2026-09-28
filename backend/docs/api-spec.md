@@ -1401,6 +1401,8 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 STT provider는 `STT_PROVIDER`로 선택하며 앱 기본값은 `google`이다. 운영 Google STT는 V2, `location=us`, `model=chirp_3`, `language=ko-KR`, 자동 문장부호 사용으로 고정한다. `openai`, `local`, `auto`는 로컬 진단·이전 환경 호환을 위해 유지하고 `none`은 외부 STT를 사용하지 않는다.
 
+Google STT adapter는 M4A(`audio/mp4`) 입력을 요청 전에 `ffmpeg`로 16kHz 모노 PCM WAV로 변환해 `content`에 넣는다. 업로드 MIME이 잘못 `audio/mpeg`로 기록된 과거 M4A도 MP4 컨테이너 헤더로 식별한다. WAV·MP3·WebM 입력과 AST 분석에는 이 변환을 적용하지 않는다. 실행 환경의 `PATH`에 `ffmpeg`가 없거나 변환이 시간 초과되면 `503`, 파일을 디코딩할 수 없으면 `422`를 반환한다. 원본 녹음은 변환하지 않고 보관한다.
+
 로컬 Whisper 서버는 `POST /v1/audio/transcriptions` multipart 계약(`file`, `model`, `language`, `response_format`)을 제공해야 한다. Google Cloud STT는 서버의 Application Default Credentials(로컬 `gcloud auth application-default login`, 운영 서비스 계정 또는 workload identity)를 사용하며 앱에 provider credential을 노출하지 않는다.
 
 #### Form Data
@@ -2042,6 +2044,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `restarted_count` | integer | N | 다시 시작 횟수, 기본 `0` |
 | `completed` | boolean | Y | 정상 완료 여부 |
 
+`image_match`는 여섯 쌍을 찾는 동안 오답 시도를 반복할 수 있으므로 `error_count`가 `total_questions`보다 클 수 있다. 다른 게임은 `error_count <= total_questions`를 유지한다.
+
 #### Response `200`
 
 | 필드 | 타입 | 설명 |
@@ -2180,6 +2184,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `last_session_at` | string/null | 최근 세션 일시 |
 | `activity_summary_7d` | object | 최근 7일 활동 지표 |
 | `trend_points[]` | array | 차트용 날짜별 추이 |
+| `ai_risk_trend_points[]` | array | 완료된 CIST AI 분석의 별도 위험 신호 추이 |
 | `recent_alerts[]` | array | 보호자 알림 목록 |
 | `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
 
@@ -2211,6 +2216,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
   }
 ]
 ```
+
+`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 AI 분석만 포함한다. 각 항목은 검사 시작일(`date`, `Asia/Seoul`), AI 서버 원본 `model_score`(`risk_score`, 0~1), 원본 `risk_level`을 담는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. AI 정서 문답은 현재 CIST 모델 계약의 질문 세트에 포함되지 않아 이 추이에 넣지 않는다.
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 

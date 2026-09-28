@@ -115,10 +115,10 @@ export function useAnswerRecording(
       );
       if (cancelled) return;
       if (uploaded) {
-        complete(uploaded.recordingId);
         if (uploaded.transcript) {
           onTranscribedRef.current?.(uploaded.transcript, uploaded.transcriptId);
         }
+        complete(uploaded.recordingId);
         return;
       }
       const item = await findQueuedRecording(
@@ -158,10 +158,10 @@ export function useAnswerRecording(
         }
         if (event.type === "uploaded" && event.clientRecordingId === queuedClientIdRef.current) {
           queuedClientIdRef.current = null;
-          complete(event.recordingId);
           if (event.transcript) {
             onTranscribedRef.current?.(event.transcript, event.transcriptId);
           }
+          complete(event.recordingId);
           void consumeUploadedRecording(
             target.userId as Uuid,
             target.sessionId as Uuid,

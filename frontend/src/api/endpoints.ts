@@ -11,6 +11,7 @@
  */
 
 import * as Crypto from "expo-crypto";
+import { File } from "expo-file-system";
 import { Platform } from "react-native";
 import { File } from "expo-file-system";
 
@@ -35,6 +36,7 @@ import type {
   DiariesResponse,
   DiaryCreateRequest,
   DiaryDetailResponse,
+  DiaryReactionType,
   EldersResponse,
   GameHistoryResponse,
   GameResultRequest,
@@ -150,9 +152,12 @@ export const auth = {
 
   login(body: LoginRequest): Promise<AuthTokenResponse> {
     if (USE_MOCK_API) {
-      const role = body.email.trim().toLowerCase().startsWith("guardian")
+      const email = body.email.trim().toLowerCase();
+      const role = email.startsWith("guardian")
         ? "guardian"
-        : mock.currentMockRole();
+        : email.startsWith("elder")
+          ? "elder"
+          : mock.currentMockRole();
       return Promise.resolve(mock.mockAuthToken(role));
     }
     return request("/auth/login", { method: "POST", body, anonymous: true });
@@ -482,15 +487,11 @@ export const recordings = {
 
   transcribe(recordingId: Uuid): Promise<TranscribeResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        transcript_id: newClientId(),
-        recording_id: recordingId,
-        transcript: "음성 답변이 텍스트로 변환됐어요.",
-        duration_sec: null,
-        confidence: null,
-        language: "ko",
-        model: "mock",
-      });
+      return Promise.reject(new ApiError(
+        503,
+        "서버에 연결하지 않아 음성을 전사할 수 없습니다.",
+        { detail: "EXPO_PUBLIC_API_BASE_URL을 설정하고 백엔드 STT를 실행해 주세요." },
+      ));
     }
     return request(`/recordings/${recordingId}/transcribe`, { method: "POST" });
   },
@@ -594,21 +595,13 @@ export const diaries = {
   },
 
   reactions(diaryId: Uuid): Promise<ReactionsResponse> {
-    if (USE_MOCK_API) return Promise.resolve({ reactions: [] });
+    if (USE_MOCK_API) return Promise.resolve({ reactions: mock.mockReactions(diaryId) });
     return request(`/diaries/${diaryId}/reactions`);
   },
 
-  react(diaryId: Uuid, reactionType: string, message?: string): Promise<ReactionResponse> {
+  react(diaryId: Uuid, reactionType: DiaryReactionType, message?: string): Promise<ReactionResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        reaction_id: newClientId(),
-        diary_id: diaryId,
-        reactor_id: mock.MOCK_GUARDIAN_ID,
-        reactor_name: "김철수",
-        reaction_type: reactionType,
-        message: message ?? null,
-        created_at: new Date().toISOString(),
-      });
+      return Promise.resolve(mock.mockCreateReaction(diaryId, reactionType, message));
     }
     return request(`/diaries/${diaryId}/reactions`, {
       method: "POST",

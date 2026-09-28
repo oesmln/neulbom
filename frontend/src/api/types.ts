@@ -645,6 +645,7 @@ export interface GuardianReportResponse {
   last_session_at: IsoInstant | null;
   activity_summary7d: GuardianReportActivitySummary | null;
   trend_points: GuardianReportTrendPoint[];
+  ai_risk_trend_points: { date: IsoDate; risk_score: number; risk_level: string }[];
   recent_alerts: GuardianReportAlert[];
   daily_summary: GuardianReportDaily | null;
 }
@@ -682,12 +683,14 @@ export interface ReportExportResponse {
 
 /* ── diaries & calendar ─────────────────────────────────────────────────── */
 
+export type DiaryReactionType = "heart" | "smile" | "cheer" | "pray" | "cry" | "message";
+
 export interface ReactionResponse {
   reaction_id: Uuid;
   diary_id: Uuid;
   reactor_id: Uuid;
   reactor_name: string | null;
-  reaction_type: string;
+  reaction_type: DiaryReactionType;
   message: string | null;
   created_at: IsoInstant;
 }

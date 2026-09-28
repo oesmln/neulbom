@@ -27,6 +27,7 @@ public record GuardianReportResponse(
         Instant lastSessionAt,
         ActivitySummary activitySummary7d,
         List<TrendPoint> trendPoints,
+        List<AiRiskTrendPoint> aiRiskTrendPoints,
         List<Alert> recentAlerts,
         DailyReport dailySummary
 ) {
@@ -44,6 +45,9 @@ public record GuardianReportResponse(
             BigDecimal scoreDelta,
             String riskLevel
     ) { }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AiRiskTrendPoint(LocalDate date, BigDecimal riskScore, String riskLevel) { }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record Alert(UUID notificationId, String title, String body, String severity, Instant createdAt) { }

@@ -1,12 +1,15 @@
 import React from "react";
 import { View, StyleSheet, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { isoDateOf, moodEmoji, parseIso } from "@/utils/format";
+import { DIARY_REACTIONS, type DiaryReactionType } from "@/utils/diaryReactions";
+import DiaryReactionList from "@/components/DiaryReactionList";
 import type { DiaryListItem, Uuid } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import {
@@ -32,7 +35,6 @@ import GuardianHeaderActions from "@/components/GuardianHeaderActions";
  * the screen that no analysis produced.
  */
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-const REACTIONS = ["❤️", "👍", "🥺", "🫂"];
 const RISK_MARK = "⚠️";
 
 /**
@@ -54,12 +56,13 @@ function monthRange(year: number, month: number) {
 }
 
 export default function GuardianDiaryScreen() {
+  const isFocused = useIsFocused();
   const { userId, selectedElderId } = useApp();
 
   const today = React.useMemo(() => new Date(), []);
   const [cursor, setCursor] = React.useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = React.useState<string | null>(null);
-  const [reaction, setReaction] = React.useState<string | null>(null);
+  const [reaction, setReaction] = React.useState<Exclude<DiaryReactionType, "message"> | null>(null);
   const [message, setMessage] = React.useState("");
   const [submitted, setSubmitted] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -76,15 +79,15 @@ export default function GuardianDiaryScreen() {
         toDate: range.to,
         limit: 31,
       }),
-    [selectedElderId, range.from, range.to],
-    { enabled: !!selectedElderId },
+    [selectedElderId, range.from, range.to, isFocused],
+    { enabled: !!selectedElderId && isFocused },
   );
 
   // Risk marks only — the report is not required for the calendar to render.
   const report = useApi(
     () => reports.guardianReport(userId as string, selectedElderId as string),
-    [userId, selectedElderId],
-    { enabled: !!userId && !!selectedElderId },
+    [userId, selectedElderId, isFocused],
+    { enabled: !!userId && !!selectedElderId && isFocused },
   );
 
   // Reset the reaction form whenever a different day is opened.
@@ -119,20 +122,35 @@ export default function GuardianDiaryScreen() {
 
   const detail = useApi(
     () => diariesApi.detail(selectedEntry?.diary_id as Uuid),
-    [selectedEntry?.diary_id],
-    { enabled: !!selectedEntry },
+    [selectedEntry?.diary_id, isFocused],
+    { enabled: !!selectedEntry && isFocused },
   );
 
+  const selectedDetail = detail.data?.diary_id === selectedEntry?.diary_id ? detail.data : null;
+  const ownReactions = selectedDetail?.reactions.filter((item) => item.reactor_id === userId) ?? [];
+  const alreadySentMessage = ownReactions.some((item) => item.reaction_type === "message");
+  const messageToSend = message.trim();
+  const canSendReaction = !!reaction && !ownReactions.some((item) => item.reaction_type === reaction);
+  const canSendMessage = !!messageToSend && !alreadySentMessage;
+  const canSubmit = !!selectedDetail && (canSendReaction || canSendMessage) && !submitting;
+
   const submit = async () => {
-    if (!reaction || !selectedEntry || submitting) return;
+    if (!selectedEntry || !canSubmit) return;
     setSubmitting(true);
     setReactionError(null);
     try {
-      await diariesApi.react(selectedEntry.diary_id, reaction, message.trim() || undefined);
+      if (canSendReaction && reaction) {
+        await diariesApi.react(selectedEntry.diary_id, reaction);
+      }
+      if (canSendMessage) {
+        await diariesApi.react(selectedEntry.diary_id, "message", messageToSend);
+      }
       setSubmitted(true);
     } catch (cause) {
       setReactionError(apiErrorMessage(cause));
     } finally {
+      detail.reload();
+      list.reload();
       setSubmitting(false);
     }
   };
@@ -383,28 +401,35 @@ export default function GuardianDiaryScreen() {
                 }
                 onRetry={detail.error.isForbidden ? undefined : detail.reload}
               />
-            ) : detail.loading && !detail.data ? (
+            ) : detail.loading || !selectedDetail ? (
               <LoadingState label="일기를 불러오는 중이에요" />
             ) : (
               <Body style={styles.detailBody}>
-                {detail.data?.content ?? selectedEntry.preview ?? ""}
+                {selectedDetail.content}
               </Body>
             )}
           </Card>
 
+          {selectedDetail?.reactions.length ? (
+            <Card>
+              <DiaryReactionList reactions={selectedDetail.reactions} title="전달된 반응" />
+            </Card>
+          ) : null}
+
           <Card>
             <Body style={{ fontWeight: fontWeight.semibold }}>반응 남기기</Body>
             <View style={styles.reactionRow}>
-              {REACTIONS.map((emoji) => {
-                const on = reaction === emoji;
+              {DIARY_REACTIONS.map(({ type, emoji, label }) => {
+                const on = reaction === type;
+                const sent = ownReactions.some((item) => item.reaction_type === type);
                 return (
                   <Pressable
-                    key={emoji}
-                    onPress={() => setReaction(emoji)}
+                    key={type}
+                    onPress={() => setReaction(type)}
                     disabled={submitted}
                     accessibilityRole="button"
                     accessibilityState={{ selected: on }}
-                    accessibilityLabel={`${emoji} 반응 선택`}
+                    accessibilityLabel={`${label} 반응 선택${sent ? " (전달됨)" : ""}`}
                     style={[
                       styles.reactionButton,
                       {
@@ -430,7 +455,8 @@ export default function GuardianDiaryScreen() {
                   <TextInput
                     value={message}
                     onChangeText={setMessage}
-                    placeholder="응원 메시지를 입력하세요 (선택)"
+                    editable={!alreadySentMessage}
+                    placeholder={alreadySentMessage ? "응원 메시지를 이미 전달했어요" : "응원 메시지를 입력하세요 (선택)"}
                     placeholderTextColor={colors.mutedForeground}
                     style={styles.input}
                     accessibilityLabel="응원 메시지"
@@ -438,19 +464,19 @@ export default function GuardianDiaryScreen() {
                 </View>
                 <Pressable
                   onPress={() => void submit()}
-                  disabled={!reaction || submitting}
+                  disabled={!canSubmit}
                   accessibilityRole="button"
                   accessibilityLabel="반응 전달하기"
-                  accessibilityState={{ disabled: !reaction || submitting }}
+                  accessibilityState={{ disabled: !canSubmit }}
                   style={[
                     styles.submitButton,
-                    { backgroundColor: reaction && !submitting ? guardian.blue : colors.muted },
+                    { backgroundColor: canSubmit ? guardian.blue : colors.muted },
                   ]}
                 >
                   <Text
                     style={[
                       styles.submitLabel,
-                      { color: reaction && !submitting ? colors.white : colors.mutedForeground },
+                      { color: canSubmit ? colors.white : colors.mutedForeground },
                     ]}
                   >
                     {submitting ? "반응 전달 중" : "반응 전달하기"}

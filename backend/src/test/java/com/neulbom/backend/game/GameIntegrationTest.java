@@ -36,6 +36,29 @@ class GameIntegrationTest {
     @Autowired private UuidGenerator uuidGenerator;
 
     @Test
+    void cardMatchWithMoreWrongAttemptsThanPairsIsSavedInHistory() throws Exception {
+        UserEntity elder = saveUser("card-many-attempts");
+        SessionEntity session = sessionRepository.save(new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "game", 6, "{}", false, Instant.now()));
+        String request = """
+                {
+                  "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
+                  "game_type":"image_match", "score":6, "response_times":[1.2,0.8],
+                  "error_count":7, "total_questions":6, "matched_pairs":6, "attempt_count":13,
+                  "duration_sec":42, "restarted_count":0, "completed":true
+                }
+                """.formatted(elder.getId(), session.getId(), UUID.randomUUID());
+
+        mockMvc.perform(post("/api/v1/game/result").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/game/{userId}/history", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].game_type").value("image_match"))
+                .andExpect(jsonPath("$.records[0].attempt_count").value(13));
+    }
+
+    @Test
     void gameResultAndXpAreIdempotentAndCharacterHistoryIsExposed() throws Exception {
         UserEntity elder = saveUser("game-owner");
         SessionEntity session = sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "game", 6, "{}", false, Instant.now()));
@@ -44,7 +67,7 @@ class GameIntegrationTest {
                 {
                   "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
                   "game_type":"image_match", "score":6, "response_times":[1.2,0.8],
-                  "error_count":0, "total_questions":6, "matched_pairs":6, "attempt_count":7,
+                  "error_count":0, "total_questions":6, "matched_pairs":6, "attempt_count":6,
                   "duration_sec":42, "restarted_count":0, "completed":true
                 }
                 """.formatted(elder.getId(), session.getId(), clientResultId);
