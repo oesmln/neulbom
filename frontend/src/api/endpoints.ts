@@ -58,6 +58,7 @@ import type {
   PasswordChangeRequest,
   PasswordResetRequestResponse,
   QuestionsResponse,
+  SessionQuestionResponse,
   ReactionResponse,
   ReactionsResponse,
   RecordingPurpose,
@@ -355,13 +356,7 @@ export const sessions = {
 
   saveAnswer(sessionId: Uuid, body: AnswerRequest): Promise<AnswerResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        answer_id: newClientId(),
-        question_id: body.question_id,
-        saved: true,
-        next_question_order: 0,
-        sync_status: "synced",
-      });
+      return Promise.resolve(mock.mockSaveSessionAnswer(sessionId, body));
     }
     return request(`/sessions/${sessionId}/answers`, {
       method: "POST",
@@ -370,7 +365,12 @@ export const sessions = {
     });
   },
 
-  dailyQuestions(userId: Uuid, sessionType: SessionType): Promise<QuestionsResponse> {
+  currentQuestion(sessionId: Uuid): Promise<SessionQuestionResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockSessionCurrentQuestion(sessionId));
+    return request(`/sessions/${sessionId}/questions/next`, { method: "POST" });
+  },
+
+  dailyQuestions(userId: Uuid, sessionType: "cist" | "baseline"): Promise<QuestionsResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockDailyQuestions(sessionType));
     return request("/questions/daily", { query: { user_id: userId, session_type: sessionType } });
   },

@@ -12,7 +12,7 @@ import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
 import { USE_MOCK_API } from "@/api/config";
-import type { Uuid } from "@/api/types";
+import type { SessionResponse, Uuid } from "@/api/types";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
@@ -24,7 +24,7 @@ import { withParticle } from "@/utils/format";
  * AI emotional Q&A — the daily conversation, answered by voice.
  *
  * Runs as its own session (`POST /sessions` with `session_type=emotional_qa`),
- * takes its questions from `GET /questions/daily`, saves each answer through
+ * gets its questions from a Gemini generated follow up or a randomized CIST bank item, and saves each answer through
  * `POST /sessions/{id}/answers`, and ends with `PATCH /sessions/{id}/end` before
  * handing the session id to the result screen.
  *
@@ -42,6 +42,8 @@ const SAMPLE_ANSWERS = [
   "오후에 공원 산책을 했어요.",
   "손자랑 통화한 게 가장 기뻤어요.",
   "내일 병원에 가야 해서 조금 걱정이 돼요.",
+  "친구와 시장에 다녀왔어요.",
+  "저녁에는 가족과 같이 밥을 먹고 싶어요.",
 ];
 
 export default function ElderAiChatScreen() {
@@ -58,6 +60,9 @@ export default function ElderAiChatScreen() {
   const mouthSet = companionModel.id === DEFAULT_MEMOI.id ? DEFAULT_MOUTH_SET : undefined;
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
+  const [session, setSession] = React.useState<SessionResponse | null>(null);
+  const [sessionLoading, setSessionLoading] = React.useState(false);
+  const [sessionError, setSessionError] = React.useState<string | null>(null);
   const [index, setIndex] = React.useState(0);
   const [answers, setAnswers] = React.useState<string[]>([]);
   const [transcripts, setTranscripts] = React.useState<string[]>([]);
@@ -67,24 +72,20 @@ export default function ElderAiChatScreen() {
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
-  // The session only starts once the elder taps into the conversation, so an
-  // opened-and-abandoned tab does not leave an empty session behind.
-  const session = useApi(
-    () => sessions.start({ user_id: userId as string, session_type: "emotional_qa" }),
-    [userId],
-    { enabled: !!userId && phase === "chat" },
+  const currentQuestion = useApi(
+    () => sessions.currentQuestion(session?.session_id as Uuid),
+    [session?.session_id, index],
+    { enabled: phase === "chat" && !!session?.session_id },
   );
 
-  const questions = useApi(
-    () => sessions.dailyQuestions(userId as string, "emotional_qa"),
-    [userId],
-    { enabled: !!userId },
-  );
-
-  const list = questions.data?.questions ?? [];
-  const question = list[index];
+  const currentQuestionData = currentQuestion.data;
+  const question = currentQuestionData
+      && currentQuestionData.session_id === session?.session_id
+      && currentQuestionData.question.order === index + 1
+    ? currentQuestionData.question
+    : null;
   const answered = USE_MOCK_API ? answers.length > index : Boolean(recordingIds[index]);
-  const isLast = list.length > 0 && index === list.length - 1;
+  const isLast = !!session && index === session.total_questions - 1;
 
   // The character only mouths the question itself; once it has been answered it
   // goes back to resting until the next one arrives.
@@ -93,10 +94,27 @@ export default function ElderAiChatScreen() {
 
   React.useEffect(() => {
     setAskedAt(Date.now());
-  }, [index]);
+  }, [question?.question_id]);
+
+  const beginConversation = async () => {
+    if (!userId || sessionLoading) return;
+    setPhase("chat");
+    setSession(null);
+    setSessionError(null);
+    setSessionLoading(true);
+    try {
+      setSession(await sessions.start({ user_id: userId, session_type: "emotional_qa" }));
+    } catch (cause) {
+      setSessionError(apiErrorMessage(cause));
+    } finally {
+      setSessionLoading(false);
+    }
+  };
 
   const restart = () => {
     setPhase("intro");
+    setSession(null);
+    setSessionError(null);
     setIndex(0);
     setAnswers([]);
     setTranscripts([]);
@@ -109,10 +127,10 @@ export default function ElderAiChatScreen() {
   };
 
   const advance = async () => {
-    if (!question || !session.data || submitting) return;
+    if (!question || !session || submitting) return;
     setSubmitting(true);
     setSubmissionError(null);
-    const sessionId = session.data.session_id;
+    const sessionId = session.session_id;
 
     try {
       await sessions.saveAnswer(sessionId, {
@@ -175,8 +193,8 @@ export default function ElderAiChatScreen() {
           <Button
             label="대화 시작하기"
             size="lg"
-            disabled={questions.loading || list.length === 0}
-            onPress={() => setPhase("chat")}
+            disabled={!userId || sessionLoading}
+            onPress={() => void beginConversation()}
           />
         </View>
       </SafeAreaView>
@@ -187,7 +205,7 @@ export default function ElderAiChatScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScreenHeader
         title="AI 정서 문답"
-        subtitle={list.length > 0 ? `${index + 1} / ${list.length}` : ""}
+        subtitle={session ? `${index + 1} / ${session.total_questions}` : ""}
         onBack={restart}
       />
 
@@ -217,10 +235,14 @@ export default function ElderAiChatScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.thread} showsVerticalScrollIndicator={false}>
-        {session.error ? (
-          <ErrorState message={apiErrorMessage(session.error)} onRetry={session.reload} />
-        ) : !question ? (
+        {sessionError ? (
+          <ErrorState message={sessionError} onRetry={() => void beginConversation()} />
+        ) : !session ? (
           <LoadingState label="질문을 불러오는 중이에요" />
+        ) : currentQuestion.error ? (
+          <ErrorState message={apiErrorMessage(currentQuestion.error)} onRetry={currentQuestion.reload} />
+        ) : !question ? (
+          <LoadingState label="다음 질문을 준비하고 있어요" />
         ) : (
           <>
             <View style={styles.aiBubble}>
@@ -246,7 +268,7 @@ export default function ElderAiChatScreen() {
         {answered ? (
           <Button
             label={isLast ? "대화 마치기" : "다음 질문"}
-            disabled={submitting || !session.data}
+            disabled={submitting || !session}
             onPress={() => void advance()}
           />
         ) : (
@@ -268,7 +290,7 @@ export default function ElderAiChatScreen() {
               key={question.question_id}
               companionName={companionName}
               userId={userId}
-              sessionId={session.data?.session_id ?? null}
+                sessionId={session?.session_id ?? null}
               questionId={question.question_id}
               disabled={voice.loading || voice.speaking}
               onAnswer={(id) =>
