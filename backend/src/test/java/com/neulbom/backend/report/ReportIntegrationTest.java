@@ -93,6 +93,26 @@ class ReportIntegrationTest {
                 .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_score").value(0.42))
                 .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_level").value("monitoring_needed"));
 
+        SessionEntity failedSession = sessionRepository.save(new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "cist", 11, "{}", false, assessedAt.plusSeconds(10)));
+        cistAiAnalysisRepository.save(new CistAiAnalysisEntity(
+                uuidGenerator.generate(), failedSession.getId(), "failed", "trend-" + UUID.randomUUID(),
+                "b".repeat(64), "{}", assessedAt, assessedAt));
+        SessionEntity laterSession = sessionRepository.save(new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "cist", 11, "{}", false, assessedAt.plusSeconds(20)));
+        CistAiAnalysisEntity later = new CistAiAnalysisEntity(
+                uuidGenerator.generate(), laterSession.getId(), "pending", "trend-" + UUID.randomUUID(),
+                "c".repeat(64), "{}", assessedAt, assessedAt);
+        later.updateStatus("completed", false, null, null, "{}", new BigDecimal("0.35"),
+                "test-model", new BigDecimal("0.38"), new BigDecimal("0.80"), "test-threshold",
+                false, "stable", assessedAt.plusSeconds(40));
+        cistAiAnalysisRepository.save(later);
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(2))
+                .andExpect(jsonPath("$.ai_risk_trend_points[1].risk_score").value(0.35));
+
         UserEntity stranger = saveUser("ai-trend-stranger", "guardian");
         mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", stranger.getId())
                         .with(jwtFor(stranger)).param("elder_id", elder.getId().toString()))
