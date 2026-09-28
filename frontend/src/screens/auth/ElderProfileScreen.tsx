@@ -42,12 +42,12 @@ const OPTIONAL_CONSENTS: Array<{ type: ConsentType; title: string; body: string 
   {
     type: "data_sharing",
     title: "서비스 개선 데이터 활용",
-    body: "서비스를 개선하기 위한 데이터 활용에 동의해요. (선택)",
+    body: "서비스를 개선하기 위한 데이터 활용에 동의해요.",
   },
   {
     type: "research_use",
     title: "연구 목적 활용",
-    body: "비식별 정보를 연구 목적으로 활용해요. (선택)",
+    body: "비식별 정보를 연구 목적으로 활용해요.",
   },
 ];
 
@@ -404,7 +404,7 @@ export default function ElderProfileScreen() {
           {OPTIONAL_CONSENTS.map((consent) => (
             <ConsentRow
               key={consent.type}
-              title={consent.title}
+              title={`${consent.title} (선택)`}
               body={consent.body}
               checked={hasConsent(consent.type)}
               disabled={savedConsentTypes.has(consent.type) || !consentDataReady}

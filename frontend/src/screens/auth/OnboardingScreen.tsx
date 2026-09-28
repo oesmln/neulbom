@@ -133,20 +133,21 @@ export default function OnboardingScreen() {
       {step === "character" ? (
         <View style={styles.stepBody}>
           <ConversationHeader line={line} voice={voice} />
-          <Card style={styles.nameCard}>
-            <Text style={styles.fieldLabel}>캐릭터 이름</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="예: 늘봄이"
-              placeholderTextColor={colors.mutedForeground}
-              maxLength={20}
-              style={styles.nameInput}
-              accessibilityLabel="캐릭터 이름"
-            />
-            <Text style={styles.help}>나중에 마이 화면에서 다시 바꿀 수 있어요.</Text>
-          </Card>
+          {/* 입력 카드를 버튼 바로 위에 두어 캐릭터 → 입력 → 버튼으로 시선이 이어지게 한다. */}
           <View style={styles.footer}>
+            <Card style={styles.nameCard}>
+              <Text style={styles.fieldLabel}>캐릭터 이름</Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="예: 늘봄이"
+                placeholderTextColor={colors.mutedForeground}
+                maxLength={20}
+                style={styles.nameInput}
+                accessibilityLabel="캐릭터 이름"
+              />
+              <Text style={styles.help}>나중에 변경할 수 있어요.</Text>
+            </Card>
             {message ? <Text style={styles.error}>{message}</Text> : null}
             <Button label={busy ? "저장하고 있어요" : "이 이름으로 할게요"} disabled={!name.trim() || busy} onPress={finishCharacter} size="lg" />
           </View>
