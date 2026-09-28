@@ -120,6 +120,7 @@
 - [ ] 홈 `GET /dashboard/{user_id}`
       서버가 준 `display_label` `title` `message` 그대로 표시.
       **프론트에서 점수 임계값으로 판단하지 않는다** (명세 5.1 명시)
+- [x] 홈 탭 복귀 시 대시보드를 다시 조회해 오늘 문답 완료 상태와 캐릭터 레벨을 갱신한다. (#178)
 - [ ] 하단 탭 — AI 대화 / 일기 / **홈(중앙 돌출)** / 게임 / 마이
 - [ ] AI 정서 문답 `POST /sessions` (`emotional_qa`) — intro → chat → loading → 결과
 - [ ] 대화 내역 `GET /sessions`, `GET /sessions/{id}/answers`
@@ -189,6 +190,7 @@
 - [ ] `metalness = 0` 런타임 강제 (환경맵 없이 검게 나오는 문제)
 - [ ] 스켈레톤 인식 프레이밍 (`getVertexPosition` 샘플링, bind-pose 박스 사용 금지)
 - [ ] `GET /character/{user_id}`의 `level` / `stage` / `skin_id`와 모델 매핑표 확정
+- [x] 홈·AI 문답의 3D 모델은 서버 `level` 1~6을 GLB 1~6에 매핑하고 탭 복귀 시 다시 조회한다. (#178)
 - [ ] GL 초기화 실패 시 2D 폴백
 - [x] 마이페이지 프로필·성장 단계 이모지를 레벨별 팥이 정적 이미지(`assets/character/`)로 교체, 로드 실패 시 이모지 폴백 (#136)
 

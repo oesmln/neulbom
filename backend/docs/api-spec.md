@@ -939,6 +939,8 @@ JWT 발급을 완료한다. 기존 소셜 계정에는 역할 선택 화면을 �
 - 기억력 게임: `new`, `in_progress`, `completed`
 - 일기: `scheduled`, `processing`, `completed`, `failed`, `conversation_incomplete`
 
+AI 정서 문답의 오늘 상태는 `Asia/Seoul` 날짜를 기준으로 한다. `ended_at`이 오늘인 종료 세션이 있으면 `completed`, 오늘 시작한 진행 중 세션만 있으면 `in_progress`, 둘 다 없으면 `not_started`다. 세션이 어제 시작해 오늘 종료되어도 오늘 완료로 표시한다.
+
 `monthly_activity`는 `year_month`, `emotional_qa_completed_count`, `game_completed_count`, `attendance_days`, `current_attendance_streak_days`를 포함한다.
 
 `latest_diary`는 `target_date`, `generation_status`, `diary_id`, `display_label`, `message`, `available_at`을 포함한다. `generation_status`는 `scheduled`, `processing`, `completed`, `failed`, `conversation_incomplete` 중 하나다.

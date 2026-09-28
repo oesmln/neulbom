@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 
 import com.neulbom.backend.analysis.CognitiveAnalysisEntity;
@@ -54,6 +55,52 @@ class ReportIntegrationTest {
     @Autowired private GuardianLinkRepository guardianLinkRepository;
     @Autowired private GuardianLinkScopeRepository guardianLinkScopeRepository;
     @Autowired private UuidGenerator uuidGenerator;
+
+    @Test
+    void dashboardEmotionalTaskTracksTodaysSessionStatus() throws Exception {
+        UserEntity elder = saveUser("dashboard-today-task", "elder");
+        Instant todayStart = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+
+        mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_tasks[0].status").value("not_started"));
+
+        SessionEntity yesterday = new SessionEntity(uuidGenerator.generate(), elder.getId(),
+                "emotional_qa", 5, "{}", false, todayStart.minusSeconds(120));
+        yesterday.end(todayStart.minusSeconds(60));
+        sessionRepository.save(yesterday);
+        mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_tasks[0].status").value("not_started"));
+
+        SessionEntity today = sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(),
+                "emotional_qa", 5, "{}", false, todayStart.plusSeconds(60)));
+        mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_tasks[0].status").value("in_progress"));
+
+        today.end(todayStart.plusSeconds(120));
+        sessionRepository.save(today);
+        mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_tasks[0].status").value("completed"));
+    }
+
+    @Test
+    void dashboardCountsConversationEndedTodayEvenIfItStartedYesterday() throws Exception {
+        UserEntity elder = saveUser("dashboard-overnight-task", "elder");
+        Instant todayStart = LocalDate.now(ZoneId.of("Asia/Seoul"))
+                .atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+        SessionEntity overnight = new SessionEntity(uuidGenerator.generate(), elder.getId(),
+                "emotional_qa", 5, "{}", false, todayStart.minusSeconds(30));
+        overnight.end(todayStart.plusSeconds(30));
+        sessionRepository.save(overnight);
+
+        mockMvc.perform(get("/api/v1/dashboard/{userId}", elder.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today_tasks[0].status").value("completed"));
+    }
 
     @Test
     void resultHistoryDashboardReportAndExportRespectAudienceAndScopes() throws Exception {

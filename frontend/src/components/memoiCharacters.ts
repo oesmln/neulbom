@@ -31,9 +31,8 @@ export type MemoiCharacter = {
 export const DEFAULT_CHARACTER_NAME = "늘봄";
 
 export const MEMOI_CHARACTERS: MemoiCharacter[] = [
-  // The plain red bean, no accessories. This is the character the app ships
-  // with; the rest are growth stages waiting on `GET /character/{user_id}` to
-  // say which one a user has reached.
+  // The model number follows character.level. The backend's stage names have
+  // five values, with levels 5 and 6 both using "star".
   { id: "memoi-1", name: "메모이", module: require("../../assets/models/optimized/1_final.glb") },
   { id: "memoi-2", name: "메모이 2", module: require("../../assets/models/optimized/2_final.glb") },
   { id: "memoi-3", name: "메모이 3", module: require("../../assets/models/optimized/3_final.glb") },
@@ -43,6 +42,12 @@ export const MEMOI_CHARACTERS: MemoiCharacter[] = [
 ];
 
 export const DEFAULT_MEMOI = MEMOI_CHARACTERS[0];
+
+/** Pick the 3D model by server level; an absent level shows the starter model. */
+export function memoiForLevel(level: number | null | undefined): MemoiCharacter {
+  const index = typeof level === "number" && Number.isFinite(level) ? Math.trunc(level) - 1 : 0;
+  return MEMOI_CHARACTERS[Math.max(0, Math.min(MEMOI_CHARACTERS.length - 1, index))];
+}
 
 /* ----------------------------------------------------------- mouth shapes */
 

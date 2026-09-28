@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, ScrollView, Pressable } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -17,7 +17,7 @@ import type {
 import { colors, spacing, radius, fontSize, fontWeight, cognitiveStages } from "@/theme";
 import { Badge, Card, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
-import { DEFAULT_MEMOI } from "@/components/memoiCharacters";
+import { memoiForLevel } from "@/components/memoiCharacters";
 
 /**
  * Elder home — everything on this screen comes from `GET /dashboard/{user_id}`.
@@ -97,13 +97,14 @@ function referenceLabel(date: string | null): string | null {
 
 export default function ElderHomeScreen() {
   const navigation = useNavigation<ElderNav>();
+  const isFocused = useIsFocused();
   const { userId, userName } = useApp();
   const greeting = greetingFor(new Date().getHours());
 
   const { data, error, loading, reload } = useApi(
     () => reports.dashboard(userId as string),
-    [userId],
-    { enabled: !!userId },
+    [userId, isFocused],
+    { enabled: !!userId && isFocused },
   );
 
   return (
@@ -131,7 +132,7 @@ export default function ElderHomeScreen() {
             ) : null}
           </Pressable>
 
-          <Memoi3D character={DEFAULT_MEMOI} height={116} style={{ width: 150 }} />
+          <Memoi3D character={memoiForLevel(data?.character?.level)} height={116} style={{ width: 150 }} />
           <Text style={styles.greeting}>{greeting}</Text>
           {/* 본인 화면에서는 '어르신' 호칭 대신 이름을 그대로 부른다. 보호자 화면의
               '어르신' 표기는 피보호자를 가리키는 말이라 그대로 둔다. */}
