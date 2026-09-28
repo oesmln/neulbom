@@ -67,7 +67,7 @@ class GameIntegrationTest {
                 {
                   "user_id":"%s", "session_id":"%s", "client_game_result_id":"%s",
                   "game_type":"image_match", "score":6, "response_times":[1.2,0.8],
-                  "error_count":0, "total_questions":6, "matched_pairs":6, "attempt_count":7,
+                  "error_count":0, "total_questions":6, "matched_pairs":6, "attempt_count":6,
                   "duration_sec":42, "restarted_count":0, "completed":true
                 }
                 """.formatted(elder.getId(), session.getId(), clientResultId);
