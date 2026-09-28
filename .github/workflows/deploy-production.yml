@@ -162,6 +162,8 @@ jobs:
           ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" "sudo -n bash -s -- '${GITHUB_SHA}'" <<'REMOTE'
           set -Eeuo pipefail
 
+          # Compose can read stdin, so parse the full remote block before running it.
+          {
           revision="$1"
           archive="/tmp/neulbom-${revision}.tar.gz"
           app_dir=/opt/neulbom/app
@@ -215,4 +217,5 @@ jobs:
           fi
           chmod 600 "${env_file}"
           printf '%s\n' "${revision}" > "${app_dir}/.deploy-revision"
+          } </dev/null
           REMOTE
