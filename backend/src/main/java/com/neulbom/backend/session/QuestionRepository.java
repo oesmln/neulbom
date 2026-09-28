@@ -15,4 +15,10 @@ public interface QuestionRepository extends JpaRepository<QuestionEntity, UUID> 
             String questionType);
 
     Optional<QuestionEntity> findByQuestionCodeAndActiveTrue(String questionCode);
+
+    List<QuestionEntity> findAllByActiveTrueAndSessionTypeAndAdministrationModeOrderByDisplayOrderAsc(
+            String sessionType,
+            String administrationMode);
+
+    Optional<QuestionEntity> findByIdAndSessionIdAndActiveTrue(UUID id, UUID sessionId);
 }

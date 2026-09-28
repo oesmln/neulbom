@@ -56,7 +56,7 @@
 | 사용자 | 음성 프로필 조회 | `GET /voice-profiles` | [ ] |
 | 동의 | 동의 저장·조회 | `POST/GET /consent/{userId}` | [ ] |
 | 세션 | 검사·정서 문답 시작, 조회, 종료 | `POST /sessions`, `GET/PATCH /sessions/{sessionId}` | [ ] |
-| 세션 | 세션 목록·일일 질문 조회 | `GET /sessions`, `GET /questions/daily` | [ ] |
+| 세션 | 세션 목록·공식 CIST 질문 조회·AI 정서 문답 질문 진행 | `GET /sessions`, `GET /questions/daily`, `POST /sessions/{sessionId}/questions/next` | [ ] |
 | 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [ ] |
 | 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [x] (#61) |
 | 음성 출력 | Google TTS 합성·실제 재생·켜기/끄기 | `POST /speech/synthesize` | [x] (#91) |

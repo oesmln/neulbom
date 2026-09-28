@@ -330,6 +330,13 @@ export interface QuestionResponse {
   question_code: string | null;
   variant_id: string | null;
   administration_mode: "always" | "conditional" | null;
+  question_source: "gemini" | "cist_bank" | null;
+  source_question_id: Uuid | null;
+}
+
+export interface SessionQuestionResponse {
+  session_id: Uuid;
+  question: QuestionResponse;
 }
 
 export interface QuestionsResponse {

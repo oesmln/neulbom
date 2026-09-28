@@ -128,6 +128,7 @@ public class DailyDiaryGenerator {
             return null;
         }
         return questionRepository.findById(answer.getQuestionId())
+                .filter(question -> !"cist_bank".equals(question.getQuestionSource()))
                 .map(question -> new QaPair(
                         question.getId(),
                         question.getContent(),

@@ -11,6 +11,8 @@
  */
 
 import type {
+  AnswerRequest,
+  AnswerResponse,
   AuthTokenResponse,
   CalendarActivitiesResponse,
   CharacterResponse,
@@ -31,11 +33,13 @@ import type {
   NotificationResponse,
   NotificationsResponse,
   QuestionsResponse,
+  QuestionResponse,
   ReactionResponse,
   Role,
   ScreeningResultResponse,
   SessionEndResponse,
   SessionResponse,
+  SessionQuestionResponse,
   SessionType,
   UserProfileResponse,
   Uuid,
@@ -247,9 +251,13 @@ let mockXpCurrent = 210;
 let mockXpAwardedToday = 33;
 let mockGameResultSequence = 1;
 let mockSessionSequence = 1;
+let mockSessionQuestionSequence = 1;
 let mockFirstCistAwarded = false;
 const mockSessionTypes = new Map<Uuid, SessionType>();
 const mockEndedSessions = new Set<Uuid>();
+const mockSessionQuestions = new Map<Uuid, QuestionResponse[]>();
+const mockSessionCurrentOrders = new Map<Uuid, number>();
+const mockSessionAnsweredQuestions = new Map<Uuid, Set<Uuid>>();
 
 const mockXpRecords: XpHistoryItem[] = [
   ["emotional_qa", "AI 정서 문답 완료", 20, 0],
@@ -604,30 +612,7 @@ const CIST_QUESTIONS: Array<{
   { code: "language_semantic_fluency", variant: "language-semantic-fluency-fixed-v1", content: "과일이나 채소 이름을 최대한 많이 말씀해 주세요.", type: "language" },
 ];
 
-const EMOTIONAL_QUESTIONS: string[] = [
-  "안녕하세요, 어르신! 오늘 기분이 어떠세요?",
-  "오늘 아침에 드신 식사는 어떠셨나요?",
-  "오늘 가장 기억에 남는 일이 있으셨나요?",
-  "오늘 하루 중 가장 기뻤던 순간이 언제였나요?",
-  "내일 기대되는 일이나 하고 싶은 것이 있으신가요?",
-];
-
 export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse {
-  if (sessionType === "emotional_qa") {
-    return {
-      questions: EMOTIONAL_QUESTIONS.map((content, i) => ({
-        question_id: fixedId("ffffffff", i + 1),
-        content,
-        type: "voice",
-        order: i + 1,
-        hint: null,
-        subtitle_available: true,
-        question_code: null,
-        variant_id: null,
-        administration_mode: null,
-      })),
-    };
-  }
   return {
     questions: CIST_QUESTIONS.map((q, i) => ({
       question_id: fixedId("99999999", i + 1),
@@ -639,6 +624,8 @@ export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse 
       question_code: q.code,
       variant_id: q.variant,
       administration_mode: q.conditional ? "conditional" : "always",
+      question_source: null,
+      source_question_id: null,
     })),
   };
 }
@@ -736,6 +723,11 @@ export function mockRetryCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse
 export function mockSession(userId: Uuid, sessionType: SessionType): SessionResponse {
   const sessionId = fixedId("33333333", mockSessionSequence++);
   mockSessionTypes.set(sessionId, sessionType);
+  if (sessionType === "emotional_qa") {
+    mockSessionQuestions.set(sessionId, createMockDailySessionQuestions(sessionId));
+    mockSessionCurrentOrders.set(sessionId, 1);
+    mockSessionAnsweredQuestions.set(sessionId, new Set());
+  }
   return {
     session_id: sessionId,
     user_id: userId,
@@ -743,12 +735,91 @@ export function mockSession(userId: Uuid, sessionType: SessionType): SessionResp
     status: "in_progress",
     current_question_order: 1,
     answered_count: 0,
-    total_questions: mockDailyQuestions(sessionType).questions.length,
+    total_questions: sessionType === "emotional_qa" ? 7 : mockDailyQuestions(sessionType).questions.length,
     recording_sync_status: null,
     settings: null,
     started_at: new Date().toISOString(),
     ended_at: null,
   };
+}
+
+export function mockSessionCurrentQuestion(sessionId: Uuid): SessionQuestionResponse {
+  const questions = mockSessionQuestions.get(sessionId) ?? [];
+  const order = mockSessionCurrentOrders.get(sessionId) ?? 1;
+  const question = questions[order - 1];
+  if (!question) throw new Error("질문을 찾을 수 없습니다.");
+  return { session_id: sessionId, question };
+}
+
+export function mockSaveSessionAnswer(sessionId: Uuid, request: AnswerRequest): AnswerResponse {
+  const answered = mockSessionAnsweredQuestions.get(sessionId) ?? new Set<Uuid>();
+  if (!answered.has(request.question_id)) {
+    answered.add(request.question_id);
+    mockSessionAnsweredQuestions.set(sessionId, answered);
+    mockSessionCurrentOrders.set(sessionId, (mockSessionCurrentOrders.get(sessionId) ?? 1) + 1);
+  }
+  return {
+    answer_id: request.client_answer_id,
+    question_id: request.question_id,
+    saved: true,
+    next_question_order: mockSessionCurrentOrders.get(sessionId) ?? 1,
+    sync_status: "synced",
+  };
+}
+
+function createMockDailySessionQuestions(sessionId: Uuid): QuestionResponse[] {
+  const positions = [2, 3, 4, 5, 6, 7];
+  for (let index = positions.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [positions[index], positions[swapIndex]] = [positions[swapIndex], positions[index]];
+  }
+  const cistPositions = new Set(positions.slice(0, 2));
+  const cistQuestions = CIST_QUESTIONS.filter((question) => !question.conditional);
+  for (let index = cistQuestions.length - 1; index > 0; index--) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [cistQuestions[index], cistQuestions[swapIndex]] = [cistQuestions[swapIndex], cistQuestions[index]];
+  }
+  let cistIndex = 0;
+  return Array.from({ length: 7 }, (_, index): QuestionResponse => {
+    const order = index + 1;
+    if (cistPositions.has(order)) {
+      const source = cistQuestions[cistIndex++]!;
+      const sourceIndex = CIST_QUESTIONS.indexOf(source);
+      return {
+        question_id: fixedId("eeeeeeee", mockSessionQuestionSequence++),
+        content: source.content,
+        type: source.type,
+        order,
+        hint: null,
+        subtitle_available: true,
+        question_code: source.code,
+        variant_id: source.variant,
+        administration_mode: "always",
+        question_source: "cist_bank",
+        source_question_id: fixedId("99999999", sourceIndex + 1),
+      };
+    }
+    const generated = [
+      "오늘 하루 중 가장 기억에 남는 순간은 언제였나요?",
+      "그때 어떤 기분이 드셨어요?",
+      "오늘 누구와 함께 시간을 보내셨나요?",
+      "그분과 나눈 이야기 중 기억나는 게 있으세요?",
+      "내일 꼭 하고 싶은 일이 있으세요?",
+    ][order - 1] ?? "그 이야기를 조금 더 들려주실 수 있을까요?";
+    return {
+      question_id: fixedId("eeeeeeee", mockSessionQuestionSequence++),
+      content: generated,
+      type: "emotion",
+      order,
+      hint: null,
+      subtitle_available: true,
+      question_code: null,
+      variant_id: null,
+      administration_mode: null,
+      question_source: "gemini",
+      source_question_id: null,
+    };
+  });
 }
 
 export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
@@ -768,7 +839,9 @@ export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
     session_id: sessionId,
     status: "completed",
     ended_at: new Date().toISOString(),
-    answered_count: 14,
+    answered_count: sessionType === "emotional_qa"
+      ? Math.max((mockSessionCurrentOrders.get(sessionId) ?? 1) - 1, 0)
+      : 14,
     analysis_status: "completed",
     result_status: "completed",
     result_type: "positive_feedback",

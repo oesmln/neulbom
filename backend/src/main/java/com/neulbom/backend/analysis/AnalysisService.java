@@ -162,7 +162,8 @@ public class AnalysisService {
 
         SpeechToTextClient.TranscriptionResult providerResult = null;
         QuestionEntity question = questionRepository.findById(questionId).orElse(null);
-        boolean cistQuestion = question != null && "cist".equals(question.getSessionType());
+        boolean cistQuestion = question != null && ("cist".equals(question.getSessionType())
+                || "cist_bank".equals(question.getQuestionSource()));
         if (speechToTextClient.isConfigured()) {
             providerResult = speechToTextClient.transcribe(audioFile(recording, ignoredAudioFile));
         } else if (cistQuestion || !externalApiProperties.allowFallback()) {
