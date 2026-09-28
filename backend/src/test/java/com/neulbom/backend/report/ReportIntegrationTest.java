@@ -13,6 +13,8 @@ import java.util.UUID;
 
 import com.neulbom.backend.analysis.CognitiveAnalysisEntity;
 import com.neulbom.backend.analysis.CognitiveAnalysisRepository;
+import com.neulbom.backend.analysis.CistAiAnalysisEntity;
+import com.neulbom.backend.analysis.CistAiAnalysisRepository;
 import com.neulbom.backend.analysis.ScreeningResultEntity;
 import com.neulbom.backend.analysis.ScreeningResultRepository;
 import com.neulbom.backend.analysis.SessionSummaryEntity;
@@ -50,11 +52,52 @@ class ReportIntegrationTest {
     @Autowired private RecordingRepository recordingRepository;
     @Autowired private TranscriptRepository transcriptRepository;
     @Autowired private CognitiveAnalysisRepository cognitiveAnalysisRepository;
+    @Autowired private CistAiAnalysisRepository cistAiAnalysisRepository;
     @Autowired private ScreeningResultRepository screeningResultRepository;
     @Autowired private SessionSummaryRepository sessionSummaryRepository;
     @Autowired private GuardianLinkRepository guardianLinkRepository;
     @Autowired private GuardianLinkScopeRepository guardianLinkScopeRepository;
     @Autowired private UuidGenerator uuidGenerator;
+
+    @Test
+    void guardianReportShowsCompletedCistAiRiskSeparatelyFromLegacyScores() throws Exception {
+        UserEntity guardian = saveUser("ai-trend-guardian", "guardian");
+        UserEntity elder = saveUser("ai-trend-elder", "elder");
+        Instant assessedAt = Instant.now().minusSeconds(60);
+        SessionEntity session = sessionRepository.save(new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "baseline", 11, "{}", false, assessedAt));
+        GuardianLinkEntity link = guardianLinkRepository.save(new GuardianLinkEntity(
+                uuidGenerator.generate(), guardian.getId(), elder.getId(), "자녀",
+                GuardianLinkEntity.ACTIVE, false, assessedAt, assessedAt));
+        guardianLinkScopeRepository.save(new GuardianLinkScopeEntity(link.getId(), "screening"));
+        guardianLinkScopeRepository.save(new GuardianLinkScopeEntity(link.getId(), "summary"));
+        CistAiAnalysisEntity analysis = cistAiAnalysisRepository.save(new CistAiAnalysisEntity(
+                uuidGenerator.generate(), session.getId(), "pending", "trend-" + UUID.randomUUID(),
+                "a".repeat(64), "{}", assessedAt, assessedAt));
+
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(0));
+
+        analysis.updateStatus("completed", false, null, null, "{}", new BigDecimal("0.42"),
+                "test-model", new BigDecimal("0.38"), new BigDecimal("0.80"), "test-threshold",
+                true, "monitoring_needed", assessedAt.plusSeconds(30));
+        cistAiAnalysisRepository.save(analysis);
+
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.trend_points.length()").value(0))
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(1))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_score").value(0.42))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_level").value("monitoring_needed"));
+
+        UserEntity stranger = saveUser("ai-trend-stranger", "guardian");
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", stranger.getId())
+                        .with(jwtFor(stranger)).param("elder_id", elder.getId().toString()))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
     void dashboardEmotionalTaskTracksTodaysSessionStatus() throws Exception {

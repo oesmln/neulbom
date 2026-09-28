@@ -836,6 +836,10 @@ export function mockGuardianReport(): GuardianReportResponse {
       score_delta: i === 0 ? null : score - weekly[i - 1],
       risk_level: "low",
     })),
+    ai_risk_trend_points: [
+      { date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed" },
+      { date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable" },
+    ],
     recent_alerts: guardianNotifications.slice(0, 2).map((n) => ({
       notification_id: n.notification_id,
       title: n.title,

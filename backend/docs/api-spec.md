@@ -2180,6 +2180,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `last_session_at` | string/null | 최근 세션 일시 |
 | `activity_summary_7d` | object | 최근 7일 활동 지표 |
 | `trend_points[]` | array | 차트용 날짜별 추이 |
+| `ai_risk_trend_points[]` | array | 완료된 CIST AI 분석의 별도 위험 신호 추이 |
 | `recent_alerts[]` | array | 보호자 알림 목록 |
 | `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
 
@@ -2211,6 +2212,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
   }
 ]
 ```
+
+`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 AI 분석만 포함한다. 각 항목은 검사 시작일(`date`, `Asia/Seoul`), AI 서버 원본 `model_score`(`risk_score`, 0~1), 원본 `risk_level`을 담는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. AI 정서 문답은 현재 CIST 모델 계약의 질문 세트에 포함되지 않아 이 추이에 넣지 않는다.
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 

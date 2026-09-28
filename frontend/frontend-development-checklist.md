@@ -155,6 +155,7 @@
 
 - [x] 종합 리포트 `GET /guardian/{guardian_id}/report`
 - [x] 위험 추이 차트 `GET /analysis/cognitive/{user_id}/history`
+- [x] 보호자 화면에 CIST AI 위험 신호 추이를 인지 점수와 분리해 표시한다. (#180)
       **완성형 차트 라이브러리 없이 구현** — 꺾은선·점선 임계선처럼 사각형으로 안 되는 것만
       `react-native-svg` 프리미티브를 쓴다 (`components/ScoreTrendChart.tsx`)
 - [x] 일기 열람·반응 `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions`

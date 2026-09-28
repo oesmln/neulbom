@@ -899,6 +899,7 @@
 - [x] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
 - [x] `date` query parameter로 `Asia/Seoul` 기준 일일 리포트를 조회한다.
 - [x] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
+- [x] 완료된 CIST AI 결과의 위험 점수를 기존 인지 점수와 분리한 추이로 반환한다. (#180)
 - [x] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
 - [x] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.
 - [x] 일일 집계 저장을 위해 `daily_summaries` 모델과 사용자·기준일 unique를 설계한다.
