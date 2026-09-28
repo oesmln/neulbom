@@ -2044,6 +2044,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `restarted_count` | integer | N | 다시 시작 횟수, 기본 `0` |
 | `completed` | boolean | Y | 정상 완료 여부 |
 
+`image_match`는 여섯 쌍을 찾는 동안 오답 시도를 반복할 수 있으므로 `error_count`가 `total_questions`보다 클 수 있다. 다른 게임은 `error_count <= total_questions`를 유지한다.
+
 #### Response `200`
 
 | 필드 | 타입 | 설명 |
