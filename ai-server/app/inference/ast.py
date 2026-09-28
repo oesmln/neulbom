@@ -241,6 +241,97 @@ class AstInferenceService:
         self,
         clips: tuple[AstClipInput, ...],
     ) -> AstInferenceResult:
+        (
+            seed_clip_results,
+            ensemble_clip_results,
+        ) = self._infer_question_features_by_seed(
+            clips,
+        )
+
+        seed_person_results: list[
+            AstSeedPersonResult
+        ] = []
+
+        for runtime in self._seed_runtimes:
+            seed_category_results = (
+                self._pool_categories(
+                    seed_clip_results[
+                        runtime.seed
+                    ],
+                )
+            )
+            seed_person_results.append(
+                AstSeedPersonResult(
+                    seed=runtime.seed,
+                    dementia_logit=(
+                        self._pool_person_logit(
+                            seed_category_results,
+                        )
+                    ),
+                ),
+            )
+
+        final_logit = float(
+            np.mean(
+                [
+                    result.dementia_logit
+                    for result
+                    in seed_person_results
+                ],
+                dtype=np.float64,
+            ),
+        )
+
+        if not isfinite(final_logit):
+            raise AstInferenceError(
+                "AST seed 앙상블 logit이 "
+                "유효하지 않습니다.",
+            )
+
+        category_results = (
+            self._pool_categories(
+                list(ensemble_clip_results),
+            )
+        )
+        probability = _sigmoid(
+            final_logit,
+        )
+
+        return AstInferenceResult(
+            model_version=self._model_version,
+            seed_count=len(
+                self._seed_runtimes,
+            ),
+            seed_person_results=tuple(
+                seed_person_results,
+            ),
+            dementia_logit=final_logit,
+            dementia_probability=probability,
+            category_results=category_results,
+            clip_results=ensemble_clip_results,
+        )
+
+    def infer_question_features(
+        self,
+        clips: tuple[AstClipInput, ...],
+    ) -> tuple[AstClipResult, ...]:
+        """Core4 완결성 집계 없이 문항별 앙상블 특징만 반환한다."""
+
+        _, ensemble_clip_results = (
+            self._infer_question_features_by_seed(
+                clips,
+            )
+        )
+
+        return ensemble_clip_results
+
+    def _infer_question_features_by_seed(
+        self,
+        clips: tuple[AstClipInput, ...],
+    ) -> tuple[
+        dict[int, list[AstClipResult]],
+        tuple[AstClipResult, ...],
+    ]:
         if not clips:
             raise ValueError(
                 "AST 추론용 음성 클립이 없습니다.",
@@ -345,69 +436,9 @@ class AstInferenceService:
                 ),
             )
 
-        seed_person_results: list[
-            AstSeedPersonResult
-        ] = []
-
-        for runtime in self._seed_runtimes:
-            seed_category_results = (
-                self._pool_categories(
-                    seed_clip_results[
-                        runtime.seed
-                    ],
-                )
-            )
-            seed_person_results.append(
-                AstSeedPersonResult(
-                    seed=runtime.seed,
-                    dementia_logit=(
-                        self._pool_person_logit(
-                            seed_category_results,
-                        )
-                    ),
-                ),
-            )
-
-        final_logit = float(
-            np.mean(
-                [
-                    result.dementia_logit
-                    for result
-                    in seed_person_results
-                ],
-                dtype=np.float64,
-            ),
-        )
-
-        if not isfinite(final_logit):
-            raise AstInferenceError(
-                "AST seed 앙상블 logit이 "
-                "유효하지 않습니다.",
-            )
-
-        category_results = (
-            self._pool_categories(
-                ensemble_clip_results,
-            )
-        )
-        probability = _sigmoid(
-            final_logit,
-        )
-
-        return AstInferenceResult(
-            model_version=self._model_version,
-            seed_count=len(
-                self._seed_runtimes,
-            ),
-            seed_person_results=tuple(
-                seed_person_results,
-            ),
-            dementia_logit=final_logit,
-            dementia_probability=probability,
-            category_results=category_results,
-            clip_results=tuple(
-                ensemble_clip_results,
-            ),
+        return (
+            seed_clip_results,
+            tuple(ensemble_clip_results),
         )
 
     def _infer_clip_segments_by_seed(

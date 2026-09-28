@@ -1,6 +1,7 @@
 from app.services.analysis_retry import (
     AnalysisRetryService,
     AnalysisRetryValidationError,
+    DailyAnalysisRetryService,
 )
 from app.services.analysis_runtime import (
     AnalysisProcessorFactory,
@@ -46,6 +47,7 @@ __all__ = [
     "AnalysisRetryService",
     "AnalysisRetryValidationError",
     "AnalysisWorkerNotStartedError",
+    "DailyAnalysisRetryService",
     "AssessmentCompletenessError",
     "AssessmentCompletenessResult",
     "AssessmentCompletenessService",

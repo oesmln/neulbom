@@ -252,6 +252,55 @@ class KcElectraInferenceService:
             ...,
         ],
     ) -> KcElectraInferenceResult:
+        clip_results = (
+            self.infer_question_features(
+                clips,
+            )
+        )
+
+        category_results = (
+            self._pool_categories(
+                clip_results,
+            )
+        )
+        final_logit = (
+            pool_category_logits_to_person(
+                category_results,
+                category_order=(
+                    self._core_categories
+                ),
+                method="equal_category_mean",
+            )
+        )
+
+        if not isfinite(final_logit):
+            raise KcElectraInferenceError(
+                "KcELECTRA 최종 logit이 "
+                "유효하지 않습니다.",
+            )
+
+        return KcElectraInferenceResult(
+            model_version=self._model_version,
+            seed_count=len(
+                self._seed_runtimes,
+            ),
+            dementia_logit=final_logit,
+            dementia_probability=(
+                _sigmoid(final_logit)
+            ),
+            category_results=category_results,
+            clip_results=clip_results,
+        )
+
+    def infer_question_features(
+        self,
+        clips: tuple[
+            KcElectraClipInput,
+            ...,
+        ],
+    ) -> tuple[KcElectraClipResult, ...]:
+        """Core4 완결성 집계 없이 문항별 앙상블 특징만 반환한다."""
+
         if not clips:
             raise ValueError(
                 "KcELECTRA 추론용 문항이 없습니다.",
@@ -337,39 +386,7 @@ class KcElectraInferenceService:
             )
         )
 
-        category_results = (
-            self._pool_categories(
-                clip_results,
-            )
-        )
-        final_logit = (
-            pool_category_logits_to_person(
-                category_results,
-                category_order=(
-                    self._core_categories
-                ),
-                method="equal_category_mean",
-            )
-        )
-
-        if not isfinite(final_logit):
-            raise KcElectraInferenceError(
-                "KcELECTRA 최종 logit이 "
-                "유효하지 않습니다.",
-            )
-
-        return KcElectraInferenceResult(
-            model_version=self._model_version,
-            seed_count=len(
-                self._seed_runtimes,
-            ),
-            dementia_logit=final_logit,
-            dementia_probability=(
-                _sigmoid(final_logit)
-            ),
-            category_results=category_results,
-            clip_results=clip_results,
-        )
+        return clip_results
 
     def _predict_clip_logits(
         self,

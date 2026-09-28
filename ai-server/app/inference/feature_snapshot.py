@@ -1,13 +1,19 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from math import isfinite, sqrt
-from typing import Literal, Protocol
+from typing import Literal, Protocol, TypeVar
 
 import numpy as np
 
 
-class QuestionLogitFeature(Protocol):
+class QuestionCodedFeature(Protocol):
     question_code: str
+
+
+class QuestionLogitFeature(
+    QuestionCodedFeature,
+    Protocol,
+):
     category: str
     dementia_logit: float
 
@@ -22,6 +28,11 @@ PersonPoolingMethod = Literal[
     "equal_category_mean",
     "sqrt_clip_count_weighted",
 ]
+
+QuestionFeatureT = TypeVar(
+    "QuestionFeatureT",
+    bound=QuestionCodedFeature,
+)
 
 
 class FeatureAggregationError(ValueError):
@@ -257,3 +268,88 @@ def pool_category_logits_to_person(
         )
 
     return person_logit
+
+
+def rebuild_person_logit_from_questions(
+    question_features: Iterable[
+        QuestionLogitFeature
+    ],
+    *,
+    category_order: tuple[str, ...],
+    method: PersonPoolingMethod,
+) -> float:
+    category_features = (
+        pool_question_logits_by_category(
+            question_features,
+            category_order=category_order,
+        )
+    )
+
+    return pool_category_logits_to_person(
+        category_features,
+        category_order=category_order,
+        method=method,
+    )
+
+
+def replace_question_features(
+    current_features: Iterable[
+        QuestionFeatureT
+    ],
+    replacement_features: Iterable[
+        QuestionFeatureT
+    ],
+) -> tuple[QuestionFeatureT, ...]:
+    """기존 순서를 유지하며 동일 question_code의 특징만 교체한다."""
+
+    current = tuple(current_features)
+    replacements = tuple(
+        replacement_features,
+    )
+    current_by_code = _index_by_question_code(
+        current,
+        label="기존",
+    )
+    replacement_by_code = (
+        _index_by_question_code(
+            replacements,
+            label="교체",
+        )
+    )
+    unknown_codes = (
+        set(replacement_by_code)
+        - set(current_by_code)
+    )
+
+    if unknown_codes:
+        raise FeatureAggregationError(
+            "기존 스냅샷에 없는 문항 특징은 "
+            "교체할 수 없습니다: "
+            f"{sorted(unknown_codes)}",
+        )
+
+    return tuple(
+        replacement_by_code.get(
+            feature.question_code,
+            feature,
+        )
+        for feature in current
+    )
+
+
+def _index_by_question_code(
+    features: tuple[QuestionFeatureT, ...],
+    *,
+    label: str,
+) -> dict[str, QuestionFeatureT]:
+    indexed = {
+        feature.question_code: feature
+        for feature in features
+    }
+
+    if len(indexed) != len(features):
+        raise FeatureAggregationError(
+            f"{label} 문항 특징이 중복되었습니다.",
+        )
+
+    return indexed

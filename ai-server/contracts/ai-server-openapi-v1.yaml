@@ -26,6 +26,8 @@ tags:
     description: Q11 memory-unit extraction and Q12-Q16 selection
   - name: Analyses
     description: Session-level asynchronous AI analysis
+  - name: Daily Cognitive Analyses
+    description: Two-question partial updates derived from a full CIST feature snapshot
 
 paths:
   /v1/assessments/{assessment_id}/recognition-plan:
@@ -272,6 +274,131 @@ paths:
         '503':
           $ref: '#/components/responses/ModelUnavailable'
 
+  /v1/daily-cognitive-analyses:
+    post:
+      tags:
+        - Daily Cognitive Analyses
+      operationId: createDailyCognitiveAnalysis
+      summary: Create a two-question daily cognitive partial update
+      description: >-
+        Replaces one orientation question and one attention question in the supplied
+        full CIST feature snapshot, rebuilds the complete Fusion input vector, and
+        returns an estimated screening trend result. This is not an independent CIST
+        assessment, diagnosis, or clinical probability.
+      x-timeout-ms: 5000
+      x-processing-timeout-ms: 300000
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyAnalysisCreateRequest'
+      responses:
+        '202':
+          description: Daily partial update accepted for asynchronous processing
+          headers:
+            Location:
+              description: Status resource for this daily analysis
+              schema:
+                type: string
+            Retry-After:
+              description: Recommended initial polling delay in seconds
+              schema:
+                type: integer
+                const: 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyAnalysisAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
+  /v1/daily-cognitive-analyses/{analysis_id}:
+    get:
+      tags:
+        - Daily Cognitive Analyses
+      operationId: getDailyCognitiveAnalysis
+      summary: Get daily partial update status or result
+      x-timeout-ms: 5000
+      parameters:
+        - $ref: '#/components/parameters/AnalysisId'
+      responses:
+        '200':
+          description: Current daily analysis state
+          headers:
+            Retry-After:
+              description: Suggested polling delay for non-terminal states
+              schema:
+                type: integer
+                minimum: 2
+                maximum: 15
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyAnalysisStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/daily-cognitive-analyses/{analysis_id}/retry:
+    post:
+      tags:
+        - Daily Cognitive Analyses
+      operationId: retryDailyCognitiveAnalysis
+      summary: Retry a daily cognitive partial update
+      x-timeout-ms: 5000
+      parameters:
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisRetryRequest'
+      responses:
+        '202':
+          description: Replacement input accepted and the daily job resumed
+          headers:
+            Location:
+              description: Status resource for this daily analysis
+              schema:
+                type: string
+            Retry-After:
+              description: Recommended initial polling delay in seconds
+              schema:
+                type: integer
+                const: 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyAnalysisAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -481,6 +608,18 @@ components:
         - memory_recognition_time
         - memory_recognition_activity
         - language_semantic_fluency
+
+    DailyQuestionCode:
+      type: string
+      enum:
+        - orientation_year
+        - orientation_month
+        - orientation_day
+        - orientation_weekday
+        - orientation_place
+        - attention_digit_span_4
+        - attention_digit_span_5
+        - attention_word_reverse
 
     ConditionalQuestionCode:
       type: string
@@ -872,6 +1011,85 @@ components:
           type: string
           format: date-time
 
+    DailyAnalysisCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_type
+        - analysis_id
+        - session_id
+        - baseline_analysis_id
+        - question_set_version
+        - wrong_event_rule_version
+        - assessment_local_date
+        - timezone
+        - stt_config
+        - baseline_model_score
+        - input_snapshot
+        - responses
+      properties:
+        analysis_type:
+          type: string
+          const: daily_partial_update
+        analysis_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        baseline_analysis_id:
+          type: string
+          format: uuid
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        assessment_local_date:
+          $ref: '#/components/schemas/AssessmentLocalDate'
+        timezone:
+          $ref: '#/components/schemas/Timezone'
+        stt_config:
+          $ref: '#/components/schemas/SttConfig'
+        baseline_model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        input_snapshot:
+          $ref: '#/components/schemas/CognitiveFeatureSnapshot'
+        responses:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          description: Exactly one orientation item and one attention item
+          items:
+            $ref: '#/components/schemas/AdministeredQuestionResponse'
+
+    DailyAnalysisAcceptedResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_id
+        - session_id
+        - status
+        - created_at
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - processing
+        created_at:
+          type: string
+          format: date-time
+
     RetryAction:
       type: string
       enum:
@@ -1245,6 +1463,144 @@ components:
             $ref: '#/components/schemas/ResponseDelayFeatureObservation'
         fusion_features:
           $ref: '#/components/schemas/FusionFeatures'
+
+    DailyAnalysisResult:
+      type: object
+      additionalProperties: false
+      required:
+        - result_type
+        - baseline_analysis_id
+        - baseline_model_score
+        - input_model_score
+        - estimated_model_score
+        - score_delta_from_baseline
+        - score_delta_from_previous
+        - model_version
+        - decision_threshold
+        - review_threshold
+        - threshold_version
+        - risk_flag
+        - risk_level
+        - updated_question_codes
+        - features
+        - output_snapshot
+        - question_results
+      properties:
+        result_type:
+          type: string
+          const: daily_partial_estimate
+        baseline_analysis_id:
+          type: string
+          format: uuid
+        baseline_model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        input_model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        estimated_model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: Partial-update trend estimate; not an independent CIST score
+        score_delta_from_baseline:
+          type: number
+          format: double
+        score_delta_from_previous:
+          type: number
+          format: double
+        model_version:
+          type: string
+          const: final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2
+        decision_threshold:
+          type: number
+          format: double
+          const: 0.38592870327757767
+        review_threshold:
+          type: number
+          format: double
+          const: 0.8061380697921943
+        threshold_version:
+          type: string
+          const: fusion-threshold-v2
+        risk_flag:
+          type: boolean
+        risk_level:
+          type: string
+          enum:
+            - stable
+            - monitoring_needed
+            - review_needed
+        updated_question_codes:
+          type: array
+          minItems: 2
+          maxItems: 2
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/DailyQuestionCode'
+        features:
+          $ref: '#/components/schemas/FusionFeatures'
+        output_snapshot:
+          $ref: '#/components/schemas/CognitiveFeatureSnapshot'
+        question_results:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/QuestionAnalysisResult'
+
+    DailyAnalysisStatusResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - analysis_id
+        - session_id
+        - status
+        - created_at
+        - updated_at
+        - retryable
+        - reason_code
+        - retry_items
+        - result
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        retryable:
+          type: boolean
+        reason_code:
+          oneOf:
+            - $ref: '#/components/schemas/RetryReasonCode'
+            - type: string
+              enum:
+                - MODEL_UNAVAILABLE
+                - INTERNAL_ERROR
+            - type: 'null'
+        retry_items:
+          type: array
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/RetryItem'
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/DailyAnalysisResult'
+            - type: 'null'
 
     FinalAnalysisResult:
       type: object

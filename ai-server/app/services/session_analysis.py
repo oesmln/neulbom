@@ -10,7 +10,13 @@ from pydantic import ValidationError
 from app.api.schemas.analysis import (
     AdministeredQuestionResponse,
     AnalysisCreateRequest,
+    AstQuestionFeatureSnapshot,
+    CognitiveFeatureSnapshot,
+    DailyAnalysisCreateRequest,
+    KcElectraQuestionFeatureSnapshot,
     NotApplicableQuestionResponse,
+    ResponseDelayFeatureObservation,
+    WrongEventFeatureObservation,
 )
 from app.api.schemas.common import (
     MemoryUnitMap,
@@ -43,6 +49,11 @@ from app.inference.fusion import (
     FusionFeatures,
     FusionInferenceError,
     FusionInferenceService,
+)
+from app.inference.feature_snapshot import (
+    FeatureAggregationError,
+    rebuild_person_logit_from_questions,
+    replace_question_features,
 )
 from app.inference.kcelectra import (
     KcElectraClipInput,
@@ -177,6 +188,9 @@ class SessionAnalysisProcessor:
             question.question_code: question
             for question in ordered_questions
         }
+        self._core_categories = tuple(
+            contracts.cist.core_categories,
+        )
 
         runtime_contract = (
             contracts
@@ -210,6 +224,16 @@ class SessionAnalysisProcessor:
             raise ValueError(
                 "processing 상태의 분석 작업만 "
                 "처리할 수 있습니다.",
+            )
+
+        if (
+            analysis.request_body.get(
+                "analysis_type",
+            )
+            == "daily_partial_update"
+        ):
+            return await self._process_daily(
+                analysis,
             )
 
         request = self._parse_request(
@@ -557,6 +581,419 @@ class SessionAnalysisProcessor:
             result_body=result_body,
         )
 
+    async def _process_daily(
+        self,
+        analysis: StoredAnalysis,
+    ) -> AnalysisProcessingOutcome:
+        request = self._parse_daily_request(
+            analysis,
+        )
+        processed_questions: list[
+            _ProcessedQuestion
+        ] = []
+        retry_candidates: list[
+            _RetryCandidate
+        ] = []
+        ast_inputs: list[AstClipInput] = []
+        kcelectra_inputs: list[
+            KcElectraClipInput
+        ] = []
+
+        for response in request.responses:
+            question = self._question_by_code[
+                response.question_code
+            ]
+            processed = (
+                await self._process_administered(
+                    response=response,
+                    question=question,
+                    request=request,
+                )
+            )
+
+            if isinstance(
+                processed,
+                _RetryCandidate,
+            ):
+                retry_candidates.append(
+                    processed,
+                )
+                continue
+
+            processed_questions.append(
+                processed,
+            )
+            ast_inputs.append(
+                AstClipInput(
+                    question_code=(
+                        response.question_code
+                    ),
+                    audio=processed.audio,
+                ),
+            )
+            kcelectra_inputs.append(
+                KcElectraClipInput(
+                    question_code=(
+                        response.question_code
+                    ),
+                    raw_transcript=(
+                        processed.raw_transcript
+                    ),
+                ),
+            )
+
+        if retry_candidates:
+            return AnalysisNeedsRetry(
+                reason_code=(
+                    retry_candidates[0]
+                    .reason_code
+                ),
+                retry_items=tuple(
+                    candidate.to_dict()
+                    for candidate
+                    in retry_candidates
+                ),
+            )
+
+        try:
+            ast_question_results = (
+                await run_in_threadpool(
+                    self._ast_service
+                    .infer_question_features,
+                    tuple(ast_inputs),
+                )
+            )
+            kcelectra_question_results = (
+                await run_in_threadpool(
+                    self._kcelectra_service
+                    .infer_question_features,
+                    tuple(kcelectra_inputs),
+                )
+            )
+
+            updated_ast_features = (
+                replace_question_features(
+                    request
+                    .input_snapshot
+                    .ast_question_features,
+                    (
+                        AstQuestionFeatureSnapshot(
+                            question_code=(
+                                result.question_code
+                            ),
+                            category=result.category,
+                            dementia_logit=(
+                                result.dementia_logit
+                            ),
+                            segment_count=(
+                                result.segment_count
+                            ),
+                        )
+                        for result
+                        in ast_question_results
+                    ),
+                )
+            )
+            updated_kcelectra_features = (
+                replace_question_features(
+                    request
+                    .input_snapshot
+                    .kcelectra_question_features,
+                    (
+                        KcElectraQuestionFeatureSnapshot(
+                            question_code=(
+                                result.question_code
+                            ),
+                            category=result.category,
+                            dementia_logit=(
+                                result.dementia_logit
+                            ),
+                        )
+                        for result
+                        in kcelectra_question_results
+                    ),
+                )
+            )
+            updated_wrong_events = (
+                replace_question_features(
+                    request
+                    .input_snapshot
+                    .wrong_event_observations,
+                    (
+                        WrongEventFeatureObservation(
+                            question_code=(
+                                processed
+                                .result
+                                .question_code
+                            ),
+                            wrong_event=(
+                                processed
+                                .result
+                                .wrong_event
+                            ),
+                        )
+                        for processed
+                        in processed_questions
+                    ),
+                )
+            )
+            updated_response_delays = (
+                replace_question_features(
+                    request
+                    .input_snapshot
+                    .response_delay_observations,
+                    (
+                        ResponseDelayFeatureObservation(
+                            question_code=(
+                                processed
+                                .result
+                                .question_code
+                            ),
+                            response_delay_ms=(
+                                processed
+                                .result
+                                .response_delay_ms
+                            ),
+                        )
+                        for processed
+                        in processed_questions
+                    ),
+                )
+            )
+
+            ast_logit = (
+                rebuild_person_logit_from_questions(
+                    updated_ast_features,
+                    category_order=(
+                        self._core_categories
+                    ),
+                    method=(
+                        "sqrt_clip_count_weighted"
+                    ),
+                )
+            )
+            kcelectra_logit = (
+                rebuild_person_logit_from_questions(
+                    updated_kcelectra_features,
+                    category_order=(
+                        self._core_categories
+                    ),
+                    method="equal_category_mean",
+                )
+            )
+            wrong_event_result = (
+                self._wrong_event_service
+                .aggregate(
+                    WrongEventObservation(
+                        question_code=(
+                            observation
+                            .question_code
+                        ),
+                        wrong_event=(
+                            observation
+                            .wrong_event
+                        ),
+                    )
+                    for observation
+                    in updated_wrong_events
+                )
+            )
+            response_delay_result = (
+                self._response_delay_service
+                .aggregate(
+                    ResponseDelayObservation(
+                        question_code=(
+                            observation
+                            .question_code
+                        ),
+                        response_delay_ms=(
+                            observation
+                            .response_delay_ms
+                        ),
+                    )
+                    for observation
+                    in updated_response_delays
+                )
+            )
+            fusion_features = FusionFeatures(
+                ast_logit=ast_logit,
+                kcelectra_logit=(
+                    kcelectra_logit
+                ),
+                category_balanced_wrong_event_score=(
+                    wrong_event_result
+                    .category_balanced_wrong_event_score
+                ),
+                category_balanced_median_delay=(
+                    response_delay_result
+                    .category_balanced_median_delay
+                ),
+            )
+            fusion_result = (
+                await run_in_threadpool(
+                    self._fusion_service.infer,
+                    fusion_features,
+                )
+            )
+        except (
+            AstInferenceError,
+            KcElectraInferenceError,
+            FusionInferenceError,
+            FeatureAggregationError,
+        ) as error:
+            raise AnalysisModelUnavailableError(
+                "일상 CIST 부분 갱신 모델 "
+                "추론에 실패했습니다.",
+            ) from error
+
+        snapshot = CognitiveFeatureSnapshot(
+            schema_version=(
+                "cognitive-feature-snapshot-v1"
+            ),
+            question_set_version=(
+                request.question_set_version
+            ),
+            wrong_event_rule_version=(
+                request.wrong_event_rule_version
+            ),
+            ast_model_version=(
+                request
+                .input_snapshot
+                .ast_model_version
+            ),
+            kcelectra_model_version=(
+                request
+                .input_snapshot
+                .kcelectra_model_version
+            ),
+            fusion_model_version=(
+                fusion_result.model_version
+            ),
+            threshold_version=(
+                fusion_result.threshold_version
+            ),
+            model_score=(
+                fusion_result.model_score
+            ),
+            ast_question_features=list(
+                updated_ast_features,
+            ),
+            kcelectra_question_features=list(
+                updated_kcelectra_features,
+            ),
+            wrong_event_observations=list(
+                updated_wrong_events,
+            ),
+            response_delay_observations=list(
+                updated_response_delays,
+            ),
+            fusion_features={
+                "ast_logit": (
+                    fusion_result
+                    .features
+                    .ast_logit
+                ),
+                "kcelectra_logit": (
+                    fusion_result
+                    .features
+                    .kcelectra_logit
+                ),
+                "category_balanced_wrong_event_score": (
+                    fusion_result
+                    .features
+                    .category_balanced_wrong_event_score
+                ),
+                "category_balanced_median_delay": (
+                    fusion_result
+                    .features
+                    .category_balanced_median_delay
+                ),
+            },
+        )
+        input_model_score = (
+            request.input_snapshot.model_score
+        )
+        estimated_model_score = (
+            fusion_result.model_score
+        )
+
+        return AnalysisCompleted(
+            result_body={
+                "result_type": (
+                    "daily_partial_estimate"
+                ),
+                "baseline_analysis_id": str(
+                    request.baseline_analysis_id,
+                ),
+                "baseline_model_score": (
+                    request.baseline_model_score
+                ),
+                "input_model_score": (
+                    input_model_score
+                ),
+                "estimated_model_score": (
+                    estimated_model_score
+                ),
+                "score_delta_from_baseline": (
+                    estimated_model_score
+                    - request.baseline_model_score
+                ),
+                "score_delta_from_previous": (
+                    estimated_model_score
+                    - input_model_score
+                ),
+                "model_version": (
+                    fusion_result.model_version
+                ),
+                "decision_threshold": (
+                    fusion_result
+                    .decision_threshold
+                ),
+                "review_threshold": (
+                    fusion_result
+                    .review_threshold
+                ),
+                "threshold_version": (
+                    fusion_result
+                    .threshold_version
+                ),
+                "risk_flag": (
+                    fusion_result.risk_flag
+                ),
+                "risk_level": (
+                    fusion_result
+                    .risk_level
+                    .value
+                ),
+                "updated_question_codes": [
+                    response.question_code
+                    for response
+                    in request.responses
+                ],
+                "features": (
+                    snapshot
+                    .fusion_features
+                    .model_dump(
+                        mode="json",
+                    )
+                ),
+                "output_snapshot": (
+                    snapshot.model_dump(
+                        mode="json",
+                    )
+                ),
+                "question_results": [
+                    processed
+                    .result
+                    .model_dump(
+                        mode="json",
+                    )
+                    for processed
+                    in processed_questions
+                ],
+            },
+        )
+
     def _parse_request(
         self,
         analysis: StoredAnalysis,
@@ -594,12 +1031,52 @@ class SessionAnalysisProcessor:
 
         return request
 
+    @staticmethod
+    def _parse_daily_request(
+        analysis: StoredAnalysis,
+    ) -> DailyAnalysisCreateRequest:
+        try:
+            request = (
+                DailyAnalysisCreateRequest
+                .model_validate(
+                    analysis.request_body,
+                )
+            )
+        except ValidationError as error:
+            raise RuntimeError(
+                "저장된 일상 분석 요청이 API "
+                "계약과 일치하지 않습니다.",
+            ) from error
+
+        if (
+            request.analysis_id
+            != analysis.analysis_id
+        ):
+            raise RuntimeError(
+                "저장된 일상 analysis_id가 "
+                "작업 식별자와 일치하지 않습니다.",
+            )
+
+        if (
+            request.session_id
+            != analysis.assessment_id
+        ):
+            raise RuntimeError(
+                "저장된 session_id가 작업 "
+                "식별자와 일치하지 않습니다.",
+            )
+
+        return request
+
     async def _process_administered(
         self,
         *,
         response: AdministeredQuestionResponse,
         question: QuestionDefinition,
-        request: AnalysisCreateRequest,
+        request: (
+            AnalysisCreateRequest
+            | DailyAnalysisCreateRequest
+        ),
     ) -> _ProcessedQuestion | _RetryCandidate:
         try:
             downloaded_audio = (
@@ -772,7 +1249,10 @@ class SessionAnalysisProcessor:
         response: AdministeredQuestionResponse,
         raw_transcript: str,
         response_delay_ms: int | None,
-        request: AnalysisCreateRequest,
+        request: (
+            AnalysisCreateRequest
+            | DailyAnalysisCreateRequest
+        ),
     ) -> (
         QuestionAnalysisResult
         | _RetryCandidate
@@ -826,6 +1306,15 @@ class SessionAnalysisProcessor:
             question_code
             in self._memory_failure_codes
         ):
+            if not isinstance(
+                request,
+                AnalysisCreateRequest,
+            ):
+                raise RuntimeError(
+                    "일상 부분 갱신에서는 기억 "
+                    "문항을 처리할 수 없습니다.",
+                )
+
             decision = (
                 self._memory_failure_service.score(
                     question_code=question_code,
