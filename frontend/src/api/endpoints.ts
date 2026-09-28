@@ -35,6 +35,7 @@ import type {
   DiariesResponse,
   DiaryCreateRequest,
   DiaryDetailResponse,
+  DiaryReactionType,
   EldersResponse,
   GameHistoryResponse,
   GameResultRequest,
@@ -150,9 +151,12 @@ export const auth = {
 
   login(body: LoginRequest): Promise<AuthTokenResponse> {
     if (USE_MOCK_API) {
-      const role = body.email.trim().toLowerCase().startsWith("guardian")
+      const email = body.email.trim().toLowerCase();
+      const role = email.startsWith("guardian")
         ? "guardian"
-        : mock.currentMockRole();
+        : email.startsWith("elder")
+          ? "elder"
+          : mock.currentMockRole();
       return Promise.resolve(mock.mockAuthToken(role));
     }
     return request("/auth/login", { method: "POST", body, anonymous: true });
@@ -592,21 +596,13 @@ export const diaries = {
   },
 
   reactions(diaryId: Uuid): Promise<ReactionsResponse> {
-    if (USE_MOCK_API) return Promise.resolve({ reactions: [] });
+    if (USE_MOCK_API) return Promise.resolve({ reactions: mock.mockReactions(diaryId) });
     return request(`/diaries/${diaryId}/reactions`);
   },
 
-  react(diaryId: Uuid, reactionType: string, message?: string): Promise<ReactionResponse> {
+  react(diaryId: Uuid, reactionType: DiaryReactionType, message?: string): Promise<ReactionResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        reaction_id: newClientId(),
-        diary_id: diaryId,
-        reactor_id: mock.MOCK_GUARDIAN_ID,
-        reactor_name: "김철수",
-        reaction_type: reactionType,
-        message: message ?? null,
-        created_at: new Date().toISOString(),
-      });
+      return Promise.resolve(mock.mockCreateReaction(diaryId, reactionType, message));
     }
     return request(`/diaries/${diaryId}/reactions`, {
       method: "POST",

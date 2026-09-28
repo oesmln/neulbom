@@ -76,7 +76,32 @@ class DiaryIntegrationTest {
         mockMvc.perform(get("/api/v1/diaries/{userId}", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.diaries.length()").value(1));
         mockMvc.perform(get("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(elder)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.diary_id").value(diaryId.toString()));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diary_id").value(diaryId.toString()))
+                .andExpect(jsonPath("$.content").value("오늘 산책을 했어요."));
+        mockMvc.perform(get("/api/v1/diaries/{userId}", elder.getId()).with(jwtFor(guardian)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diaries[0].diary_id").value(diaryId.toString()))
+                .andExpect(jsonPath("$.diaries[0].preview").value("오늘 산책을 했어요."));
+        mockMvc.perform(get("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(guardian)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("오늘 산책을 했어요."));
+        String fullContent = "오전에는 동네 공원을 걸었고 오후에는 가족과 차를 마셨어요. ".repeat(3).trim();
+        String manualDiaryBody = mockMvc.perform(post("/api/v1/diaries").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"source_type\":\"manual\",\"content\":\""
+                                + fullContent + "\",\"written_at\":\"" + now.minusSeconds(86400) + "\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.content").value(fullContent))
+                .andReturn().getResponse().getContentAsString();
+        UUID manualDiaryId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(manualDiaryBody).get("diary_id").asText());
+        mockMvc.perform(get("/api/v1/diaries/{diaryId}", manualDiaryId).with(jwtFor(guardian)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value(fullContent));
+        mockMvc.perform(get("/api/v1/diaries/{userId}", elder.getId()).with(jwtFor(guardian)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diaries[1].preview").value(fullContent.substring(0, 80)));
         mockMvc.perform(patch("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(elder)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"수정한 일기\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("수정한 일기"));
@@ -84,8 +109,40 @@ class DiaryIntegrationTest {
         mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(guardian)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reaction_type\":\"heart\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.reaction_type").value("heart"));
+        mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(guardian)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reaction_type\":\"message\",\"message\":\"오늘도 응원해요!\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("오늘도 응원해요!"));
+        mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(guardian)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reaction_type\":\"message\",\"message\":\"다른 메시지\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("오늘도 응원해요!"));
+        for (String type : new String[] {"smile", "cheer", "pray", "cry"}) {
+            mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(guardian)).contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"reaction_type\":\"" + type + "\"}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.reaction_type").value(type));
+        }
+        mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(guardian)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reaction_type\":\"❤️\"}"))
+                .andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(elder)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.reactions.length()").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.reactions.length()").value(6));
+        mockMvc.perform(get("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reactions.length()").value(6))
+                .andExpect(jsonPath("$.reactions[?(@.reaction_type == 'message')].message")
+                        .value(org.hamcrest.Matchers.hasItem("오늘도 응원해요!")));
+        mockMvc.perform(get("/api/v1/notifications/{userId}", elder.getId()).with(jwtFor(elder))
+                        .param("type", "guardian_reaction"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notifications.length()").value(6));
+        UserEntity unrelatedGuardian = saveUser("diary-unrelated-guardian", "guardian");
+        mockMvc.perform(get("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(unrelatedGuardian)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/diaries/{diaryId}/reactions", diaryId).with(jwtFor(unrelatedGuardian))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"reaction_type\":\"heart\"}"))
+                .andExpect(status().isForbidden());
         LocalDate calendarDate = now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
         mockMvc.perform(get("/api/v1/calendar/{userId}/activities", elder.getId()).with(jwtFor(guardian))
                         .param("from_date", calendarDate.minusDays(1).toString())

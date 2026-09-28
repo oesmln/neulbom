@@ -1,9 +1,11 @@
 import React from "react";
 import { View, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi } from "@/api";
+import DiaryReactionList from "@/components/DiaryReactionList";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { isoDateOf, moodEmoji } from "@/utils/format";
@@ -52,6 +54,7 @@ function metadataMood(metadata: unknown): { mood: string | null; level: number |
 }
 
 export default function ElderCalendarScreen() {
+  const isFocused = useIsFocused();
   const { userId } = useApp();
   const today = React.useMemo(() => new Date(), []);
   const todayDate = isoDateOf(today);
@@ -72,14 +75,14 @@ export default function ElderCalendarScreen() {
 
   const calendar = useApi(
     () => diariesApi.calendar(userId as string, fromDate, toDate),
-    [userId, fromDate, toDate],
-    { enabled: !!userId },
+    [userId, fromDate, toDate, isFocused],
+    { enabled: !!userId && isFocused },
   );
 
   const diaryList = useApi(
     () => diariesApi.listForUser(userId as string, { fromDate, toDate, limit: 31 }),
-    [userId, fromDate, toDate],
-    { enabled: !!userId },
+    [userId, fromDate, toDate, isFocused],
+    { enabled: !!userId && isFocused },
   );
 
   /** date → mood, taken from the calendar activities. */
@@ -125,10 +128,11 @@ export default function ElderCalendarScreen() {
   // so fetch the detail for whichever day is selected (same pattern as GuardianDiary).
   const detail = useApi(
     () => diariesApi.detail(selectedDiary?.diary_id as string),
-    [selectedDiary?.diary_id],
-    { enabled: !!selectedDiary },
+    [selectedDiary?.diary_id, isFocused],
+    { enabled: !!selectedDiary && isFocused },
   );
-  const content = detail.data?.content ?? selectedDiary?.preview ?? selectedDiary?.title ?? "";
+  const selectedDetail = detail.data?.diary_id === selectedDiary?.diary_id ? detail.data : null;
+  const content = selectedDetail?.content ?? "";
   const collapsible = content.length > COLLAPSE_AFTER;
 
   const loading = calendar.loading || diaryList.loading;
@@ -253,16 +257,25 @@ export default function ElderCalendarScreen() {
                   {moodEmoji(selectedDiary.mood, selectedDiary.mood_level)}
                 </Text>
               </View>
-              <Text style={styles.entryBody} numberOfLines={collapsible && !expanded ? 3 : undefined}>
-                {content}
-              </Text>
-              {collapsible ? (
-                <Button
-                  label={expanded ? "접기" : "전체 보기"}
-                  onPress={() => setExpanded((value) => !value)}
-                  style={styles.entryAction}
-                />
-              ) : null}
+              {detail.error ? (
+                <ErrorState message={apiErrorMessage(detail.error)} onRetry={detail.reload} />
+              ) : detail.loading || !selectedDetail ? (
+                <LoadingState label="일기를 불러오는 중이에요" />
+              ) : (
+                <>
+                  <Text style={styles.entryBody} numberOfLines={collapsible && !expanded ? 3 : undefined}>
+                    {content}
+                  </Text>
+                  {collapsible ? (
+                    <Button
+                      label={expanded ? "접기" : "전체 보기"}
+                      onPress={() => setExpanded((value) => !value)}
+                      style={styles.entryAction}
+                    />
+                  ) : null}
+                  <DiaryReactionList reactions={selectedDetail.reactions} />
+                </>
+              )}
             </View>
           ) : selected ? (
             <Card style={styles.emptyCard}>
