@@ -364,7 +364,7 @@ export default function GuardianDashboardScreen() {
         )}
       </Card>
 
-      {report.data?.ai_risk_trend_points.length ? (
+      {(report.data?.ai_risk_trend_points?.length ?? 0) > 0 ? (
         <Card style={{ marginTop: spacing.lg }}>
           <View style={styles.rowBetween}>
             <Body style={{ fontWeight: fontWeight.semibold }}>CIST AI 위험 신호 추이</Body>
@@ -376,7 +376,7 @@ export default function GuardianDashboardScreen() {
               <Text style={styles.link}>상세 보기</Text>
             </Pressable>
           </View>
-          <AiRiskTrendChart points={report.data.ai_risk_trend_points} compact />
+          <AiRiskTrendChart points={report.data?.ai_risk_trend_points ?? []} compact />
           <Caption>AI 분석 참고 지수입니다. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.</Caption>
         </Card>
       ) : null}
