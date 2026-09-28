@@ -161,15 +161,19 @@ export function DoneButtons({
   onRestart,
   onExit,
   exitLabel = "게임 목록",
+  disabled = false,
 }: {
   onRestart: () => void;
   onExit: () => void;
   exitLabel?: string;
+  disabled?: boolean;
 }) {
   return (
     <View style={{ alignSelf: "stretch", gap: spacing.md }}>
       <Pressable
         onPress={onRestart}
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         accessibilityRole="button"
         accessibilityLabel="다시 하기"
         style={[styles.doneButton, { backgroundColor: colors.primary }]}
@@ -178,6 +182,8 @@ export function DoneButtons({
       </Pressable>
       <Pressable
         onPress={onExit}
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         accessibilityRole="button"
         accessibilityLabel={exitLabel}
         style={[styles.doneButton, { backgroundColor: colors.muted }]}

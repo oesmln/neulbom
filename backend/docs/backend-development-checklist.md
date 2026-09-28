@@ -979,6 +979,7 @@
 - [x] `image_match`, `consonant`, `word_match`를 허용한다.
 - [x] 점수, 응답 시간 배열, 오답 수, 전체 문항 수를 검증한다.
 - [x] 기억력 게임의 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 저장·검증한다.
+- [x] 카드 짝 맞추기는 여섯 쌍보다 많은 오답 시도도 결과에 저장하고 이력에서 조회한다. (#181)
 - [x] `client_game_result_id` unique로 결과 재전송을 멱등 처리하고 `deduplicated`를 반환한다.
 - [x] `cognitive_index` 계산 규칙을 `score / total_questions * 100`으로 고정한다.
 - [x] `GET /game/{user_id}/history`를 구현한다.
