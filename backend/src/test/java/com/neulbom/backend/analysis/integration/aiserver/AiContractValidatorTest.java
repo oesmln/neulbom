@@ -27,9 +27,9 @@ class AiContractValidatorTest {
 
     @ParameterizedTest(name = "score={0} -> {2}")
     @CsvSource({
-            "0.460999, false, stable",
-            "0.461, true, monitoring_needed",
-            "0.802, true, review_needed"
+            "0.385928, false, stable",
+            "0.38592870327757767, true, monitoring_needed",
+            "0.8061380697921943, true, review_needed"
     })
     void validatesThreeLevelRiskBoundaries(String score, boolean riskFlag, String riskLevel) {
         AnalysisStatusResponse response = completedResponse(
@@ -59,8 +59,8 @@ class AiContractValidatorTest {
                 "wrong-event-v1",
                 "final_fusion_lr_21subjects_core4_ast_v1",
                 score,
-                new BigDecimal("0.461"),
-                new BigDecimal("0.802"),
+                new BigDecimal("0.38592870327757767"),
+                new BigDecimal("0.8061380697921943"),
                 "fusion-threshold-v2",
                 riskFlag,
                 riskLevel,
