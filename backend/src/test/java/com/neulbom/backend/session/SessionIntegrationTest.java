@@ -53,6 +53,9 @@ class SessionIntegrationTest {
     private GuardianLinkScopeRepository guardianLinkScopeRepository;
 
     @Autowired
+    private SessionQuestionSlotRepository sessionQuestionSlotRepository;
+
+    @Autowired
     private ConsentRepository consentRepository;
 
     @Autowired
@@ -331,7 +334,7 @@ class SessionIntegrationTest {
     }
 
     @Test
-    void emotionalQaSessionUsesFiveQuestions() throws Exception {
+    void emotionalQaSessionUsesSevenQuestions() throws Exception {
         UserEntity elder = saveUser("emotional-qa-five", "elder");
         Instant now = Instant.now();
         consentRepository.save(new ConsentEntity(
@@ -344,18 +347,20 @@ class SessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.total_questions").value(5))
+                .andExpect(jsonPath("$.total_questions").value(7))
                 .andReturn().getResponse().getContentAsString();
         UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(sessionBody).get("session_id").asText());
 
-        mockMvc.perform(get("/api/v1/questions/daily")
-                        .with(jwtFor(elder))
-                        .param("user_id", elder.getId().toString())
-                        .param("session_type", "emotional_qa"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.questions.length()").value(5))
-                .andExpect(jsonPath("$.questions[4].order").value(5));
+        var slots = sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(sessionId);
+        org.assertj.core.api.Assertions.assertThat(slots).hasSize(7);
+        org.assertj.core.api.Assertions.assertThat(slots.get(0).getQuestionSource()).isEqualTo("gemini");
+        org.assertj.core.api.Assertions.assertThat(slots.stream()
+                        .filter(slot -> "gemini".equals(slot.getQuestionSource())))
+                .hasSize(5);
+        org.assertj.core.api.Assertions.assertThat(slots.stream()
+                        .filter(slot -> "cist_bank".equals(slot.getQuestionSource())))
+                .hasSize(2);
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))

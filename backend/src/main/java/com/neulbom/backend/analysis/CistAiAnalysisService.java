@@ -245,6 +245,7 @@ public class CistAiAnalysisService {
                 finalResult == null ? null : finalResult.riskFlag(),
                 finalResult == null ? null : finalResult.riskLevel(),
                 result.updatedAt());
+        entity.updateFeatureSnapshot(finalResult == null ? null : json(finalResult.featureSnapshot()));
         analysisRepository.save(entity);
         return toResponse(entity);
     }

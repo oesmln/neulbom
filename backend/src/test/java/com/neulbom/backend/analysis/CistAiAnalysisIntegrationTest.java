@@ -333,6 +333,10 @@ class CistAiAnalysisIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(stored.getThresholdVersion()).isEqualTo("fusion-threshold-v2");
         org.assertj.core.api.Assertions.assertThat(stored.getRiskFlag()).isTrue();
         org.assertj.core.api.Assertions.assertThat(stored.getRiskLevel()).isEqualTo("monitoring_needed");
+        org.assertj.core.api.Assertions.assertThat(stored.getFeatureSnapshot())
+                .contains("\"schema_version\":\"cognitive-feature-snapshot-v1\"")
+                .contains("\"ast_question_features\"")
+                .contains("\"orientation_year\"");
     }
 
     private void saveAdministeredResponse(

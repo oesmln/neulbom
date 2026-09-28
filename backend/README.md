@@ -87,6 +87,14 @@ OpenAPI 문서는 다음 주소에서 확인합니다.
 
 ## 검사 명령
 
+Flyway 마이그레이션과 DB 통합 테스트는 PostgreSQL을 사용합니다. 로컬 PostgreSQL을 실행하고, 일반 개발 DB와 분리된 `neulbom_test` 데이터베이스를 만든 뒤 테스트 연결 정보를 설정하세요. 테스트 데이터가 기록되므로 개발/운영 DB를 테스트 대상으로 사용하지 마세요.
+
+```powershell
+$env:TEST_DB_URL = "jdbc:postgresql://localhost:5432/neulbom_test"
+$env:TEST_DB_USERNAME = "<PostgreSQL 사용자>"
+$env:TEST_DB_PASSWORD = "<PostgreSQL 비밀번호>"
+```
+
 ```bash
 cd backend
 ./gradlew test

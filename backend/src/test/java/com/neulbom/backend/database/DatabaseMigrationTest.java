@@ -10,10 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@Transactional
 class DatabaseMigrationTest {
 
     private static final String MIGRATION_EMAIL = "migration-test@example.com";
@@ -32,22 +34,31 @@ class DatabaseMigrationTest {
         Integer questionCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM questions",
                 Integer.class);
+        Integer featureSnapshotColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'cist_ai_analyses'
+                          AND column_name = 'feature_snapshot'
+                        """,
+                Integer.class);
         Integer coreTableCount = jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
                         FROM information_schema.tables
-                        WHERE table_schema = 'PUBLIC'
+                        WHERE table_schema = current_schema()
                           AND table_name IN (
-                              'USERS', 'VOICE_PROFILES', 'USER_PROFILES', 'USER_PREFERENCES', 'REFRESH_TOKENS', 'CONSENTS',
-                              'GUARDIAN_LINKS', 'GUARDIAN_LINK_SCOPES', 'GUARDIAN_INVITATIONS',
-                              'GUARDIAN_INVITATION_SCOPES', 'QUESTIONS', 'SESSIONS', 'RECORDINGS',
-                              'TRANSCRIPTS', 'ANSWERS', 'ACOUSTIC_ANALYSES', 'COGNITIVE_ANALYSES',
-                              'SCREENING_RESULTS', 'SESSION_SUMMARIES', 'DIARIES', 'DIARY_REACTIONS',
-                              'GAME_RESULTS', 'CHARACTERS', 'XP_LEDGER', 'CAMPAIGNS',
-                              'CAMPAIGN_PARTICIPATIONS', 'NOTIFICATIONS', 'AUDIT_LOGS',
-                              'PASSWORD_RESET_TOKENS', 'OAUTH_ACCOUNTS', 'DAILY_SUMMARIES',
-                              'DIARY_GENERATION_JOBS', 'REPORT_EXPORTS', 'COUNSELING_CENTERS',
-                              'CIST_RECOGNITION_PLANS', 'CIST_AI_ANALYSES', 'AI_SERVER_OPERATIONS'
+                              'users', 'voice_profiles', 'user_profiles', 'user_preferences', 'refresh_tokens', 'consents',
+                              'guardian_links', 'guardian_link_scopes', 'guardian_invitations',
+                              'guardian_invitation_scopes', 'questions', 'sessions', 'recordings',
+                              'transcripts', 'answers', 'acoustic_analyses', 'cognitive_analyses',
+                              'screening_results', 'session_summaries', 'diaries', 'diary_reactions',
+                              'game_results', 'characters', 'xp_ledger', 'campaigns',
+                              'campaign_participations', 'notifications', 'audit_logs',
+                              'password_reset_tokens', 'oauth_accounts', 'daily_summaries',
+                              'diary_generation_jobs', 'report_exports', 'counseling_centers',
+                              'cist_recognition_plans', 'cist_ai_analyses', 'ai_server_operations'
                           )
                         """,
                 Integer.class);
@@ -55,6 +66,7 @@ class DatabaseMigrationTest {
         assertThat(migrationCount).isGreaterThanOrEqualTo(10);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(22);
+        assertThat(featureSnapshotColumnCount).isEqualTo(1);
         assertThat(coreTableCount).isEqualTo(37);
     }
 

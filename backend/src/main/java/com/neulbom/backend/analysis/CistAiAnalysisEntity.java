@@ -53,6 +53,10 @@ public class CistAiAnalysisEntity {
     @Column(name = "final_result", columnDefinition = "jsonb")
     private String finalResult;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "feature_snapshot", columnDefinition = "jsonb")
+    private String featureSnapshot;
+
     @Column(name = "model_score", precision = 12, scale = 10)
     private BigDecimal modelScore;
 
@@ -149,6 +153,10 @@ public class CistAiAnalysisEntity {
         this.updatedAt = updatedAt;
     }
 
+    public void updateFeatureSnapshot(String featureSnapshot) {
+        this.featureSnapshot = featureSnapshot;
+    }
+
     public UUID getAnalysisId() { return analysisId; }
     public UUID getSessionId() { return sessionId; }
     public String getStatus() { return status; }
@@ -160,6 +168,7 @@ public class CistAiAnalysisEntity {
     public String getRetryItems() { return retryItems; }
     public String getSubmittedResponses() { return submittedResponses; }
     public String getFinalResult() { return finalResult; }
+    public String getFeatureSnapshot() { return featureSnapshot; }
     public BigDecimal getModelScore() { return modelScore; }
     public String getModelVersion() { return modelVersion; }
     public BigDecimal getDecisionThreshold() { return decisionThreshold; }

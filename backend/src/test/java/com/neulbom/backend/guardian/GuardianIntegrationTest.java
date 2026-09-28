@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.auth.service.TokenHasher;
@@ -123,7 +124,7 @@ class GuardianIntegrationTest {
     void invitationExpiresAfterTenMinutesAndCannotBeVerifiedOrAccepted() throws Exception {
         UserEntity guardian = saveUser("guardian-expired-invite", "guardian");
         UserEntity elder = saveUser("elder-expired-invite", "elder");
-        String inviteCode = "654321";
+        String inviteCode = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1_000_000));
         Instant now = Instant.now();
         GuardianInvitationEntity expiredInvitation = invitationRepository.save(
                 new GuardianInvitationEntity(
