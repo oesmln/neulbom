@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ElderNav, ElderStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { cistAi, newClientId, sessions } from "@/api";
+import { USE_MOCK_API } from "@/api/config";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
@@ -384,6 +385,19 @@ function MicRecorder({
   React.useEffect(() => {
     setTranscript(null);
   }, [questionId]);
+
+  if (USE_MOCK_API) {
+    return (
+      <View style={styles.recorder}>
+        <Text style={styles.status}>미리보기에서는 음성을 인식하지 않습니다. 실제 전사문은 백엔드 STT에 연결하면 표시됩니다.</Text>
+        <Button
+          label={answered ? "샘플 답변 완료" : "샘플 답변으로 진행"}
+          disabled={disabled || answered || !userId || !sessionId}
+          onPress={() => onAnswer(newClientId())}
+        />
+      </View>
+    );
+  }
 
   const tap = async () => {
     if (disabled || answered || recording.uploading) return;

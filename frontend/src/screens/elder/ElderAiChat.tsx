@@ -35,10 +35,7 @@ import { withParticle } from "@/utils/format";
  */
 const INTRO_LINE = "오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
 
-/**
- * Stands in for what STT would return, and only without a server — against a
- * real backend the app must not invent a transcript it never received.
- */
+/** Example answers for the serverless preview. These are not speech transcripts. */
 const SAMPLE_ANSWERS = [
   "오늘은 좀 피곤하긴 한데 괜찮아요.",
   "된장찌개 먹었는데 아들이 끓여줬어요. 맛있었어요.",
@@ -232,7 +229,7 @@ export default function ElderAiChatScreen() {
 
             {answered ? (
               <View style={styles.myBubble}>
-                <Text style={styles.transcriptLabel}>음성 인식 결과</Text>
+                <Text style={styles.transcriptLabel}>{USE_MOCK_API ? "샘플 답변" : "음성 인식 결과"}</Text>
                 <Text style={styles.myText}>
                   {answers[index] || transcripts[index] || "음성 답변을 글자로 옮기고 있어요"}
                 </Text>

@@ -484,15 +484,11 @@ export const recordings = {
 
   transcribe(recordingId: Uuid): Promise<TranscribeResponse> {
     if (USE_MOCK_API) {
-      return Promise.resolve({
-        transcript_id: newClientId(),
-        recording_id: recordingId,
-        transcript: "음성 답변이 텍스트로 변환됐어요.",
-        duration_sec: null,
-        confidence: null,
-        language: "ko",
-        model: "mock",
-      });
+      return Promise.reject(new ApiError(
+        503,
+        "서버에 연결하지 않아 음성을 전사할 수 없습니다.",
+        { detail: "EXPO_PUBLIC_API_BASE_URL을 설정하고 백엔드 STT를 실행해 주세요." },
+      ));
     }
     return request(`/recordings/${recordingId}/transcribe`, { method: "POST" });
   },

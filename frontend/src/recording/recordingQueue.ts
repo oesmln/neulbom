@@ -412,6 +412,11 @@ async function performSync(activeUserId: Uuid): Promise<void> {
       const transcript = uploading.purpose === "answer"
         ? await recordings.transcribe(response.recording_id)
         : null;
+      if (uploading.purpose === "answer" && !transcript?.transcript?.trim()) {
+        throw new ApiError(422, "음성이 인식되지 않았습니다. 다시 답변해 주세요.", {
+          code: "EMPTY_TRANSCRIPT",
+        });
+      }
       await serializeMutation(() => deleteStored(uploading.clientRecordingId));
       await serializeMutation(() =>
         saveReceipt({
