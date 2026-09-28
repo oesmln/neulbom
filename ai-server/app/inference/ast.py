@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from math import exp, isfinite, sqrt
+from math import exp, isfinite
 from typing import Any
 
 import numpy as np
@@ -17,6 +17,10 @@ from app.contracts.models import ContractBundle
 from app.inference.artifacts import (
     EXPECTED_SEEDS,
     ModelArtifactBundle,
+)
+from app.inference.feature_snapshot import (
+    pool_category_logits_to_person,
+    pool_question_logits_by_category,
 )
 
 
@@ -533,63 +537,38 @@ class AstInferenceService:
             AstClipResult
         ],
     ) -> tuple[AstCategoryResult, ...]:
-        by_category: dict[
-            str,
-            list[AstClipResult],
-        ] = {
-            category: []
+        pooled = (
+            pool_question_logits_by_category(
+                clip_results,
+                category_order=(
+                    self._core_categories
+                ),
+            )
+        )
+        segment_counts = {
+            category: sum(
+                result.segment_count
+                for result in clip_results
+                if result.category == category
+            )
             for category in self._core_categories
         }
 
-        for result in clip_results:
-            by_category[
-                result.category
-            ].append(result)
-
-        missing_categories = [
-            category
-            for category, results
-            in by_category.items()
-            if not results
-        ]
-
-        if missing_categories:
-            raise ValueError(
-                "AST 핵심 범주가 누락되었습니다: "
-                f"{missing_categories}",
-            )
-
-        category_results: list[
-            AstCategoryResult
-        ] = []
-
-        for category in self._core_categories:
-            results = by_category[category]
-            category_logit = float(
-                np.mean(
-                    [
-                        result.dementia_logit
-                        for result in results
-                    ],
-                    dtype=np.float64,
+        return tuple(
+            AstCategoryResult(
+                category=result.category,
+                dementia_logit=(
+                    result.dementia_logit
+                ),
+                clip_count=result.clip_count,
+                segment_count=(
+                    segment_counts[
+                        result.category
+                    ]
                 ),
             )
-
-            category_results.append(
-                AstCategoryResult(
-                    category=category,
-                    dementia_logit=(
-                        category_logit
-                    ),
-                    clip_count=len(results),
-                    segment_count=sum(
-                        result.segment_count
-                        for result in results
-                    ),
-                ),
-            )
-
-        return tuple(category_results)
+            for result in pooled
+        )
 
     def _pool_person_logit(
         self,
@@ -598,35 +577,13 @@ class AstInferenceService:
             ...,
         ],
     ) -> float:
-        weights = np.asarray(
-            [
-                sqrt(result.clip_count)
-                for result in category_results
-            ],
-            dtype=np.float64,
-        )
-        logits = np.asarray(
-            [
-                result.dementia_logit
-                for result in category_results
-            ],
-            dtype=np.float64,
-        )
-
-        final_logit = float(
-            np.average(
-                logits,
-                weights=weights,
+        return pool_category_logits_to_person(
+            category_results,
+            category_order=self._core_categories,
+            method=(
+                "sqrt_clip_count_weighted"
             ),
         )
-
-        if not isfinite(final_logit):
-            raise AstInferenceError(
-                "AST 최종 logit이 "
-                "유효하지 않습니다.",
-            )
-
-        return final_logit
 
 
 def _resolve_device(
