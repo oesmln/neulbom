@@ -1,11 +1,14 @@
 import React from "react";
 import { Platform } from "react-native";
 import {
+  AudioQuality,
+  IOSOutputFormat,
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
+  type RecordingOptions,
 } from "expo-audio";
 
 import { newClientId } from "@/api";
@@ -38,12 +41,33 @@ type CapturedAudio = {
 
 export const MAX_ANSWER_RECORDING_DURATION_MS = 60_000;
 
+/**
+ * 답변 녹음은 듣기용이 아니라 음성 인식용이다. `RecordingPresets.HIGH_QUALITY`는
+ * 44.1kHz 스테레오로 담아 같은 길이라도 파일이 두 배 이상 커진다. 인식이 기대하는
+ * 모노 16kHz로 맞추면 업로드가 빨라지고 전사도 안정적이다.
+ */
+const ANSWER_RECORDING_OPTIONS: RecordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY,
+  sampleRate: 16_000,
+  numberOfChannels: 1,
+  bitRate: 64_000,
+  android: { outputFormat: "mpeg4", audioEncoder: "aac" },
+  ios: {
+    outputFormat: IOSOutputFormat.MPEG4AAC,
+    audioQuality: AudioQuality.HIGH,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: { mimeType: "audio/webm", bitsPerSecond: 64_000 },
+};
+
 export function useAnswerRecording(
   target: AnswerRecordingTarget,
   onUploaded?: (recordingId: Uuid) => void,
   onTranscribed?: (transcript: string, transcriptId?: Uuid) => void,
 ) {
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorder = useAudioRecorder(ANSWER_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 250);
   const capturedRef = React.useRef<CapturedAudio | null>(null);
   const queuedClientIdRef = React.useRef<Uuid | null>(null);
