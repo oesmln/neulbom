@@ -12,6 +12,7 @@ import { newClientId } from "@/api";
 import { apiErrorMessage } from "@/api/errors";
 import type { Uuid } from "@/api/types";
 import {
+  discardQueuedRecording,
   enqueueRecording,
   consumeUploadedRecording,
   findQueuedRecording,
@@ -55,6 +56,8 @@ export function useAnswerRecording(
   const stopAndUploadRef = React.useRef<(atLimit?: boolean) => Promise<void>>(async () => undefined);
   const [recordingId, setRecordingId] = React.useState<Uuid | null>(null);
   const [syncStatus, setSyncStatus] = React.useState<RecordingQueueStatus | null>(null);
+  // 실패한 전송을 다시 올려볼 수 있는지. `false`면 버튼은 새 녹음을 시작한다.
+  const [canResend, setCanResend] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   onUploadedRef.current = onUploaded;
@@ -75,6 +78,7 @@ export function useAnswerRecording(
     reportedRecordingIdRef.current = null;
     setRecordingId(null);
     setSyncStatus(null);
+    setCanResend(true);
     setError(null);
     if (!target.userId || !target.sessionId || !target.questionId) return;
 
@@ -99,10 +103,13 @@ export function useAnswerRecording(
         target.questionId as Uuid,
       );
       if (cancelled || !item) return;
+      const resendable = item.retryable !== false;
       queuedClientIdRef.current = item.clientRecordingId;
       setSyncStatus(item.status);
+      setCanResend(resendable);
       setError(item.error ?? "저장된 녹음을 네트워크 연결 후 다시 전송할게요.");
-      void syncRecordingQueue(target.userId as Uuid).catch(() => undefined);
+      // 다시 올려도 같은 결과인 녹음은 화면에 들어올 때 자동으로 재전송하지 않는다.
+      if (resendable) void syncRecordingQueue(target.userId as Uuid).catch(() => undefined);
     })().catch((cause) => {
       if (!cancelled) setError(apiErrorMessage(cause));
     });
@@ -116,9 +123,10 @@ export function useAnswerRecording(
       subscribeRecordingQueue((event) => {
         if (event.type === "changed" && event.item.clientRecordingId === queuedClientIdRef.current) {
           setSyncStatus(event.item.status);
+          setCanResend(event.item.retryable !== false);
           setError(
             event.item.status === "failed"
-              ? event.item.error ?? "녹음을 전송하지 못했어요. 다시 시도해 주세요."
+              ? event.item.error ?? "녹음을 전송하지 못했어요. 다시 녹음해 주세요."
               : event.item.status === "pending"
                 ? "녹음이 기기에 안전하게 저장됐어요. 연결되면 자동 전송할게요."
                 : null,
@@ -139,6 +147,7 @@ export function useAnswerRecording(
         if (event.type === "removed" && event.clientRecordingId === queuedClientIdRef.current) {
           queuedClientIdRef.current = null;
           setSyncStatus(null);
+          setCanResend(true);
         }
       }),
     [complete, target.questionId, target.sessionId, target.userId],
@@ -174,6 +183,7 @@ export function useAnswerRecording(
       });
       queuedClientIdRef.current = queued.clientRecordingId;
       setSyncStatus("pending");
+      setCanResend(true);
       await syncRecordingQueue(target.userId);
     } catch (cause) {
       setError(apiErrorMessage(cause));
@@ -249,7 +259,16 @@ export function useAnswerRecording(
         await stopAndUpload();
         return;
       }
-      if (queuedClientIdRef.current && target.userId) {
+      if (syncStatus === "failed" && !canResend) {
+        // 같은 파일을 또 올리는 대신, 화면 안내대로 새 답변을 받는다. 버리지
+        // 않으면 이 문항은 실패한 녹음에 묶여 더 진행할 수 없다.
+        const discarded = queuedClientIdRef.current;
+        queuedClientIdRef.current = null;
+        setSyncStatus(null);
+        setCanResend(true);
+        setError(null);
+        if (discarded) await discardQueuedRecording(discarded);
+      } else if (queuedClientIdRef.current && target.userId) {
         await syncRecordingQueue(target.userId);
         return;
       }
@@ -257,13 +276,14 @@ export function useAnswerRecording(
     } catch (cause) {
       setError(apiErrorMessage(cause));
     }
-  }, [recordingId, recorderState.isRecording, start, stopAndUpload, syncStatus, target.userId]);
+  }, [canResend, recordingId, recorderState.isRecording, start, stopAndUpload, syncStatus, target.userId]);
 
   return {
     isRecording: recorderState.isRecording,
     durationMillis: recorderState.durationMillis,
     uploading: syncStatus === "uploading",
     syncStatus,
+    canResend,
     recordingId,
     error,
     toggle,
