@@ -129,9 +129,23 @@ openssl rand -hex 32
 
 ## 4. 배포 및 확인
 
+운영 VM에서는 `deploy/.env`를 `/opt/neulbom/app/deploy/.env`에 두고 권한을
+`600`으로 유지한다. 자동 배포는 추적 파일만 `/opt/neulbom/releases/<커밋 SHA>`에
+풀어 놓으므로, `.env`와 업로드·모델·인증서 데이터는 덮어쓰지 않는다.
+
+마지막 자동 배포 소스를 다시 빌드할 때는 다음 명령을 사용한다.
+
 ```bash
-./deploy/scripts/deploy.sh
-docker compose --env-file deploy/.env -f deploy/compose.prod.yml logs --tail=200
+revision="$(sudo cat /opt/neulbom/app/.deploy-revision)"
+release="/opt/neulbom/releases/${revision}"
+sudo env DEPLOY_ENV_FILE=/opt/neulbom/app/deploy/.env IMAGE_TAG="${revision}" \
+  "${release}/deploy/scripts/deploy.sh"
+```
+
+```bash
+sudo docker compose --env-file /opt/neulbom/app/deploy/.env \
+  -f "/opt/neulbom/releases/$(sudo cat /opt/neulbom/app/.deploy-revision)/deploy/compose.prod.yml" \
+  logs --tail=200
 curl -fsS "https://${PUBLIC_API_HOST}/health"
 curl -fsS "https://${PUBLIC_API_HOST}/actuator/health/readiness"
 ```
@@ -139,7 +153,9 @@ curl -fsS "https://${PUBLIC_API_HOST}/actuator/health/readiness"
 AI readiness는 외부에 공개하지 않는다. VM 내부에서 확인한다.
 
 ```bash
-docker compose --env-file deploy/.env -f deploy/compose.prod.yml exec ai-server \
+revision="$(sudo cat /opt/neulbom/app/.deploy-revision)"
+sudo docker compose --env-file /opt/neulbom/app/deploy/.env \
+  -f "/opt/neulbom/releases/${revision}/deploy/compose.prod.yml" exec -T ai-server \
   python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health/ready').read().decode())"
 ```
 
@@ -149,23 +165,53 @@ Compose의 `backend-uploads`, `ai-server-data`, `postgres-data` 볼륨은 컨테
 ## 5. 자동 배포
 
 `.github/workflows/deploy-production.yml`은 `develop`의 서버 관련 파일이 바뀌면
-VM에 접속해 fast-forward 갱신 후 Compose를 다시 빌드한다. GitHub Environment
-`production`에 다음 값을 등록한다.
+해당 커밋의 추적 파일만 묶어 VM으로 전달하고 Compose를 다시 빌드한다. VM에 Git
+clone이나 장기 SSH 키를 둘 필요가 없다. GitHub Environment `production`에는 다음
+값을 등록한다.
 
 - Variables: `GCP_PROJECT_ID`, `GCP_ZONE`, `GCP_VM_NAME`
 - Secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`
 
-VM의 `/opt/neulbom/app`에는 저장소가 clone되어 있어야 하고, private 저장소라면 읽기
-전용 GitHub deploy key를 등록한다. GitHub Actions용 GCP 서비스 계정에는 대상 VM에
-접속하는 최소 권한만 부여한다. 앱이 Google API에 사용하는 VM 서비스 계정과 배포용
+현재 `production` Environment 값은 다음과 같다.
+
+| Name | Type | Value |
+| --- | --- | --- |
+| `GCP_PROJECT_ID` | Variable | `neulbom-505515` |
+| `GCP_ZONE` | Variable | `asia-northeast3-a` |
+| `GCP_VM_NAME` | Variable | `neulbom-prod` |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Secret | `projects/31496429269/locations/global/workloadIdentityPools/github-actions/providers/neulbom-production` |
+| `GCP_DEPLOY_SERVICE_ACCOUNT` | Secret | `neulbom-github-deploy@neulbom-505515.iam.gserviceaccount.com` |
+
+Environment 배포 브랜치는 `develop`만 허용한다.
+
+GitHub Actions는 서비스 계정 키 JSON 대신 Workload Identity Federation을 사용한다.
+Provider 조건은 저장소 `oesmln/neulbom`, 브랜치 `develop`, Environment `production`으로
+제한한다. 배포 서비스 계정에는 대상 VM의 instance metadata 수정 권한, IAP의 VM별
+TCP 22 tunnel 권한, IAP target 조회에 필요한 `compute.instances.list` 읽기 권한만
+부여하고, VM의 runtime 서비스 계정에 `roles/iam.serviceAccountUser`를 부여한다.
+쓰기 권한은 배포 VM에만 적용한다. 앱이 Google API에 사용하는 VM 서비스 계정과 배포용
 서비스 계정은 분리한다.
 
-배포 실패 시 기존 컨테이너는 가능한 한 유지된다. 이전 검증 커밋으로 되돌릴 때는 VM에서
-다음 명령을 실행한다.
+VM에는 IAP SSH용 TCP 22 인바운드 규칙을 `35.235.240.0/20`에서 `neulbom-server`
+네트워크 태그 대상으로만 허용한다. 워크플로는 매 실행마다 60분 후 만료되는 SSH 키를
+만들고 종료 시 VM metadata에서 제거한다. 배포 서비스 계정은 `neulbom-ai-runtime`과
+분리한다.
+
+배포 소스는 `/opt/neulbom/releases/<커밋 SHA>`에 보관한다. 컨테이너 재생성과 네 가지
+서비스의 health/readiness, backend의 `ffmpeg` 설치를 확인한 뒤
+`/opt/neulbom/app/.deploy-revision`을 갱신한다. 실패하면 해당 파일은 이전 성공 revision을
+유지한다.
+
+이전 배포로 되돌릴 때는 VM에 보관된 release와 이미지 tag를 사용한다.
 
 ```bash
-./deploy/scripts/rollback.sh <검증된-커밋-또는-태그>
+revision="$(sudo cat /opt/neulbom/app/.deploy-revision)"
+sudo "/opt/neulbom/releases/${revision}/deploy/scripts/rollback.sh" \
+  <검증된-커밋-SHA>
 ```
+
+GitHub Actions의 `workflow_dispatch`는 `develop`에서만 실행된다. production 환경 설정이
+누락되었거나 권한 전파 중이면 Actions 로그에 나온 GCP 인증·IAP 오류를 확인한다.
 
 ## 6. 프론트엔드 연결
 
