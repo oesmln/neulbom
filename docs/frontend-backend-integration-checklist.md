@@ -88,6 +88,7 @@
 - [x] 녹음 목적 enum을 백엔드 계약인 `answer`, `diary`로 정렬했다.
 - [x] Expo Web이 생성하는 `audio/webm`·`.webm` 업로드를 백엔드에서 허용하고 테스트했다.
 - [x] CIST·정서 문답의 실제 녹음 업로드 결과를 답변의 `recording_id`로 연결했다.
+- [x] 실기기 녹음의 multipart 파트 형식을 실제 M4A인 `audio/mp4`로 전달한다. (#162, #175)
 - [x] 색상 맞추기 결과의 `color_match`를 프론트 타입, API 명세, 서비스 검증, DB 제약조건에 추가했다.
 - [x] multipart 업로드도 access token 만료 시 refresh 후 한 번 재시도한다.
 - [x] 답변 녹음을 앱에서 60초에 자동 종료하고 서버에서도 `duration_ms`를 검증한다. (#123)
