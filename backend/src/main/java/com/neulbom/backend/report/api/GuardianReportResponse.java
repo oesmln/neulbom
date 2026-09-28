@@ -47,7 +47,17 @@ public record GuardianReportResponse(
     ) { }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    public record AiRiskTrendPoint(LocalDate date, BigDecimal riskScore, String riskLevel) { }
+    public record AiRiskTrendPoint(
+            LocalDate date,
+            BigDecimal riskScore,
+            String riskLevel,
+            String pointType,
+            boolean isEstimated,
+            Instant analyzedAt,
+            UUID sessionId,
+            UUID baselineSessionId,
+            UUID baselineSnapshotId
+    ) { }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record Alert(UUID notificationId, String title, String body, String severity, Instant createdAt) { }

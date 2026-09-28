@@ -1,0 +1,24 @@
+package com.neulbom.backend.analysis;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface DailyCognitiveEstimateRepository extends JpaRepository<DailyCognitiveEstimateEntity, UUID> {
+    Optional<DailyCognitiveEstimateEntity> findBySessionId(UUID sessionId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select estimate from DailyCognitiveEstimateEntity estimate where estimate.estimateId = :id")
+    Optional<DailyCognitiveEstimateEntity> findByIdForUpdate(@Param("id") UUID id);
+    Optional<DailyCognitiveEstimateEntity> findFirstByUserIdAndBaselineSnapshotIdAndStatusOrderByUpdatedAtDescEstimateIdDesc(
+            UUID userId, UUID baselineSnapshotId, String status);
+    boolean existsByUserIdAndBaselineSnapshotIdAndStatusIn(UUID userId, UUID baselineSnapshotId, List<String> statuses);
+    List<DailyCognitiveEstimateEntity> findAllByUserIdAndStatusAndAnalyzedAtBetweenOrderByAnalyzedAtAscEstimateIdAsc(
+            UUID userId, String status, Instant from, Instant to);
+}

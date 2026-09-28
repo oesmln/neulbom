@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -63,6 +64,15 @@ class SessionIntegrationTest {
 
     @Autowired
     private UuidGenerator uuidGenerator;
+
+    @Autowired
+    private SessionQuestionSlotRepository sessionQuestionSlotRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void elderCanResumeSessionSaveIdempotentAnswersAndEndOnce() throws Exception {
@@ -331,7 +341,7 @@ class SessionIntegrationTest {
     }
 
     @Test
-    void emotionalQaSessionUsesFiveQuestions() throws Exception {
+    void emotionalQaSessionUsesOneOrientationAndOneAttentionQuestion() throws Exception {
         UserEntity elder = saveUser("emotional-qa-five", "elder");
         Instant now = Instant.now();
         consentRepository.save(new ConsentEntity(
@@ -344,24 +354,54 @@ class SessionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.total_questions").value(5))
+                .andExpect(jsonPath("$.total_questions").value(7))
                 .andReturn().getResponse().getContentAsString();
         UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(sessionBody).get("session_id").asText());
 
-        mockMvc.perform(get("/api/v1/questions/daily")
-                        .with(jwtFor(elder))
-                        .param("user_id", elder.getId().toString())
-                        .param("session_type", "emotional_qa"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.questions.length()").value(5))
-                .andExpect(jsonPath("$.questions[4].order").value(5));
+        var slots = sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(sessionId);
+        org.assertj.core.api.Assertions.assertThat(slots).hasSize(7);
+        org.assertj.core.api.Assertions.assertThat(slots.get(0).getQuestionSource()).isEqualTo("gemini");
+        org.assertj.core.api.Assertions.assertThat(slots.stream()
+                .filter(slot -> "gemini".equals(slot.getQuestionSource()))).hasSize(5);
+        var cistTypes = slots.stream()
+                .filter(slot -> "cist_bank".equals(slot.getQuestionSource()))
+                .map(slot -> questionRepository.findById(slot.getSourceQuestionId()).orElseThrow().getQuestionType())
+                .toList();
+        org.assertj.core.api.Assertions.assertThat(cistTypes).containsExactlyInAnyOrder("orientation", "attention");
+        org.assertj.core.api.Assertions.assertThat(
+                sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(sessionId).stream()
+                        .map(SessionQuestionSlotEntity::getSourceQuestionId).toList())
+                .containsExactlyElementsOf(slots.stream().map(SessionQuestionSlotEntity::getSourceQuestionId).toList());
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.xp_earned").value(20))
                 .andExpect(jsonPath("$.character_level").value(1));
+    }
+
+    @Test
+    void emotionalQaStartFailsWithCommonErrorWhenAttentionQuestionsAreUnavailable() throws Exception {
+        UserEntity elder = saveUser("emotional-qa-no-attention", "elder");
+        Instant now = Instant.now();
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "analysis", true, now, "test-v1", now));
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "voice_collection", true, now, "test-v1", now));
+        String codes = "('attention_digit_span_4', 'attention_digit_span_5', 'attention_word_reverse')";
+        jdbcTemplate.update("UPDATE questions SET active = FALSE WHERE question_code IN " + codes);
+        try {
+            mockMvc.perform(post("/api/v1/sessions")
+                            .with(jwtFor(elder))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value(500))
+                    .andExpect(jsonPath("$.detail").value("시행 가능한 CIST 문항을 확인하세요."));
+        } finally {
+            jdbcTemplate.update("UPDATE questions SET active = TRUE WHERE question_code IN " + codes);
+        }
     }
 
     @Test

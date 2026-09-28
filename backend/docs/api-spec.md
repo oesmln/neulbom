@@ -1287,11 +1287,11 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 ### 6.8.1 `POST /sessions/{session_id}/questions/next` - 현재 순서의 일상 문답 질문 가져오기
 
-고령자 본인의 활성 `emotional_qa` 세션에서만 사용할 수 있다. 총 7문항이며 첫 문항은 Gemini가 만들고, 나머지 6개 자리 중 무작위 2개에는 독립적으로 시행할 수 있는 CIST 문제은행 문항을 배치한다. 나머지는 이전 Gemini 질문·답변을 바탕으로 Gemini가 후속 질문을 생성한다. CIST 원문 시행 의존성이 있는 조건부 기억 문항, 기억 등록·회상 문항, 제한 시간 시행 문항은 이 일상 세션 표본에서 제외한다.
+고령자 본인의 활성 `emotional_qa` 세션에서만 사용할 수 있다. 총 7문항이며 첫 문항은 Gemini가 만든다. 2~7번 중 무작위 두 자리에 CIST 문제은행의 지남력 문항 1개와 주의력 문항 1개를 배치한다. 나머지는 이전 Gemini 질문·답변을 바탕으로 Gemini가 후속 질문을 생성한다. CIST 원문 시행 의존성이 있는 조건부 기억 문항, 기억 등록·회상 문항, 제한 시간 시행 문항은 이 일상 세션 표본에서 제외한다.
 
 생성·배정된 질문은 세션 문항으로 저장되어 같은 순서의 재요청에 같은 질문을 반환한다. CIST 표본은 일상 문답과 데이터상 구분되며 공식 17문항 CIST 검사 점수로 합산하지 않는다. 일기 요약에는 Gemini가 만든 일상 문답의 답변만 전달한다.
 
-이 흐름은 위험 점수를 계산하지 않는다. 현재 AI 서버 분석 입력은 공식 17문항 CIST 세션을 대상으로 하므로, 일상 문답과 혼합 표본을 위험 점수에 반영하려면 AI 서버 입력 계약과 점수 모델을 별도로 확장해야 한다.
+일상 인지 추이 분석에는 `question_source=cist_bank`인 두 문항만 사용하고 Gemini 문항 5개는 제외한다. 전체 CIST 완료 결과의 특징 스냅샷을 첫 입력으로 사용하며, 다음 일상 분석부터는 같은 기준 계보에서 직전에 완료된 `output_feature_snapshot`을 입력으로 사용한다. 새 전체 CIST 결과가 생성되면 새 기준 계보를 시작한다. 일상 점수는 공식 전체 CIST 재검사가 아닌 부분 갱신 추정치다. AI 서버 요청·응답 연결은 #198에서 진행한다.
 
 #### Response `200`
 
@@ -1674,6 +1674,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `avg_score_30d` | float | 최근 30일 평균 |
 | `score_delta` | float/null | 직전 동일 집계 결과 대비 `display_score` 차이. 첫 기록은 `null` |
 | `analyzed_at` | string | 분석 일시 |
+| `ai_risk_trend_points[]` | array | 권한 있는 보호자에게 제공하는 완료된 전체 CIST 및 일상 추정 인지 위험 점수. 아래 10.1의 점 필드 사용. 고령자 본인에게는 빈 배열 |
 
 `aggregation=day`를 사용하면 하루에 여러 번 진행한 세션을 `local_date`별로 합산한다. 고령자 본인 요청에서는 수치·상세 영역 필드를 제외하고 정성 결과 필드만 반환한다.
 
@@ -2214,7 +2215,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `last_session_at` | string/null | 최근 세션 일시 |
 | `activity_summary_7d` | object | 최근 7일 활동 지표 |
 | `trend_points[]` | array | 차트용 날짜별 추이 |
-| `ai_risk_trend_points[]` | array | 완료된 CIST AI 분석의 별도 위험 신호 추이 |
+| `ai_risk_trend_points[]` | array | 완료된 전체 CIST와 일상 부분 갱신 추정치의 별도 위험 신호 추이 |
 | `recent_alerts[]` | array | 보호자 알림 목록 |
 | `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
 
@@ -2247,7 +2248,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 ]
 ```
 
-`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 AI 분석만 포함한다. 각 항목은 검사 시작일(`date`, `Asia/Seoul`), AI 서버 원본 `model_score`(`risk_score`, 0~1), 원본 `risk_level`을 담는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. AI 정서 문답은 현재 CIST 모델 계약의 질문 세트에 포함되지 않아 이 추이에 넣지 않는다.
+`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 AI 분석과 저장된 일상 부분 갱신 추정치를 분석 완료 시각순으로 포함한다. 각 점은 `date`(`Asia/Seoul`), 저장된 `risk_score`(0~1), `risk_level`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`를 제공한다. 기준 스냅샷 저장 전의 기존 전체 CIST 점은 `baseline_snapshot_id`가 `null`일 수 있다. 같은 날짜의 여러 점을 평균 내지 않는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. 새 일상 점수 생성은 #198의 AI 서버 연동 완료 후 시작된다.
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 

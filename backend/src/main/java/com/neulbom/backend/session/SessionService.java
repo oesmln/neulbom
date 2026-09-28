@@ -65,8 +65,9 @@ public class SessionService {
     private static final Set<String> SESSION_TYPES = Set.of(
             "cist", "baseline", "onboarding", "emotional_qa", "game", "mixed");
     private static final Set<String> QUESTION_TYPES = Set.of("orientation", "memory", "attention", "language", "emotion");
-    private static final Set<String> STANDALONE_CIST_QUESTION_CODES = Set.of(
-            "orientation_year", "orientation_month", "orientation_day", "orientation_weekday", "orientation_place",
+    private static final Set<String> DAILY_ORIENTATION_CODES = Set.of(
+            "orientation_year", "orientation_month", "orientation_day", "orientation_weekday", "orientation_place");
+    private static final Set<String> DAILY_ATTENTION_CODES = Set.of(
             "attention_digit_span_4", "attention_digit_span_5", "attention_word_reverse");
     private static final Set<String> HEARING_SIDES = Set.of("left", "right", "both", "unknown");
     private static final BigDecimal DEFAULT_SPEECH_RATE = new BigDecimal("0.90");
@@ -666,16 +667,22 @@ public class SessionService {
     }
 
     private void createDailyQuestionPlan(SessionEntity session) {
-        List<QuestionEntity> cistQuestions = new ArrayList<>(questionRepository
+        if (!sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(session.getId()).isEmpty()) {
+            return;
+        }
+        List<QuestionEntity> candidates = questionRepository
                 .findAllByActiveTrueAndSessionTypeAndAdministrationModeOrderByDisplayOrderAsc("cist", "always")
-                .stream()
-                .filter(question -> STANDALONE_CIST_QUESTION_CODES.contains(question.getQuestionCode()))
-                .toList());
-        if (cistQuestions.size() < DAILY_CIST_QUESTION_COUNT) {
+                .stream().toList();
+        List<QuestionEntity> orientation = new ArrayList<>(candidates.stream()
+                .filter(question -> DAILY_ORIENTATION_CODES.contains(question.getQuestionCode())).toList());
+        List<QuestionEntity> attention = new ArrayList<>(candidates.stream()
+                .filter(question -> DAILY_ATTENTION_CODES.contains(question.getQuestionCode())).toList());
+        if (orientation.isEmpty() || attention.isEmpty()) {
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "문제은행 문항이 부족합니다.", "시행 가능한 CIST 문항을 확인하세요.");
         }
-        Collections.shuffle(cistQuestions);
-        cistQuestions = cistQuestions.subList(0, DAILY_CIST_QUESTION_COUNT);
+        Collections.shuffle(orientation);
+        Collections.shuffle(attention);
+        List<QuestionEntity> cistQuestions = List.of(orientation.get(0), attention.get(0));
 
         List<Integer> candidateOrders = new ArrayList<>();
         for (int order = 2; order <= DAILY_CONVERSATION_QUESTION_COUNT; order++) {
