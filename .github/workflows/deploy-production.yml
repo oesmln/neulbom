@@ -136,24 +136,26 @@ jobs:
             --local-host-port=127.0.0.1:8022 > "${tunnel_log}" 2>&1 &
           tunnel_pid=$!
 
+          ssh_options=(-p 8022 -i "${ssh_key}" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5)
+          scp_options=(-P 8022 -i "${ssh_key}" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+          ssh_ready=false
           for attempt in {1..30}; do
             if ! kill -0 "${tunnel_pid}" 2>/dev/null; then
               cat "${tunnel_log}"
               exit 1
             fi
-            if grep -q 'Listening on port' "${tunnel_log}"; then
+            if ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" 'sudo -n true' >/dev/null 2>&1; then
+              ssh_ready=true
               break
             fi
-            sleep 1
+            sleep 2
           done
-          if ! grep -q 'Listening on port' "${tunnel_log}"; then
+          if [[ "${ssh_ready}" != true ]]; then
             cat "${tunnel_log}"
+            ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" 'sudo -n true'
             exit 1
           fi
 
-          ssh_options=(-p 8022 -i "${ssh_key}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
-          scp_options=(-P 8022 -i "${ssh_key}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
-          ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" 'sudo -n true'
           scp "${scp_options[@]}" \
             "${RUNNER_TEMP}/neulbom-${GITHUB_SHA}.tar.gz" \
             "${ssh_user}@127.0.0.1:/tmp/neulbom-${GITHUB_SHA}.tar.gz"
