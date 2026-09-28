@@ -8,6 +8,8 @@ from app.inference.feature_snapshot import (
     FeatureAggregationError,
     pool_category_logits_to_person,
     pool_question_logits_by_category,
+    rebuild_person_logit_from_questions,
+    replace_question_features,
 )
 
 CATEGORY_ORDER = (
@@ -218,3 +220,94 @@ def test_rejects_invalid_category_clip_count() -> None:
                 "sqrt_clip_count_weighted"
             ),
         )
+
+
+def test_replaces_only_requested_question_features(
+) -> None:
+    current = question_features()
+    replacements = (
+        QuestionFeature(
+            "orientation_year",
+            "orientation",
+            1.2,
+        ),
+        QuestionFeature(
+            "attention_digit_span_4",
+            "attention",
+            1.5,
+        ),
+    )
+
+    updated = replace_question_features(
+        current,
+        replacements,
+    )
+
+    assert tuple(
+        feature.question_code
+        for feature in updated
+    ) == tuple(
+        feature.question_code
+        for feature in current
+    )
+    updated_by_code = {
+        feature.question_code: feature
+        for feature in updated
+    }
+    assert updated_by_code[
+        "orientation_year"
+    ].dementia_logit == 1.2
+    assert updated_by_code[
+        "attention_digit_span_4"
+    ].dementia_logit == 1.5
+    assert updated_by_code[
+        "memory_registration_first"
+    ] is current[2]
+
+
+def test_rejects_replacement_for_unknown_question(
+) -> None:
+    with pytest.raises(
+        FeatureAggregationError,
+        match="없는 문항",
+    ):
+        replace_question_features(
+            question_features(),
+            (
+                QuestionFeature(
+                    "unknown_question",
+                    "orientation",
+                    0.9,
+                ),
+            ),
+        )
+
+
+def test_rebuilds_person_logit_after_partial_update(
+) -> None:
+    updated = replace_question_features(
+        question_features(),
+        (
+            QuestionFeature(
+                "orientation_year",
+                "orientation",
+                1.0,
+            ),
+            QuestionFeature(
+                "attention_digit_span_4",
+                "attention",
+                0.9,
+            ),
+        ),
+    )
+
+    result = rebuild_person_logit_from_questions(
+        updated,
+        category_order=CATEGORY_ORDER,
+        method="equal_category_mean",
+    )
+
+    assert result == pytest.approx(
+        ((1.0 + 0.6) / 2 + 0.3 + 0.9 + 0.7)
+        / 4,
+    )

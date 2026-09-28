@@ -430,6 +430,38 @@ def test_rejects_missing_core_category(
         )
 
 
+def test_returns_partial_question_features_without_core4(
+    service: AstInferenceService,
+) -> None:
+    results = service.infer_question_features(
+        (
+            AstClipInput(
+                question_code="orientation_year",
+                audio=_audio(0.1, 0.5),
+            ),
+            AstClipInput(
+                question_code=(
+                    "attention_digit_span_4"
+                ),
+                audio=_audio(0.4),
+            ),
+        ),
+    )
+
+    assert tuple(
+        result.question_code
+        for result in results
+    ) == (
+        "orientation_year",
+        "attention_digit_span_4",
+    )
+    assert tuple(
+        result.dementia_logit
+        for result in results
+    ) == pytest.approx((0.5, 0.6))
+    assert results[0].segment_count == 2
+
+
 def test_rejects_duplicate_question_code(
     service: AstInferenceService,
 ) -> None:

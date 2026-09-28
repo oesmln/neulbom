@@ -4,6 +4,11 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import numpy as np
+import pytest
+
+from app.api.schemas.analysis import (
+    DailyAnalysisResult,
+)
 
 from app.audio.downloader import (
     AudioDownloadError,
@@ -152,6 +157,29 @@ class FakeAstService:
             ),
         )
 
+    def infer_question_features(self, clips):
+        self.received_codes = tuple(
+            clip.question_code
+            for clip in clips
+        )
+
+        return tuple(
+            SimpleNamespace(
+                question_code=clip.question_code,
+                category=question_category(
+                    clip.question_code,
+                ),
+                dementia_logit=(
+                    1.0
+                    if clip.question_code
+                    == "orientation_year"
+                    else 1.2
+                ),
+                segment_count=2,
+            )
+            for clip in clips
+        )
+
 
 class FakeKcElectraService:
     def __init__(self) -> None:
@@ -183,6 +211,28 @@ class FakeKcElectraService:
                 )
                 for clip in clips
             ),
+        )
+
+    def infer_question_features(self, clips):
+        self.received_codes = tuple(
+            clip.question_code
+            for clip in clips
+        )
+
+        return tuple(
+            SimpleNamespace(
+                question_code=clip.question_code,
+                category=question_category(
+                    clip.question_code,
+                ),
+                dementia_logit=(
+                    1.5
+                    if clip.question_code
+                    == "orientation_year"
+                    else 1.7
+                ),
+            )
+            for clip in clips
         )
 
 
@@ -461,6 +511,117 @@ def create_processor(
         ast_service,
         kcelectra_service,
         fusion_service,
+    )
+
+
+def create_daily_request_body(
+    contracts: ContractBundle,
+    *,
+    baseline_analysis_id: str,
+    input_snapshot: dict,
+) -> dict:
+    questions = {
+        question.question_code: question
+        for question in contracts.cist.questions
+    }
+
+    def response(
+        question_code: str,
+        transcript: str,
+    ) -> dict:
+        question = questions[question_code]
+
+        return {
+            "question_code": question_code,
+            "variant_id": question.variant_id,
+            "administration_status": (
+                "administered"
+            ),
+            "recording_id": str(uuid4()),
+            "response_id": str(uuid4()),
+            "audio": {
+                "signed_url": (
+                    "https://storage.example/"
+                    f"daily-{question_code}.wav"
+                    "?signature=test"
+                ),
+                "expires_at": (
+                    "2099-01-01T00:00:00Z"
+                ),
+                "content_type": "audio/wav",
+                "size_bytes": 3,
+            },
+            "stt": {
+                "status": "success",
+                "raw_transcript": transcript,
+            },
+            "timing": {
+                "prompt_end_to_recording_start_ms": 100,
+                "recording_duration_ms": 1000,
+            },
+        }
+
+    return {
+        "analysis_type": (
+            "daily_partial_update"
+        ),
+        "analysis_id": str(uuid4()),
+        "session_id": str(uuid4()),
+        "baseline_analysis_id": (
+            baseline_analysis_id
+        ),
+        "question_set_version": "cist-v1",
+        "wrong_event_rule_version": (
+            "wrong-event-v1"
+        ),
+        "assessment_local_date": (
+            "2026-09-29"
+        ),
+        "timezone": "Asia/Seoul",
+        "stt_config": {
+            "provider": "google",
+            "api_version": "v2",
+            "location": "us",
+            "model": "chirp_3",
+            "language": "ko-KR",
+            "automatic_punctuation": True,
+        },
+        "baseline_model_score": 0.7,
+        "input_snapshot": input_snapshot,
+        "responses": [
+            response(
+                "orientation_year",
+                "2026년",
+            ),
+            response(
+                "attention_digit_span_4",
+                "5728",
+            ),
+        ],
+    }
+
+
+def create_stored_daily_analysis(
+    tmp_path: Path,
+    request_body: dict,
+):
+    repository = SQLiteAnalysisRepository(
+        tmp_path / "analyses.sqlite3",
+    )
+    analysis_id = UUID(
+        request_body["analysis_id"],
+    )
+
+    repository.create_pending(
+        analysis_id=analysis_id,
+        assessment_id=UUID(
+            request_body["session_id"],
+        ),
+        request_body=request_body,
+    )
+
+    return repository.mark_processing(
+        analysis_id,
     )
 
 
@@ -860,5 +1021,170 @@ def test_mixed_retry_reasons_return_all_actions(
                 ),
             },
         )
+
+    asyncio.run(scenario())
+
+
+def test_daily_analysis_replaces_two_question_features(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        contracts = load_contracts()
+        full_request = create_request_body(
+            contracts,
+        )
+        full_analysis = create_stored_analysis(
+            tmp_path,
+            full_request,
+        )
+        (
+            processor,
+            ast_service,
+            kcelectra_service,
+            fusion_service,
+        ) = create_processor(
+            contracts,
+        )
+        full_outcome = await processor.process(
+            full_analysis,
+        )
+
+        assert isinstance(
+            full_outcome,
+            AnalysisCompleted,
+        )
+        input_snapshot = full_outcome.result_body[
+            "feature_snapshot"
+        ]
+        daily_request = (
+            create_daily_request_body(
+                contracts,
+                baseline_analysis_id=(
+                    full_request["analysis_id"]
+                ),
+                input_snapshot=input_snapshot,
+            )
+        )
+        daily_analysis = (
+            create_stored_daily_analysis(
+                tmp_path,
+                daily_request,
+            )
+        )
+
+        outcome = await processor.process(
+            daily_analysis,
+        )
+
+        assert isinstance(
+            outcome,
+            AnalysisCompleted,
+        )
+        result = DailyAnalysisResult.model_validate(
+            outcome.result_body,
+        )
+        assert result.result_type == (
+            "daily_partial_estimate"
+        )
+        assert result.updated_question_codes == [
+            "orientation_year",
+            "attention_digit_span_4",
+        ]
+        assert result.baseline_model_score == 0.7
+        assert result.input_model_score == 0.8
+        assert result.estimated_model_score == 0.8
+        assert result.score_delta_from_baseline == (
+            pytest.approx(0.1)
+        )
+        assert result.score_delta_from_previous == (
+            pytest.approx(0.0)
+        )
+        assert ast_service.received_codes == (
+            "orientation_year",
+            "attention_digit_span_4",
+        )
+        assert kcelectra_service.received_codes == (
+            "orientation_year",
+            "attention_digit_span_4",
+        )
+
+        output_snapshot = result.output_snapshot
+        ast_by_code = {
+            feature.question_code: feature
+            for feature
+            in output_snapshot.ast_question_features
+        }
+        kcelectra_by_code = {
+            feature.question_code: feature
+            for feature
+            in output_snapshot
+            .kcelectra_question_features
+        }
+
+        assert ast_by_code[
+            "orientation_year"
+        ].dementia_logit == 1.0
+        assert ast_by_code[
+            "attention_digit_span_4"
+        ].dementia_logit == 1.2
+        assert ast_by_code[
+            "memory_registration_first"
+        ].dementia_logit == -0.25
+        assert kcelectra_by_code[
+            "orientation_year"
+        ].dementia_logit == 1.5
+        assert kcelectra_by_code[
+            "attention_digit_span_4"
+        ].dementia_logit == 1.7
+        assert kcelectra_by_code[
+            "memory_registration_first"
+        ].dementia_logit == 0.5
+        assert len(
+            output_snapshot
+            .wrong_event_observations
+        ) == 17
+        assert len(
+            output_snapshot
+            .response_delay_observations
+        ) == 17
+        assert (
+            fusion_service
+            .received_features
+            .ast_logit
+            == result.features.ast_logit
+        )
+        assert (
+            fusion_service
+            .received_features
+            .kcelectra_logit
+            == result.features.kcelectra_logit
+        )
+        assert (
+            fusion_service
+            .received_features
+            .category_balanced_wrong_event_score
+            == result
+            .features
+            .category_balanced_wrong_event_score
+        )
+        assert (
+            fusion_service
+            .received_features
+            .category_balanced_median_delay
+            == result
+            .features
+            .category_balanced_median_delay
+        )
+
+        original_ast = {
+            feature["question_code"]: feature
+            for feature
+            in input_snapshot[
+                "ast_question_features"
+            ]
+        }
+        assert original_ast[
+            "orientation_year"
+        ]["dementia_logit"] == -0.25
 
     asyncio.run(scenario())
