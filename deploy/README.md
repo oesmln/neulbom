@@ -197,6 +197,15 @@ VM에는 IAP SSH용 TCP 22 인바운드 규칙을 `35.235.240.0/20`에서 `neulb
 만들고 종료 시 VM metadata에서 제거한다. 배포 서비스 계정은 `neulbom-ai-runtime`과
 분리한다.
 
+VM의 `gha-deploy` 계정은 Docker 배포와 상태 확인을 위해 비밀번호 없는 sudo 권한이
+필요하다. GCE의 `google-sudoers` 그룹에 한 번 등록하고 확인한다.
+
+```bash
+sudo id -u gha-deploy >/dev/null 2>&1 || sudo useradd --create-home --shell /bin/bash gha-deploy
+sudo usermod -aG google-sudoers gha-deploy
+sudo -u gha-deploy sudo -n true
+```
+
 배포 소스는 `/opt/neulbom/releases/<커밋 SHA>`에 보관한다. 컨테이너 재생성과 네 가지
 서비스의 health/readiness, backend의 `ffmpeg` 설치를 확인한 뒤
 `/opt/neulbom/app/.deploy-revision`을 갱신한다. 실패하면 해당 파일은 이전 성공 revision을
