@@ -1,6 +1,7 @@
 package com.neulbom.backend.analysis;
 
 import static org.mockito.ArgumentMatchers.any;
+import static com.neulbom.backend.analysis.integration.aiserver.AiServerContractFixtures.featureSnapshot;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -286,7 +287,7 @@ class CistAiAnalysisIntegrationTest {
         var finalResult = new AiServerContracts.FinalAnalysisResult(
                 "cist-v1",
                 "wrong-event-v1",
-                "final_fusion_lr_21subjects_core4_ast_v1",
+                AiServerContracts.FUSION_MODEL_VERSION,
                 new BigDecimal("0.61"),
                 new BigDecimal("0.38592870327757767"),
                 new BigDecimal("0.8061380697921943"),
@@ -298,6 +299,14 @@ class CistAiAnalysisIntegrationTest {
                         new BigDecimal("0.2"),
                         new BigDecimal("0.3"),
                         new BigDecimal("0.4")),
+                featureSnapshot(
+                        finalQuestionResults,
+                        new BigDecimal("0.61"),
+                        new AiServerContracts.FusionFeatures(
+                                new BigDecimal("0.1"),
+                                new BigDecimal("0.2"),
+                                new BigDecimal("0.3"),
+                                new BigDecimal("0.4"))),
                 finalQuestionResults);
         when(aiServerClient.getAnalysis(request.analysisId())).thenReturn(new AiServerContracts.AnalysisStatusResponse(
                 request.analysisId(), session.getId(), "completed", now.plusSeconds(30), now.plusSeconds(70),
@@ -308,7 +317,7 @@ class CistAiAnalysisIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("completed"))
                 .andExpect(jsonPath("$.model_score").value(0.61))
-                .andExpect(jsonPath("$.model_version").value("final_fusion_lr_21subjects_core4_ast_v1"))
+                .andExpect(jsonPath("$.model_version").value(AiServerContracts.FUSION_MODEL_VERSION))
                 .andExpect(jsonPath("$.decision_threshold").value(0.38592870327757767))
                 .andExpect(jsonPath("$.review_threshold").value(0.8061380697921943))
                 .andExpect(jsonPath("$.threshold_version").value("fusion-threshold-v2"))
@@ -318,7 +327,7 @@ class CistAiAnalysisIntegrationTest {
         CistAiAnalysisEntity stored = analysisRepository.findById(request.analysisId()).orElseThrow();
         org.assertj.core.api.Assertions.assertThat(stored.getModelScore()).isEqualByComparingTo("0.61");
         org.assertj.core.api.Assertions.assertThat(stored.getModelVersion())
-                .isEqualTo("final_fusion_lr_21subjects_core4_ast_v1");
+                .isEqualTo(AiServerContracts.FUSION_MODEL_VERSION);
         org.assertj.core.api.Assertions.assertThat(stored.getDecisionThreshold()).isEqualByComparingTo("0.38592870327757767");
         org.assertj.core.api.Assertions.assertThat(stored.getReviewThreshold()).isEqualByComparingTo("0.8061380697921943");
         org.assertj.core.api.Assertions.assertThat(stored.getThresholdVersion()).isEqualTo("fusion-threshold-v2");

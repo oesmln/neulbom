@@ -9,6 +9,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -123,38 +124,48 @@ class AiServerClientTest {
     }
 
     @Test
-    void analysisStatusMapsThreeLevelRiskFields() {
+    void analysisStatusMapsThreeLevelRiskFields() throws Exception {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         UUID analysisId = UUID.randomUUID();
         UUID assessmentId = UUID.randomUUID();
+        var score = new BigDecimal("0.823");
+        var features = new AiServerContracts.FusionFeatures(
+                new BigDecimal("0.1"),
+                new BigDecimal("0.2"),
+                new BigDecimal("0.3"),
+                new BigDecimal("0.4"));
+        var questionResults = AiServerContractFixtures.fullQuestionResults();
+        var finalResult = new AiServerContracts.FinalAnalysisResult(
+                AiServerContracts.QUESTION_SET_VERSION,
+                AiServerContracts.WRONG_EVENT_RULE_VERSION,
+                AiServerContracts.FUSION_MODEL_VERSION,
+                score,
+                new BigDecimal("0.38592870327757767"),
+                new BigDecimal("0.8061380697921943"),
+                AiServerContracts.THRESHOLD_VERSION,
+                true,
+                "review_needed",
+                features,
+                AiServerContractFixtures.featureSnapshot(questionResults, score, features),
+                questionResults);
+        Instant createdAt = Instant.parse("2026-09-08T10:00:00Z");
+        var response = new AiServerContracts.AnalysisStatusResponse(
+                analysisId,
+                assessmentId,
+                "completed",
+                createdAt,
+                createdAt.plusSeconds(60),
+                false,
+                null,
+                List.of(),
+                finalResult);
+        String responseBody = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .writeValueAsString(response);
         server.expect(requestTo("http://ai.test/v1/analyses/" + analysisId))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        {
-                          "analysis_id":"%s",
-                          "assessment_id":"%s",
-                          "status":"completed",
-                          "created_at":"2026-09-08T10:00:00Z",
-                          "updated_at":"2026-09-08T10:01:00Z",
-                          "retryable":false,
-                          "reason_code":null,
-                          "retry_items":[],
-                          "result":{
-                            "question_set_version":"cist-v1",
-                            "wrong_event_rule_version":"wrong-event-v1",
-                            "model_version":"final_fusion_lr_21subjects_core4_ast_v1",
-                            "model_score":0.823,
-                            "decision_threshold":0.38592870327757767,
-                            "review_threshold":0.8061380697921943,
-                            "threshold_version":"fusion-threshold-v2",
-                            "risk_flag":true,
-                            "risk_level":"review_needed",
-                            "features":null,
-                            "question_results":[]
-                          }
-                        }
-                        """.formatted(analysisId, assessmentId), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON));
 
         var result = client(builder).getAnalysis(analysisId);
 
@@ -163,7 +174,142 @@ class AiServerClientTest {
         assertThat(result.result().thresholdVersion()).isEqualTo("fusion-threshold-v2");
         assertThat(result.result().riskFlag()).isTrue();
         assertThat(result.result().riskLevel()).isEqualTo("review_needed");
+        assertThat(result.result().featureSnapshot().modelScore()).isEqualByComparingTo("0.823");
         server.verify();
+    }
+
+    @Test
+    void dailyCognitiveAnalysisUsesDedicatedCreateGetAndRetryPaths() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID analysisId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        UUID baselineAnalysisId = UUID.randomUUID();
+        Instant createdAt = Instant.parse("2026-09-29T10:00:00Z");
+        var snapshot = dailySnapshot();
+        var responses = List.of(
+                dailyResponse("orientation_year"),
+                dailyResponse("attention_digit_span_4"));
+        var request = new AiServerContracts.DailyAnalysisCreateRequest(
+                analysisId,
+                sessionId,
+                baselineAnalysisId,
+                LocalDate.of(2026, 9, 29),
+                new BigDecimal("0.42"),
+                snapshot,
+                responses);
+
+        server.expect(requestTo("http://ai.test/v1/daily-cognitive-analyses"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer service-secret"))
+                .andExpect(header("Idempotency-Key", "daily-analysis-create-operation-1"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"analysis_type\":\"daily_partial_update\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"input_snapshot\"")))
+                .andRespond(withSuccess("""
+                        {
+                          "analysis_id":"%s",
+                          "session_id":"%s",
+                          "status":"pending",
+                          "created_at":"%s"
+                        }
+                        """.formatted(analysisId, sessionId, createdAt), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://ai.test/v1/daily-cognitive-analyses/" + analysisId))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {
+                          "analysis_id":"%s",
+                          "session_id":"%s",
+                          "status":"pending",
+                          "created_at":"%s",
+                          "updated_at":"%s",
+                          "retryable":false,
+                          "reason_code":null,
+                          "retry_items":[],
+                          "result":null
+                        }
+                        """.formatted(analysisId, sessionId, createdAt, createdAt), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://ai.test/v1/daily-cognitive-analyses/" + analysisId + "/retry"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Idempotency-Key", "daily-analysis-retry-operation-1"))
+                .andRespond(withSuccess("""
+                        {
+                          "analysis_id":"%s",
+                          "session_id":"%s",
+                          "status":"pending",
+                          "created_at":"%s"
+                        }
+                        """.formatted(analysisId, sessionId, createdAt), MediaType.APPLICATION_JSON));
+
+        AiServerClient client = client(builder);
+        var accepted = client.createDailyCognitiveAnalysis(
+                "daily-analysis-create-operation-1",
+                request);
+        var status = client.getDailyCognitiveAnalysis(analysisId);
+        var retried = client.retryDailyCognitiveAnalysis(
+                analysisId,
+                "daily-analysis-retry-operation-1",
+                new AiServerContracts.AnalysisRetryRequest(
+                        "AUDIO_URL_EXPIRED",
+                        List.of(new AiServerContracts.ReissueAudioUrlItem(
+                                "orientation_year",
+                                responses.getFirst().recordingId(),
+                                responses.getFirst().responseId(),
+                                responses.getFirst().audio()))));
+
+        assertThat(accepted.sessionId()).isEqualTo(sessionId);
+        assertThat(status.status()).isEqualTo("pending");
+        assertThat(retried.analysisId()).isEqualTo(analysisId);
+        server.verify();
+    }
+
+    private AiServerContracts.AdministeredQuestionResponse dailyResponse(String questionCode) {
+        return new AiServerContracts.AdministeredQuestionResponse(
+                questionCode,
+                questionCode + "-v1",
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                new AudioResource(
+                        URI.create("https://audio.test/" + questionCode + ".wav?signature=redacted"),
+                        Instant.parse("2026-09-29T10:30:00Z"),
+                        "audio/wav",
+                        1234,
+                        null),
+                new SttInput("success", "테스트 응답", "google-request"),
+                new ResponseTiming(100, 1000));
+    }
+
+    private AiServerContracts.CognitiveFeatureSnapshot dailySnapshot() {
+        var features = new AiServerContracts.FusionFeatures(
+                new BigDecimal("0.1"),
+                new BigDecimal("0.2"),
+                new BigDecimal("0.3"),
+                new BigDecimal("0.4"));
+        var results = List.of(
+                dailyResult("orientation_year"),
+                dailyResult("memory_registration_first"),
+                dailyResult("attention_digit_span_4"),
+                dailyResult("language_semantic_fluency"));
+        return AiServerContractFixtures.featureSnapshot(
+                results,
+                new BigDecimal("0.42"),
+                features);
+    }
+
+    private AiServerContracts.QuestionAnalysisResult dailyResult(String questionCode) {
+        return new AiServerContracts.QuestionAnalysisResult(
+                questionCode,
+                "administered",
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "speech_detected",
+                "scored",
+                "correct",
+                0,
+                null,
+                500L,
+                null);
     }
 
     private AiServerClient client(RestClient.Builder builder) {
