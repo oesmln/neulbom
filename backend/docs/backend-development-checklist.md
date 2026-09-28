@@ -764,6 +764,8 @@
 - [x] 로컬 Whisper는 OpenAI 호환 `/v1/audio/transcriptions` adapter로 연결한다.
 - [x] Google Cloud STT V2는 ADC 인증과 regional recognizer endpoint를 사용한다.
 - [x] 운영 Google STT 기본값을 `us`, `chirp_3`, `ko-KR`, 자동 문장부호 사용으로 고정한다. (#123)
+- [x] Google STT로 보내는 M4A를 16kHz 모노 PCM WAV로 변환한다. (#177, 원인 분석 #174)
+- [ ] 운영 백엔드에서 `ffmpeg` 실행 가능 여부와 30초 이상 실기기 녹음 전사를 확인한다. (#177)
 - [x] 답변 녹음은 60초 이하만 허용하고 초과 요청은 STT 호출 전에 거부한다. (#123)
 - [x] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
 - [x] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.
@@ -899,6 +901,7 @@
 - [x] `GET /guardian/{guardian_id}/report`를 구현하고 `elder_id`를 필수 query parameter로 받는다.
 - [x] `date` query parameter로 `Asia/Seoul` 기준 일일 리포트를 조회한다.
 - [x] 최근 요약, 참고 점수, 위험 상태, 게임 지표, 30일 추이를 반환한다.
+- [x] 완료된 CIST AI 결과의 위험 점수를 기존 인지 점수와 분리한 추이로 반환한다. (#180)
 - [x] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
 - [x] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.
 - [x] 일일 집계 저장을 위해 `daily_summaries` 모델과 사용자·기준일 unique를 설계한다.
@@ -979,6 +982,7 @@
 - [x] `image_match`, `consonant`, `word_match`를 허용한다.
 - [x] 점수, 응답 시간 배열, 오답 수, 전체 문항 수를 검증한다.
 - [x] 기억력 게임의 `matched_pairs`, `attempt_count`, `duration_sec`, `restarted_count`, `completed`를 저장·검증한다.
+- [x] 카드 짝 맞추기는 여섯 쌍보다 많은 오답 시도도 결과에 저장하고 이력에서 조회한다. (#181)
 - [x] `client_game_result_id` unique로 결과 재전송을 멱등 처리하고 `deduplicated`를 반환한다.
 - [x] `cognitive_index` 계산 규칙을 `score / total_questions * 100`으로 고정한다.
 - [x] `GET /game/{user_id}/history`를 구현한다.

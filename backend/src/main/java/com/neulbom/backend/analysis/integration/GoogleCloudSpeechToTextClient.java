@@ -25,7 +25,7 @@ import org.springframework.web.client.RestClient;
 
 /**
  * Google Cloud Speech-to-Text V2 adapter using Application Default Credentials.
- * The V2 auto-decoding contract supports the audio containers used by the app.
+ * Android M4A recordings are decoded to PCM WAV before the V2 request.
  */
 @Component
 public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
@@ -36,6 +36,7 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
     private final ExternalApiProperties properties;
     private final ExternalApiExecutor executor;
     private final ObjectMapper objectMapper;
+    private final GoogleSttAudioConverter audioConverter;
     private final Supplier<String> accessTokenSupplier;
 
     @Autowired
@@ -43,9 +44,10 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
             @Qualifier("externalRestClient") RestClient restClient,
             ExternalApiProperties properties,
             ExternalApiExecutor executor,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            GoogleSttAudioConverter audioConverter
     ) {
-        this(restClient, properties, executor, objectMapper,
+        this(restClient, properties, executor, objectMapper, audioConverter,
                 GoogleCloudSpeechToTextClient::applicationDefaultAccessToken);
     }
 
@@ -54,12 +56,14 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
             ExternalApiProperties properties,
             ExternalApiExecutor executor,
             ObjectMapper objectMapper,
+            GoogleSttAudioConverter audioConverter,
             Supplier<String> accessTokenSupplier
     ) {
         this.restClient = restClient;
         this.properties = properties;
         this.executor = executor;
         this.objectMapper = objectMapper;
+        this.audioConverter = audioConverter;
         this.accessTokenSupplier = accessTokenSupplier;
     }
 
@@ -73,19 +77,20 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
         if (!isConfigured()) {
             throw new ExternalServiceUnavailableException("Google STT 프로젝트 ID가 설정되지 않았습니다.");
         }
+        byte[] content = audioConverter.convert(audioFile);
 
         JsonNode response = executor.execute("Google STT", () -> restClient.post()
                 .uri(endpoint())
                 .header("Authorization", "Bearer " + accessTokenSupplier.get())
                 .header("x-goog-user-project", properties.googleSttProjectId())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(request(audioFile))
+                .body(request(content))
                 .retrieve()
                 .body(JsonNode.class));
         return mapResponse(response);
     }
 
-    private ObjectNode request(AudioFile audioFile) {
+    private ObjectNode request(byte[] content) {
         ObjectNode root = objectMapper.createObjectNode();
         ObjectNode config = root.putObject("config");
         config.putObject("autoDecodingConfig");
@@ -95,7 +100,7 @@ public class GoogleCloudSpeechToTextClient implements SpeechToTextClient {
         config.putObject("features").put(
                 "enableAutomaticPunctuation",
                 properties.googleSttAutomaticPunctuation());
-        root.put("content", Base64.getEncoder().encodeToString(audioFile.content()));
+        root.put("content", Base64.getEncoder().encodeToString(content));
         return root;
     }
 

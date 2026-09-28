@@ -87,6 +87,7 @@
 - [ ] 녹음 UI — 파형, 경과 시간, 녹음/완료 상태 (대형 원형 버튼)
 - [x] 답변 녹음을 최대 60초에 자동 종료하고 `duration_ms`를 업로드한다. (#123)
 - [x] `POST /recordings` multipart 업로드 (`purpose`, `session_id`, `question_id`)
+- [x] 실기기 M4A 업로드 파트에 `audio/mp4`와 파일명을 명시하고 답변을 16kHz 모노 AAC로 녹음한다. (#162, #175)
 - [x] **오프라인 큐** — 기기 저장 후 재전송 (#61)
       상태 전이 `device_saved → server_pending → server_uploaded → analysis_completed`, 실패 시 `failed`
 - [x] `client_recording_id` (기기 생성 UUID) 멱등 보장 — 재전송해도 중복 생성 없음 (#61)
@@ -155,6 +156,7 @@
 
 - [x] 종합 리포트 `GET /guardian/{guardian_id}/report`
 - [x] 위험 추이 차트 `GET /analysis/cognitive/{user_id}/history`
+- [x] 보호자 화면에 CIST AI 위험 신호 추이를 인지 점수와 분리해 표시한다. (#180)
       **완성형 차트 라이브러리 없이 구현** — 꺾은선·점선 임계선처럼 사각형으로 안 되는 것만
       `react-native-svg` 프리미티브를 쓴다 (`components/ScoreTrendChart.tsx`)
 - [x] 일기 열람·반응 `GET /diaries/{user_id}`, `POST /diaries/{diary_id}/reactions`

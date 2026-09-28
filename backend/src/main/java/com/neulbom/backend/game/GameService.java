@@ -316,7 +316,8 @@ public class GameService {
 
     private void validateResult(GameResultRequest request) {
         if (!GAME_TYPES.contains(request.gameType())) throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "game_type 허용값을 확인하세요.");
-        if (request.totalQuestions() < 1 || request.score() < 0 || request.errorCount() < 0 || request.errorCount() > request.totalQuestions()) {
+        if (request.totalQuestions() < 1 || request.score() < 0 || request.errorCount() < 0
+                || (!"image_match".equals(request.gameType()) && request.errorCount() > request.totalQuestions())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "게임 결과가 올바르지 않습니다.", "점수·오답·문항 수를 확인하세요.");
         }
         if (request.responseTimes().isEmpty() || request.responseTimes().stream().anyMatch(item -> item == null || item.signum() < 0)) {

@@ -175,7 +175,7 @@ export default function ElderGameCardMatchScreen() {
               })
             }
           />
-          <DoneButtons onRestart={() => restart(false)} onExit={() => navigation.goBack()} />
+          <DoneButtons onRestart={() => restart(false)} onExit={() => navigation.goBack()} disabled={submitting} />
         </View>
       ) : (
         <>

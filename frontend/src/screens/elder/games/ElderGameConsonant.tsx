@@ -146,7 +146,7 @@ export default function ElderGameConsonantScreen() {
             submitting={submitting}
             onRetry={() => finish(score)}
           />
-          <DoneButtons onRestart={restart} onExit={() => navigation.goBack()} />
+          <DoneButtons onRestart={restart} onExit={() => navigation.goBack()} disabled={submitting} />
         </View>
       </Screen>
     );

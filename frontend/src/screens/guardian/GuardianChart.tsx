@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
+import { useIsFocused } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
@@ -9,6 +10,7 @@ import { isoDateOf, monthDayLabel } from "@/utils/format";
 import type { HistoryRecordResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
+import AiRiskTrendChart from "@/components/AiRiskTrendChart";
 import {
   Screen,
   ScreenHeader,
@@ -58,6 +60,7 @@ function decliningRun(points: TrendPoint[]): number {
 }
 
 export default function GuardianChartScreen() {
+  const isFocused = useIsFocused();
   const { userId, selectedElderId } = useApp();
   const [period, setPeriod] = React.useState<PeriodKey>("6m");
 
@@ -70,8 +73,8 @@ export default function GuardianChartScreen() {
 
   const report = useApi(
     () => reports.guardianReport(userId as string, selectedElderId as string),
-    [userId, selectedElderId],
-    { enabled: !!userId && !!selectedElderId },
+    [userId, selectedElderId, isFocused],
+    { enabled: !!userId && !!selectedElderId && isFocused },
   );
 
   const history = useApi(
@@ -81,8 +84,8 @@ export default function GuardianChartScreen() {
         aggregation: "day",
         ...dateRange,
       }),
-    [selectedElderId, dateRange.fromDate, dateRange.toDate],
-    { enabled: !!selectedElderId },
+    [selectedElderId, dateRange.fromDate, dateRange.toDate, isFocused],
+    { enabled: !!selectedElderId && isFocused },
   );
 
   const header = (
@@ -139,6 +142,9 @@ export default function GuardianChartScreen() {
   const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
   const run = decliningRun(points);
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
+  const aiRiskPoints = (report.data?.ai_risk_trend_points ?? []).filter(
+    (point) => point.date >= dateRange.fromDate && point.date <= dateRange.toDate,
+  );
 
   return (
     <Screen header={header}>
@@ -172,8 +178,21 @@ export default function GuardianChartScreen() {
         })}
       </View>
 
+      {aiRiskPoints.length > 0 ? (
+        <Card style={{ marginTop: spacing.lg }}>
+          <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
+            CIST AI 위험 신호 추이
+          </Body>
+          <AiRiskTrendChart points={aiRiskPoints} />
+          <Caption>AI 분석 참고 지수(0~100)입니다. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.</Caption>
+          {aiRiskPoints.length < 2 ? (
+            <Caption style={{ marginTop: spacing.sm }}>검사 한 번으로 변화 추이는 판단할 수 없어요.</Caption>
+          ) : null}
+        </Card>
+      ) : null}
+
       {points.length === 0 ? (
-        <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" />
+        aiRiskPoints.length === 0 ? <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" /> : null
       ) : (
         <>
           <Card style={{ marginTop: spacing.lg }}>

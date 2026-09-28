@@ -645,6 +645,7 @@ export interface GuardianReportResponse {
   last_session_at: IsoInstant | null;
   activity_summary7d: GuardianReportActivitySummary | null;
   trend_points: GuardianReportTrendPoint[];
+  ai_risk_trend_points: { date: IsoDate; risk_score: number; risk_level: string }[];
   recent_alerts: GuardianReportAlert[];
   daily_summary: GuardianReportDaily | null;
 }

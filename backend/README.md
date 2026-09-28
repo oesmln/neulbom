@@ -38,6 +38,8 @@ cp .env.example .env
 gcloud auth application-default login
 ```
 
+Google STT에 보내는 M4A(`audio/mp4`) 녹음은 백엔드에서 16kHz 모노 PCM WAV로 변환한다. 백엔드를 실행하는 호스트 또는 컨테이너의 `PATH`에서 `ffmpeg`를 실행할 수 있어야 한다. 원본 녹음은 그대로 보관하며, 변환용 임시 파일은 요청 처리 후 삭제한다. AST용 AI 서버는 M4A를 자체 디코딩하므로 이 변환 경로를 사용하지 않는다.
+
 실제 secret과 서비스 계정 JSON은 저장소에 커밋하지 않는다. 자세한 provider 계약은 [`docs/api-spec.md`](docs/api-spec.md)의 7.12절과 [`AGENTS.md`](AGENTS.md)를 따른다.
 
 ## 통합 CIST AI 서버

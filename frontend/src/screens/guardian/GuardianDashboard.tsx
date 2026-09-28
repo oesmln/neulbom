@@ -12,6 +12,7 @@ import type { GuardianNav } from "@/navigation/types";
 import type { GuardianReportResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
+import AiRiskTrendChart from "@/components/AiRiskTrendChart";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import {
   Screen,
@@ -81,6 +82,7 @@ function Indicator({ label, value, unit, color }: { label: string; value: string
 export default function GuardianDashboardScreen() {
   const isFocused = useIsFocused();
   const navigation = useNavigation<GuardianNav>();
+  const isFocused = useIsFocused();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
 
   const elders = useApi(() => guardianApi.elders(userId as string, "active"), [userId], {
@@ -99,8 +101,8 @@ export default function GuardianDashboardScreen() {
 
   const report = useApi(
     () => reports.guardianReport(userId as string, elderId as string),
-    [userId, elderId],
-    { enabled: !!userId && !!elderId },
+    [userId, elderId, isFocused],
+    { enabled: !!userId && !!elderId && isFocused },
   );
 
   const recentDiaries = useApi(
@@ -315,7 +317,7 @@ export default function GuardianDashboardScreen() {
         </View>
 
         {points.length === 0 ? (
-          <Body style={{ marginTop: spacing.md }}>아직 분석된 검사가 없어요.</Body>
+          <Body style={{ marginTop: spacing.md }}>기존 인지 점수 기록이 없어요.</Body>
         ) : (
           <>
             <View style={styles.trendMeta}>
@@ -362,6 +364,23 @@ export default function GuardianDashboardScreen() {
           </>
         )}
       </Card>
+
+      {(report.data?.ai_risk_trend_points?.length ?? 0) > 0 ? (
+        <Card style={{ marginTop: spacing.lg }}>
+          <View style={styles.rowBetween}>
+            <Body style={{ fontWeight: fontWeight.semibold }}>CIST AI 위험 신호 추이</Body>
+            <Pressable
+              onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianChart" })}
+              accessibilityRole="button"
+              accessibilityLabel="CIST AI 위험 신호 추이 상세 보기"
+            >
+              <Text style={styles.link}>상세 보기</Text>
+            </Pressable>
+          </View>
+          <AiRiskTrendChart points={report.data?.ai_risk_trend_points ?? []} compact />
+          <Caption>AI 분석 참고 지수입니다. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.</Caption>
+        </Card>
+      ) : null}
 
       {/* ⑥ 최근 일기 */}
       <Card style={{ marginTop: spacing.lg }}>
