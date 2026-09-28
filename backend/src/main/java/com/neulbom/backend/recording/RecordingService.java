@@ -209,7 +209,13 @@ public class RecordingService {
         String questionSessionType = "baseline".equals(session.getSessionType())
                 || "onboarding".equals(session.getSessionType())
                 ? "cist" : session.getSessionType();
-        if (!(questionSessionType.equals(question.getSessionType()) || "mixed".equals(session.getSessionType()))) {
+        boolean sessionScopedQuestion = session.getId().equals(question.getSessionId());
+        boolean validQuestion = "emotional_qa".equals(session.getSessionType())
+                ? sessionScopedQuestion
+                : sessionScopedQuestion
+                        || questionSessionType.equals(question.getSessionType())
+                        || "mixed".equals(session.getSessionType());
+        if (!validQuestion) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "세션 문항이 아닙니다.", "session_id와 question_id를 확인하세요.");
         }
     }

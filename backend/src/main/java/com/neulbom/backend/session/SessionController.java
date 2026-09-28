@@ -11,6 +11,7 @@ import com.neulbom.backend.session.api.QuestionsResponse;
 import com.neulbom.backend.session.api.SessionAnswersResponse;
 import com.neulbom.backend.session.api.SessionEndResponse;
 import com.neulbom.backend.session.api.SessionResponse;
+import com.neulbom.backend.session.api.SessionQuestionResponse;
 import com.neulbom.backend.session.api.SessionSettingsUpdateRequest;
 import com.neulbom.backend.session.api.SessionStartRequest;
 import com.neulbom.backend.session.api.SessionsResponse;
@@ -72,6 +73,14 @@ public class SessionController {
             @AuthenticationPrincipal Jwt jwt
     ) {
         return sessionService.endSession(authenticatedUserId(jwt), sessionId);
+    }
+
+    @PostMapping("/sessions/{sessionId}/questions/next")
+    public SessionQuestionResponse currentQuestion(
+            @PathVariable UUID sessionId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return sessionService.currentQuestion(authenticatedUserId(jwt), sessionId);
     }
 
     @GetMapping("/sessions")

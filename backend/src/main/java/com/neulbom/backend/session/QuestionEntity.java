@@ -24,6 +24,15 @@ public class QuestionEntity {
     @Column(name = "question_code", unique = true, length = 80)
     private String questionCode;
 
+    @Column(name = "session_id")
+    private UUID sessionId;
+
+    @Column(name = "question_source", length = 20)
+    private String questionSource;
+
+    @Column(name = "source_question_id")
+    private UUID sourceQuestionId;
+
     @Column(name = "variant_id", length = 120)
     private String variantId;
 
@@ -51,6 +60,37 @@ public class QuestionEntity {
     protected QuestionEntity() {
     }
 
+    public QuestionEntity(
+            UUID id,
+            String questionType,
+            String sessionType,
+            String content,
+            String hint,
+            int displayOrder,
+            boolean subtitleAvailable,
+            UUID sessionId,
+            String questionSource,
+            UUID sourceQuestionId,
+            String variantId,
+            String administrationMode,
+            Instant createdAt
+    ) {
+        this.id = id;
+        this.questionType = questionType;
+        this.sessionType = sessionType;
+        this.content = content;
+        this.hint = hint;
+        this.displayOrder = displayOrder;
+        this.subtitleAvailable = subtitleAvailable;
+        this.active = true;
+        this.sessionId = sessionId;
+        this.questionSource = questionSource;
+        this.sourceQuestionId = sourceQuestionId;
+        this.variantId = variantId;
+        this.administrationMode = administrationMode;
+        this.createdAt = createdAt;
+    }
+
     public UUID getId() {
         return id;
     }
@@ -65,6 +105,18 @@ public class QuestionEntity {
 
     public String getQuestionCode() {
         return questionCode;
+    }
+
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public String getQuestionSource() {
+        return questionSource;
+    }
+
+    public UUID getSourceQuestionId() {
+        return sourceQuestionId;
     }
 
     public String getVariantId() {

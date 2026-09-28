@@ -100,7 +100,7 @@
 - [x] `GET /questions/{question_id}` - 질문 단건 조회
 - [x] `POST /sessions/{session_id}/answers` - 문항별 답변 저장
 
-완료 조건: CIST 5문항을 중단 후 이어서 진행할 수 있고, AI 정서 문답은 별도 세션으로 동작한다.
+완료 조건: 정식 CIST 17문항을 중단 후 이어서 진행할 수 있고, AI 정서 문답은 별도 세션으로 동작한다.
 
 구현 근거: `SessionController`·`SessionService`와 세션/질문/답변 Repository를 추가했다. 본인 쓰기, 보호자 `screening`/`summary` scope 읽기, 세션 설정 검증, 답변 콘텐츠·순서·시간 검증, `client_answer_id` 멱등 처리, 종료 후 변경 차단 테스트를 반영했다. STT 전사 ID의 실제 처리와 분석 결과·경험치 연동은 후속 녹음/분석/게임 단계에서 연결한다.
 
@@ -658,6 +658,11 @@
 - [x] 세션에 속하지 않은 질문 ID를 거부한다.
 - [x] 종료된 세션에 새 답변을 저장하지 않는다.
 - [x] 답변 저장과 `answered_count`, `current_question_order` 갱신을 하나의 transaction으로 처리한다.
+- [x] AI 정서 문답을 7문항으로 진행하고 Gemini 질문·후속 질문 5개와 독립 시행 CIST 문항 2개를 무작위 혼합한다. (#193)
+- [x] `POST /sessions/{session_id}/questions/next`에서 질문 출처와 문제은행 원문 ID를 보존한다. (#193)
+- [x] 일기 요약 입력에서 CIST 문제은행 답변을 분리한다. (#193)
+- [ ] Gemini 일상 답변과 문제은행 표본을 AI 서버 위험 점수 입력으로 연결한다.
+- [ ] Gemini 생성, 무작위 배치, 답변 중복 저장 흐름을 테스트한다. (#193)
 - [ ] 답변 순서가 뒤섞여도 데이터가 깨지지 않도록 정책을 정한다.
 - [x] `GET /questions/daily`를 구현한다.
 - [x] `GET /questions/{question_id}`를 구현한다.
@@ -672,7 +677,7 @@
 
 ### 6단계 완료 조건
 
-- [x] 테스트 계정으로 CIST 5문항 세션을 시작할 수 있다.
+- [x] 테스트 계정으로 정식 CIST 17문항 세션을 시작할 수 있다.
 - [x] 각 답변이 문항과 세션에 정확히 연결된다.
 - [x] 세션 중단 후 재진입하면 다음 문항부터 이어진다.
 - [x] 세션 종료 시 분석 대기 상태가 생성된다.

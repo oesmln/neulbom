@@ -10,11 +10,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.analysis.CistAiAnalysisRepository;
+import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
 import com.neulbom.backend.common.id.UuidGenerator;
@@ -35,10 +38,12 @@ import com.neulbom.backend.session.api.SessionAnswersResponse;
 import com.neulbom.backend.session.api.SessionEndResponse;
 import com.neulbom.backend.session.api.SessionListItem;
 import com.neulbom.backend.session.api.SessionResponse;
+import com.neulbom.backend.session.api.SessionQuestionResponse;
 import com.neulbom.backend.session.api.SessionSettings;
 import com.neulbom.backend.session.api.SessionSettingsUpdateRequest;
 import com.neulbom.backend.session.api.SessionStartRequest;
 import com.neulbom.backend.session.api.SessionsResponse;
+import com.neulbom.backend.session.integration.ConversationQuestionGenerator;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.ConsentEntity;
 import com.neulbom.backend.user.ConsentRepository;
@@ -52,6 +57,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class SessionService {
@@ -59,9 +65,14 @@ public class SessionService {
     private static final Set<String> SESSION_TYPES = Set.of(
             "cist", "baseline", "onboarding", "emotional_qa", "game", "mixed");
     private static final Set<String> QUESTION_TYPES = Set.of("orientation", "memory", "attention", "language", "emotion");
+    private static final Set<String> STANDALONE_CIST_QUESTION_CODES = Set.of(
+            "orientation_year", "orientation_month", "orientation_day", "orientation_weekday", "orientation_place",
+            "attention_digit_span_4", "attention_digit_span_5", "attention_word_reverse");
     private static final Set<String> HEARING_SIDES = Set.of("left", "right", "both", "unknown");
     private static final BigDecimal DEFAULT_SPEECH_RATE = new BigDecimal("0.90");
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int DAILY_CONVERSATION_QUESTION_COUNT = 7;
+    private static final int DAILY_CIST_QUESTION_COUNT = 2;
 
     private final UserRepository userRepository;
     private final ConsentRepository consentRepository;
@@ -69,6 +80,8 @@ public class SessionService {
     private final VoiceProfileRepository voiceProfileRepository;
     private final SessionRepository sessionRepository;
     private final QuestionRepository questionRepository;
+    private final SessionQuestionSlotRepository sessionQuestionSlotRepository;
+    private final ConversationQuestionGenerator conversationQuestionGenerator;
     private final AnswerRepository answerRepository;
     private final RecordingRepository recordingRepository;
     private final TranscriptRepository transcriptRepository;
@@ -87,6 +100,8 @@ public class SessionService {
             VoiceProfileRepository voiceProfileRepository,
             SessionRepository sessionRepository,
             QuestionRepository questionRepository,
+            SessionQuestionSlotRepository sessionQuestionSlotRepository,
+            ConversationQuestionGenerator conversationQuestionGenerator,
             AnswerRepository answerRepository,
             RecordingRepository recordingRepository,
             TranscriptRepository transcriptRepository,
@@ -104,6 +119,8 @@ public class SessionService {
         this.voiceProfileRepository = voiceProfileRepository;
         this.sessionRepository = sessionRepository;
         this.questionRepository = questionRepository;
+        this.sessionQuestionSlotRepository = sessionQuestionSlotRepository;
+        this.conversationQuestionGenerator = conversationQuestionGenerator;
         this.answerRepository = answerRepository;
         this.recordingRepository = recordingRepository;
         this.transcriptRepository = transcriptRepository;
@@ -144,6 +161,9 @@ public class SessionService {
                 Boolean.TRUE.equals(request.offlineMode()),
                 now);
         sessionRepository.save(session);
+        if ("emotional_qa".equals(sessionType)) {
+            createDailyQuestionPlan(session);
+        }
         return toSessionResponse(session, settings);
     }
 
@@ -283,7 +303,7 @@ public class SessionService {
         QuestionEntity question = questionRepository.findById(request.questionId())
                 .filter(QuestionEntity::isActive)
                 .orElseThrow(() -> new ResourceNotFoundException("질문을 찾을 수 없습니다."));
-        if (!questionMatchesSession(question, session.getSessionType())) {
+        if (!questionMatchesSession(question, session)) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "세션 문항이 아닙니다.", "question_id와 session_type을 확인하세요.");
         }
         validateAnswerReferences(authenticatedUserId, sessionId, question.getId(), request);
@@ -303,6 +323,10 @@ public class SessionService {
                     true,
                     session.getCurrentQuestionOrder(),
                     existing.getSyncStatus());
+        }
+        if ("emotional_qa".equals(session.getSessionType())
+                && question.getDisplayOrder() != session.getCurrentQuestionOrder()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "현재 순서의 질문이 아닙니다.", "먼저 현재 질문에 답변하세요.");
         }
         if (SessionEntity.ACTIVE.equals(session.getStatus())
                 && firstAnswerForQuestion
@@ -479,7 +503,7 @@ public class SessionService {
     ) {
         canReadUser(authenticatedUserId, requestedUserId);
         String normalizedSessionType = sessionType == null || sessionType.isBlank() ? "cist" : sessionType;
-        validateEnum("session_type", normalizedSessionType, Set.of("cist", "baseline", "emotional_qa"));
+        validateEnum("session_type", normalizedSessionType, Set.of("cist", "baseline"));
         if (questionType != null) {
             validateEnum("type", questionType, QUESTION_TYPES);
         }
@@ -489,6 +513,57 @@ public class SessionService {
                 : questionRepository.findAllByActiveTrueAndSessionTypeAndQuestionTypeOrderByDisplayOrderAsc(
                         questionSessionType, questionType);
         return new QuestionsResponse(questions.stream().map(this::toQuestionResponse).toList());
+    }
+
+    @Transactional
+    public SessionQuestionResponse currentQuestion(UUID authenticatedUserId, UUID sessionId) {
+        SessionEntity session = ownedSessionForUpdate(authenticatedUserId, sessionId);
+        if (!"emotional_qa".equals(session.getSessionType())) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "일상 문답 세션이 아닙니다.", "emotional_qa 세션만 현재 질문을 요청할 수 있습니다.");
+        }
+        if (!SessionEntity.ACTIVE.equals(session.getStatus())
+                || session.getAnsweredCount() >= session.getTotalQuestions()) {
+            throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "진행할 질문이 없습니다.", "활성 상태의 일상 문답 세션을 확인하세요.");
+        }
+        SessionQuestionSlotEntity slot = sessionQuestionSlotRepository
+                .findBySessionIdAndQuestionOrder(session.getId(), session.getCurrentQuestionOrder())
+                .orElseThrow(() -> new ResourceNotFoundException("세션 질문 계획을 찾을 수 없습니다."));
+        if (slot.getQuestionId() != null) {
+            QuestionEntity existing = questionRepository.findByIdAndSessionIdAndActiveTrue(
+                            slot.getQuestionId(), session.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("세션 질문을 찾을 수 없습니다."));
+            return new SessionQuestionResponse(session.getId(), toQuestionResponse(existing));
+        }
+
+        QuestionEntity sourceQuestion = slot.getSourceQuestionId() == null
+                ? null
+                : questionRepository.findById(slot.getSourceQuestionId())
+                        .filter(QuestionEntity::isActive)
+                        .orElseThrow(() -> new ResourceNotFoundException("문제은행 문항을 찾을 수 없습니다."));
+        String content = sourceQuestion == null
+                ? conversationQuestionGenerator.generateNextQuestion(
+                        conversationPairs(session.getId()),
+                        slot.getQuestionOrder(),
+                        DAILY_CONVERSATION_QUESTION_COUNT - slot.getQuestionOrder() + 1)
+                : sourceQuestion.getContent();
+        QuestionEntity question = new QuestionEntity(
+                uuidGenerator.generate(),
+                sourceQuestion == null ? "emotion" : sourceQuestion.getQuestionType(),
+                "emotional_qa",
+                content,
+                sourceQuestion == null ? null : sourceQuestion.getHint(),
+                slot.getQuestionOrder(),
+                true,
+                session.getId(),
+                slot.getQuestionSource(),
+                sourceQuestion == null ? null : sourceQuestion.getId(),
+                sourceQuestion == null ? null : sourceQuestion.getVariantId(),
+                sourceQuestion == null ? null : sourceQuestion.getAdministrationMode(),
+                clock.instant());
+        questionRepository.save(question);
+        slot.assignQuestion(question.getId());
+        sessionQuestionSlotRepository.save(slot);
+        return new SessionQuestionResponse(session.getId(), toQuestionResponse(question));
     }
 
     @Transactional(readOnly = true)
@@ -572,16 +647,76 @@ public class SessionService {
     }
 
     private int questionCount(String sessionType) {
+        if ("emotional_qa".equals(sessionType)) {
+            return DAILY_CONVERSATION_QUESTION_COUNT;
+        }
         String lookupType = questionSessionType(sessionType);
         int count = questionRepository.findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc(lookupType).size();
         return count == 0 ? 1 : count;
     }
 
-    private boolean questionMatchesSession(QuestionEntity question, String sessionType) {
-        if ("mixed".equals(sessionType)) {
+    private boolean questionMatchesSession(QuestionEntity question, SessionEntity session) {
+        if ("emotional_qa".equals(session.getSessionType())) {
+            return session.getId().equals(question.getSessionId());
+        }
+        if ("mixed".equals(session.getSessionType())) {
             return Set.of("cist", "emotional_qa", "game").contains(question.getSessionType());
         }
-        return questionSessionType(sessionType).equals(question.getSessionType());
+        return questionSessionType(session.getSessionType()).equals(question.getSessionType());
+    }
+
+    private void createDailyQuestionPlan(SessionEntity session) {
+        List<QuestionEntity> cistQuestions = new ArrayList<>(questionRepository
+                .findAllByActiveTrueAndSessionTypeAndAdministrationModeOrderByDisplayOrderAsc("cist", "always")
+                .stream()
+                .filter(question -> STANDALONE_CIST_QUESTION_CODES.contains(question.getQuestionCode()))
+                .toList());
+        if (cistQuestions.size() < DAILY_CIST_QUESTION_COUNT) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "문제은행 문항이 부족합니다.", "시행 가능한 CIST 문항을 확인하세요.");
+        }
+        Collections.shuffle(cistQuestions);
+        cistQuestions = cistQuestions.subList(0, DAILY_CIST_QUESTION_COUNT);
+
+        List<Integer> candidateOrders = new ArrayList<>();
+        for (int order = 2; order <= DAILY_CONVERSATION_QUESTION_COUNT; order++) {
+            candidateOrders.add(order);
+        }
+        Collections.shuffle(candidateOrders);
+        Map<Integer, QuestionEntity> cistByOrder = new java.util.HashMap<>();
+        for (int index = 0; index < DAILY_CIST_QUESTION_COUNT; index++) {
+            cistByOrder.put(candidateOrders.get(index), cistQuestions.get(index));
+        }
+        for (int order = 1; order <= DAILY_CONVERSATION_QUESTION_COUNT; order++) {
+            QuestionEntity cistQuestion = cistByOrder.get(order);
+            sessionQuestionSlotRepository.save(new SessionQuestionSlotEntity(
+                    session.getId(),
+                    order,
+                    cistQuestion == null ? "gemini" : "cist_bank",
+                    cistQuestion == null ? null : cistQuestion.getId()));
+        }
+    }
+
+    private List<QaPair> conversationPairs(UUID sessionId) {
+        List<QaPair> pairs = new ArrayList<>();
+        for (AnswerEntity answer : answerRepository.findAllBySessionIdOrderByAnsweredAtAsc(sessionId)) {
+            QuestionEntity question = questionRepository.findById(answer.getQuestionId()).orElse(null);
+            if (question == null || !"gemini".equals(question.getQuestionSource())) {
+                continue;
+            }
+            String answerText = answer.getAnswerText();
+            if (!StringUtils.hasText(answerText) && answer.getTranscriptId() != null) {
+                answerText = transcriptRepository.findById(answer.getTranscriptId())
+                        .map(TranscriptEntity::getTranscript).orElse(null);
+            }
+            if (!StringUtils.hasText(answerText) && answer.getRecordingId() != null) {
+                answerText = transcriptRepository.findByRecordingId(answer.getRecordingId())
+                        .map(TranscriptEntity::getTranscript).orElse(null);
+            }
+            if (StringUtils.hasText(answerText)) {
+                pairs.add(new QaPair(question.getId(), question.getContent(), answerText.trim(), question.getQuestionType()));
+            }
+        }
+        return List.copyOf(pairs);
     }
 
     private String questionSessionType(String sessionType) {
@@ -690,6 +825,12 @@ public class SessionService {
     }
 
     private QuestionResponse toQuestionResponse(QuestionEntity question) {
+        String questionCode = question.getQuestionCode();
+        if (questionCode == null && question.getSourceQuestionId() != null) {
+            questionCode = questionRepository.findById(question.getSourceQuestionId())
+                    .map(QuestionEntity::getQuestionCode)
+                    .orElse(null);
+        }
         return new QuestionResponse(
                 question.getId(),
                 question.getContent(),
@@ -697,8 +838,10 @@ public class SessionService {
                 question.getDisplayOrder(),
                 question.getHint(),
                 question.isSubtitleAvailable(),
-                question.getQuestionCode(),
+                questionCode,
                 question.getVariantId(),
-                question.getAdministrationMode());
+                question.getAdministrationMode(),
+                question.getQuestionSource(),
+                question.getSourceQuestionId());
     }
 }

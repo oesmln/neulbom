@@ -189,6 +189,7 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `PATCH` | `/sessions/{session_id}/end` | 세션 종료·정성 결과·경험치 적립 상태 반환 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/sessions` | 세션 목록 조회 | 필요 | 본인, 권한 보유자 | MVP |
 | `POST` | `/sessions/{session_id}/answers` | 문항별 답변 저장 | 필요 | 세션 사용자, 권한 보유자 | MVP |
+| `POST` | `/sessions/{session_id}/questions/next` | Gemini 일상 질문 또는 무작위 CIST 문제은행 질문 생성·조회 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/sessions/{session_id}/answers` | 세션 대화·답변 내역 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/questions/daily` | 오늘의 질문 목록 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/questions/{question_id}` | 질문 단건 조회 | 필요 | 세션 사용자 | MVP |
@@ -1255,14 +1256,14 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 검사 정답·채점 기준, 모델 원문 출력, 다른 사용자의 답변은 반환하지 않는다.
 
-### 6.8 `GET /questions/daily` - 오늘의 질문 목록
+### 6.8 `GET /questions/daily` - CIST 질문 목록
 
 #### Query Parameters
 
 | 파라미터 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | string | Y | 질문 대상 사용자 |
-| `session_type` | enum | N | `cist`, `emotional_qa` |
+| `session_type` | enum | N | `cist`, `baseline` |
 | `type` | enum | N | `orientation`, `memory`, `attention`, `language`, `emotion` |
 
 #### Response `200`
@@ -1279,6 +1280,33 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `question_code` | string/null | cist-v1의 안정적인 문항 코드. 비-CIST 문항은 `null` |
 | `variant_id` | string/null | AI 계약 문항 variant. 비-CIST 문항은 `null` |
 | `administration_mode` | enum/null | `always`, `conditional`. 비-CIST 문항은 `null` |
+| `question_source` | enum/null | `gemini`, `cist_bank`; 기존 고정 문항은 `null` |
+| `source_question_id` | string/null | 문제은행 원문 ID |
+
+일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다.
+
+### 6.8.1 `POST /sessions/{session_id}/questions/next` - 현재 순서의 일상 문답 질문 가져오기
+
+고령자 본인의 활성 `emotional_qa` 세션에서만 사용할 수 있다. 총 7문항이며 첫 문항은 Gemini가 만들고, 나머지 6개 자리 중 무작위 2개에는 독립적으로 시행할 수 있는 CIST 문제은행 문항을 배치한다. 나머지는 이전 Gemini 질문·답변을 바탕으로 Gemini가 후속 질문을 생성한다. CIST 원문 시행 의존성이 있는 조건부 기억 문항, 기억 등록·회상 문항, 제한 시간 시행 문항은 이 일상 세션 표본에서 제외한다.
+
+생성·배정된 질문은 세션 문항으로 저장되어 같은 순서의 재요청에 같은 질문을 반환한다. CIST 표본은 일상 문답과 데이터상 구분되며 공식 17문항 CIST 검사 점수로 합산하지 않는다. 일기 요약에는 Gemini가 만든 일상 문답의 답변만 전달한다.
+
+이 흐름은 위험 점수를 계산하지 않는다. 현재 AI 서버 분석 입력은 공식 17문항 CIST 세션을 대상으로 하므로, 일상 문답과 혼합 표본을 위험 점수에 반영하려면 AI 서버 입력 계약과 점수 모델을 별도로 확장해야 한다.
+
+#### Response `200`
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `session_id` | string | 활성 일상 문답 세션 ID |
+| `question` | object | 현재 질문 |
+| `question.question_id` | string | 이 세션에 배정된 질문 ID |
+| `question.content` | string | 화면에 표시할 질문 |
+| `question.order` | integer | `1`부터 `7`까지의 순서 |
+| `question.question_source` | enum | `gemini`, `cist_bank` |
+| `question.source_question_id` | string/null | CIST 문항이면 문제은행 원문 ID |
+| `question.question_code` | string/null | CIST 문항이면 문제은행 원문 코드 |
+
+요청을 반복해도 현재 순서의 질문만 반환한다. 답변 저장 후 다시 호출하면 세션의 다음 순서가 생성되거나 조회된다. Gemini 설정·응답에 문제가 있으면 `503`을 반환하고 현재 질문은 저장하지 않는다.
 
 ### 6.9 `GET /questions/{question_id}` - 질문 단건 조회
 
@@ -1294,11 +1322,13 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
   "subtitle_available": true,
   "question_code": "orientation_year",
   "variant_id": "orientation-year-fixed-v1",
-  "administration_mode": "always"
+  "administration_mode": "always",
+  "question_source": null,
+  "source_question_id": null
 }
 ```
 
-> 화면은 한 번에 하나의 질문만 표시하며, `다음`, `다시 듣기`, `처음으로` 동작은 프론트엔드에서 처리한다. 서버는 세션 진행 상태와 답변 저장을 담당한다.
+> 화면은 한 번에 하나의 질문만 표시한다. 정서 문답은 서버가 `questions/next` 응답으로 진행할 질문을 결정하고, 프론트엔드는 `다음`, `다시 듣기`, `처음으로` 동작을 처리한다.
 
 #### 구현 권한·진행 규칙
 
@@ -2446,7 +2476,7 @@ provider 실패는 `503`이 아니라 빈 `centers`와 `provider_status`로 응�
 | 초대 코드 입력 | `POST /guardian/invitations/verify`, `POST /guardian/invitations/accept` | 6자리 코드 검증, 동의 후 보호자 연결 생성 |
 | CIST 검사 | `POST /sessions`, `GET /questions/daily`, `POST /recordings`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end` | 문항 1개씩 진행, 음성 답변, 오프라인 재전송 |
 | CIST 결과·일기 | `GET /screenings/{session_id}/result`, `GET /summary/session/{session_id}`, `POST /diaries/from-session` | 고령자 정성 결과, 보호자용 점수·영역별 결과, 요약, 일기 저장 |
-| AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `GET /questions/daily`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end`, `GET /screenings/{session_id}/result` | 세션 종료 후 캐릭터 결과 안내, 정성 결과, XP 적립 |
+| AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `POST /sessions/{session_id}/questions/next`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end`, `GET /screenings/{session_id}/result` | Gemini 일상 질문·후속 질문 5개와 CIST 문제은행 문항 2개, 일기 요약, XP 적립 |
 | 대화 내역 | `GET /sessions`, `GET /sessions/{session_id}`, `GET /sessions/{session_id}/answers` | 세션 목록, 질문·답변·전사문, 중단 세션 복구 |
 | 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-daily-summary`, `GET /diaries/{user_id}/generation-status` | KST 기준 다회 대화 집계, 보호자 리포트, 0시 일기 생성 작업과 상태 |
 | 고령자 홈 | `GET /dashboard/{user_id}`, `GET /character/{user_id}`, `GET /notifications/{user_id}` | 캐릭터, 최근 검사, 오늘 할 일, 알림 |

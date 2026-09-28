@@ -2,12 +2,12 @@ package com.neulbom.backend.analysis.integration;
 
 import java.net.URI;
 
-final class ProviderUrls {
+public final class ProviderUrls {
 
     private ProviderUrls() {
     }
 
-    static URI resolve(String baseOrUrl, String path) {
+    public static URI resolve(String baseOrUrl, String path) {
         String base = baseOrUrl == null ? "" : baseOrUrl.trim();
         if (base.isBlank()) {
             return URI.create(path);

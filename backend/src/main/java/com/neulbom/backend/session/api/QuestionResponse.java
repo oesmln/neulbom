@@ -15,6 +15,8 @@ public record QuestionResponse(
         boolean subtitleAvailable,
         String questionCode,
         String variantId,
-        String administrationMode
+        String administrationMode,
+        String questionSource,
+        UUID sourceQuestionId
 ) {
 }
