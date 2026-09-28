@@ -13,6 +13,11 @@ npm start
 `.env`의 `EXPO_PUBLIC_API_BASE_URL`에는 `/api/v1`을 제외한 백엔드 주소를
 설정합니다. 값을 비우면 mock API로 실행됩니다.
 
+mock 모드는 화면 흐름을 확인하기 위한 미리보기입니다. CIST에서는 `샘플 답변으로 진행`을
+사용하며 음성을 전사하지 않습니다. AI 정서 문답의 답변도 샘플이라고 표시됩니다.
+실제로 말한 문장이 `음성 인식 결과`에 나타나는지 확인하려면 백엔드와 STT provider를
+실행하고 `EXPO_PUBLIC_API_BASE_URL`을 해당 백엔드 주소로 설정해야 합니다.
+
 - iOS simulator / Expo Web: `http://localhost:8080`
 - Android emulator: `http://10.0.2.2:8080`
 - 실제 기기: 같은 네트워크에 연결된 개발 PC의 LAN 주소
