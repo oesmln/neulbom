@@ -82,7 +82,6 @@ function Indicator({ label, value, unit, color }: { label: string; value: string
 export default function GuardianDashboardScreen() {
   const isFocused = useIsFocused();
   const navigation = useNavigation<GuardianNav>();
-  const isFocused = useIsFocused();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
 
   const elders = useApi(() => guardianApi.elders(userId as string, "active"), [userId], {

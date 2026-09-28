@@ -13,7 +13,6 @@
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { Platform } from "react-native";
-import { File } from "expo-file-system";
 
 import { USE_MOCK_API, APP_TIMEZONE } from "./config";
 import { request, uploadMultipart } from "./client";
