@@ -455,6 +455,58 @@ def test_fixed_analysis_metadata_matches(
         "threshold_version"
     ]["const"] == "fusion-threshold-v2"
 
+    assert reference_result["properties"][
+        "feature_snapshot"
+    ]["$ref"] == (
+        "#/components/schemas/"
+        "CognitiveFeatureSnapshot"
+    )
+    assert runtime_result["properties"][
+        "feature_snapshot"
+    ]["$ref"] == (
+        "#/components/schemas/"
+        "CognitiveFeatureSnapshot"
+    )
+
+    reference_snapshot = (
+        reference_openapi["components"]
+        ["schemas"]
+        ["CognitiveFeatureSnapshot"]
+    )
+    runtime_snapshot = (
+        runtime_openapi["components"]
+        ["schemas"]
+        ["CognitiveFeatureSnapshot"]
+    )
+
+    for snapshot in (
+        reference_snapshot,
+        runtime_snapshot,
+    ):
+        assert snapshot["properties"][
+            "schema_version"
+        ]["const"] == (
+            "cognitive-feature-snapshot-v1"
+        )
+        assert snapshot["properties"][
+            "ast_model_version"
+        ]["const"] == (
+            "final_ast_core4_epoch6_"
+            "3seed_ensemble"
+        )
+        assert snapshot["properties"][
+            "kcelectra_model_version"
+        ]["const"] == (
+            "final_kcelectra_service_"
+            "352clips_seed_ensemble_v1"
+        )
+        assert snapshot["properties"][
+            "fusion_model_version"
+        ]["const"] == (
+            "final_fusion_lr_21subjects_"
+            "ast20_mean_logit_3seed_v2"
+        )
+
 
 def test_processing_timeout_matches_contract(
     reference_openapi: dict[str, Any],

@@ -57,6 +57,41 @@ EXPECTED_QUESTION_CODES = frozenset(
     get_args(QuestionCode),
 )
 
+CoreCistCategory = Literal[
+    "orientation",
+    "memory",
+    "attention",
+    "language",
+]
+
+EXPECTED_CORE_CATEGORIES = frozenset(
+    get_args(CoreCistCategory),
+)
+
+EXPECTED_QUESTION_CATEGORIES = {
+    "orientation_year": "orientation",
+    "orientation_month": "orientation",
+    "orientation_day": "orientation",
+    "orientation_weekday": "orientation",
+    "orientation_place": "orientation",
+    "memory_registration_first": "memory",
+    "memory_registration_second": "memory",
+    "attention_digit_span_4": "attention",
+    "attention_digit_span_5": "attention",
+    "attention_word_reverse": "attention",
+    "memory_delayed_free_recall": "memory",
+    "memory_recognition_person": "memory",
+    "memory_recognition_transport": "memory",
+    "memory_recognition_place": "memory",
+    "memory_recognition_time": "memory",
+    "memory_recognition_activity": "memory",
+    "language_semantic_fluency": "language",
+}
+
+FeatureSnapshotSchemaVersion = Literal[
+    "cognitive-feature-snapshot-v1"
+]
+
 
 class AdministeredQuestionResponse(APIModel):
     question_code: QuestionCode
@@ -275,6 +310,225 @@ class FusionFeatureValues(APIModel):
         return value
 
 
+class AstQuestionFeatureSnapshot(APIModel):
+    question_code: QuestionCode
+    category: CoreCistCategory
+    dementia_logit: float
+    segment_count: int = Field(ge=1)
+
+    @field_validator("dementia_logit")
+    @classmethod
+    def require_finite_logit(
+        cls,
+        value: float,
+    ) -> float:
+        if not isfinite(value):
+            raise ValueError(
+                "AST 문항 logit은 유한한 "
+                "숫자여야 합니다.",
+            )
+
+        return value
+
+
+class KcElectraQuestionFeatureSnapshot(
+    APIModel,
+):
+    question_code: QuestionCode
+    category: CoreCistCategory
+    dementia_logit: float
+
+    @field_validator("dementia_logit")
+    @classmethod
+    def require_finite_logit(
+        cls,
+        value: float,
+    ) -> float:
+        if not isfinite(value):
+            raise ValueError(
+                "KcELECTRA 문항 logit은 "
+                "유한한 숫자여야 합니다.",
+            )
+
+        return value
+
+
+class WrongEventFeatureObservation(APIModel):
+    question_code: QuestionCode
+    wrong_event: Literal[0, 1] | None
+
+
+class ResponseDelayFeatureObservation(APIModel):
+    question_code: QuestionCode
+    response_delay_ms: int | None = Field(
+        ge=0,
+    )
+
+
+class CognitiveFeatureSnapshot(APIModel):
+    schema_version: FeatureSnapshotSchemaVersion
+    question_set_version: QuestionSetVersion
+    wrong_event_rule_version: (
+        WrongEventRuleVersion
+    )
+    ast_model_version: Literal[
+        "final_ast_core4_epoch6_3seed_ensemble"
+    ]
+    kcelectra_model_version: Literal[
+        "final_kcelectra_service_"
+        "352clips_seed_ensemble_v1"
+    ]
+    fusion_model_version: Literal[
+        "final_fusion_lr_"
+        "21subjects_ast20_mean_logit_3seed_v2"
+    ]
+    threshold_version: Literal[
+        "fusion-threshold-v2"
+    ]
+    model_score: float = Field(
+        ge=0,
+        le=1,
+    )
+    ast_question_features: list[
+        AstQuestionFeatureSnapshot
+    ] = Field(
+        min_length=1,
+        max_length=17,
+    )
+    kcelectra_question_features: list[
+        KcElectraQuestionFeatureSnapshot
+    ] = Field(
+        min_length=1,
+        max_length=17,
+    )
+    wrong_event_observations: list[
+        WrongEventFeatureObservation
+    ] = Field(
+        min_length=17,
+        max_length=17,
+    )
+    response_delay_observations: list[
+        ResponseDelayFeatureObservation
+    ] = Field(
+        min_length=17,
+        max_length=17,
+    )
+    fusion_features: FusionFeatureValues
+
+    @field_validator("model_score")
+    @classmethod
+    def require_finite_model_score(
+        cls,
+        value: float,
+    ) -> float:
+        if not isfinite(value):
+            raise ValueError(
+                "스냅샷 model_score는 유한한 "
+                "숫자여야 합니다.",
+            )
+
+        return value
+
+    @model_validator(mode="after")
+    def validate_feature_sets(
+        self,
+    ) -> "CognitiveFeatureSnapshot":
+        ast_codes = self._unique_codes(
+            self.ast_question_features,
+            "AST",
+        )
+        kcelectra_codes = self._unique_codes(
+            self.kcelectra_question_features,
+            "KcELECTRA",
+        )
+
+        if ast_codes != kcelectra_codes:
+            raise ValueError(
+                "AST와 KcELECTRA 스냅샷의 "
+                "문항 코드가 일치해야 합니다.",
+            )
+
+        for label, features in (
+            (
+                "AST",
+                self.ast_question_features,
+            ),
+            (
+                "KcELECTRA",
+                self.kcelectra_question_features,
+            ),
+        ):
+            categories = {
+                feature.category
+                for feature in features
+            }
+
+            if categories != EXPECTED_CORE_CATEGORIES:
+                raise ValueError(
+                    f"{label} 스냅샷은 Core4 범주를 "
+                    "모두 포함해야 합니다.",
+                )
+
+            mismatched_codes = [
+                feature.question_code
+                for feature in features
+                if (
+                    EXPECTED_QUESTION_CATEGORIES[
+                        feature.question_code
+                    ]
+                    != feature.category
+                )
+            ]
+
+            if mismatched_codes:
+                raise ValueError(
+                    f"{label} 스냅샷의 문항 범주가 "
+                    "cist-v1과 일치하지 않습니다: "
+                    f"{sorted(mismatched_codes)}",
+                )
+
+        for label, observations in (
+            (
+                "wrong_event",
+                self.wrong_event_observations,
+            ),
+            (
+                "response_delay",
+                self.response_delay_observations,
+            ),
+        ):
+            codes = self._unique_codes(
+                observations,
+                label,
+            )
+
+            if codes != EXPECTED_QUESTION_CODES:
+                raise ValueError(
+                    f"{label} 스냅샷은 정확한 "
+                    "17개 문항을 포함해야 합니다.",
+                )
+
+        return self
+
+    @staticmethod
+    def _unique_codes(
+        values: list,
+        label: str,
+    ) -> set[str]:
+        codes = [
+            value.question_code
+            for value in values
+        ]
+
+        if len(codes) != len(set(codes)):
+            raise ValueError(
+                f"{label} 스냅샷의 문항 코드가 "
+                "중복되었습니다.",
+            )
+
+        return set(codes)
+
+
 class FinalAnalysisResult(APIModel):
     question_set_version: QuestionSetVersion
     wrong_event_rule_version: (
@@ -300,6 +554,7 @@ class FinalAnalysisResult(APIModel):
     risk_flag: bool
     risk_level: RiskLevel
     features: FusionFeatureValues
+    feature_snapshot: CognitiveFeatureSnapshot
     question_results: list[
         QuestionAnalysisResult
     ] = Field(
@@ -395,6 +650,64 @@ class FinalAnalysisResult(APIModel):
                 "risk_level이 model_score와 "
                 "두 운영 threshold의 비교 결과와 "
                 "일치하지 않습니다.",
+            )
+
+        snapshot = self.feature_snapshot
+
+        if (
+            snapshot.question_set_version
+            != self.question_set_version
+            or snapshot.wrong_event_rule_version
+            != self.wrong_event_rule_version
+            or snapshot.fusion_model_version
+            != self.model_version
+            or snapshot.threshold_version
+            != self.threshold_version
+        ):
+            raise ValueError(
+                "feature_snapshot의 계약 및 모델 "
+                "버전이 최종 결과와 일치하지 "
+                "않습니다.",
+            )
+
+        if (
+            snapshot.model_score
+            != self.model_score
+            or snapshot.fusion_features
+            != self.features
+        ):
+            raise ValueError(
+                "feature_snapshot의 Fusion 결과가 "
+                "최종 결과와 일치하지 않습니다.",
+            )
+
+        administered_codes = {
+            result.question_code
+            for result in self.question_results
+            if (
+                result.administration_status
+                == "administered"
+            )
+        }
+        ast_codes = {
+            feature.question_code
+            for feature
+            in snapshot.ast_question_features
+        }
+        kcelectra_codes = {
+            feature.question_code
+            for feature
+            in snapshot.kcelectra_question_features
+        }
+
+        if (
+            ast_codes != administered_codes
+            or kcelectra_codes
+            != administered_codes
+        ):
+            raise ValueError(
+                "feature_snapshot의 모델 문항이 "
+                "시행 문항과 일치하지 않습니다.",
             )
 
         return self

@@ -446,6 +446,105 @@ class SessionAnalysisProcessor:
                     .category_balanced_median_delay
                 ),
             },
+            "feature_snapshot": {
+                "schema_version": (
+                    "cognitive-feature-snapshot-v1"
+                ),
+                "question_set_version": (
+                    request.question_set_version
+                ),
+                "wrong_event_rule_version": (
+                    request.wrong_event_rule_version
+                ),
+                "ast_model_version": (
+                    ast_result.model_version
+                ),
+                "kcelectra_model_version": (
+                    kcelectra_result.model_version
+                ),
+                "fusion_model_version": (
+                    fusion_result.model_version
+                ),
+                "threshold_version": (
+                    fusion_result.threshold_version
+                ),
+                "model_score": (
+                    fusion_result.model_score
+                ),
+                "ast_question_features": [
+                    {
+                        "question_code": (
+                            feature.question_code
+                        ),
+                        "category": feature.category,
+                        "dementia_logit": (
+                            feature.dementia_logit
+                        ),
+                        "segment_count": (
+                            feature.segment_count
+                        ),
+                    }
+                    for feature
+                    in ast_result.clip_results
+                ],
+                "kcelectra_question_features": [
+                    {
+                        "question_code": (
+                            feature.question_code
+                        ),
+                        "category": feature.category,
+                        "dementia_logit": (
+                            feature.dementia_logit
+                        ),
+                    }
+                    for feature
+                    in kcelectra_result.clip_results
+                ],
+                "wrong_event_observations": [
+                    {
+                        "question_code": (
+                            result.question_code
+                        ),
+                        "wrong_event": (
+                            result.wrong_event
+                        ),
+                    }
+                    for result in ordered_results
+                ],
+                "response_delay_observations": [
+                    {
+                        "question_code": (
+                            result.question_code
+                        ),
+                        "response_delay_ms": (
+                            result.response_delay_ms
+                        ),
+                    }
+                    for result in ordered_results
+                ],
+                "fusion_features": {
+                    "ast_logit": (
+                        fusion_result
+                        .features
+                        .ast_logit
+                    ),
+                    "kcelectra_logit": (
+                        fusion_result
+                        .features
+                        .kcelectra_logit
+                    ),
+                    "category_balanced_wrong_event_score": (
+                        fusion_result
+                        .features
+                        .category_balanced_wrong_event_score
+                    ),
+                    "category_balanced_median_delay": (
+                        fusion_result
+                        .features
+                        .category_balanced_median_delay
+                    ),
+                },
+            },
             "question_results": [
                 result.model_dump(
                     mode="json",

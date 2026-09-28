@@ -132,7 +132,24 @@ class FakeAstService:
             for clip in clips
         )
         return SimpleNamespace(
+            model_version=(
+                "final_ast_core4_epoch6_"
+                "3seed_ensemble"
+            ),
             dementia_logit=-0.25,
+            clip_results=tuple(
+                SimpleNamespace(
+                    question_code=(
+                        clip.question_code
+                    ),
+                    category=question_category(
+                        clip.question_code,
+                    ),
+                    dementia_logit=-0.25,
+                    segment_count=1,
+                )
+                for clip in clips
+            ),
         )
 
 
@@ -149,8 +166,45 @@ class FakeKcElectraService:
             for clip in clips
         )
         return SimpleNamespace(
+            model_version=(
+                "final_kcelectra_service_"
+                "352clips_seed_ensemble_v1"
+            ),
             dementia_logit=0.5,
+            clip_results=tuple(
+                SimpleNamespace(
+                    question_code=(
+                        clip.question_code
+                    ),
+                    category=question_category(
+                        clip.question_code,
+                    ),
+                    dementia_logit=0.5,
+                )
+                for clip in clips
+            ),
         )
+
+
+def question_category(
+    question_code: str,
+) -> str:
+    if question_code.startswith(
+        "orientation_",
+    ):
+        return "orientation"
+
+    if question_code.startswith(
+        "memory_",
+    ):
+        return "memory"
+
+    if question_code.startswith(
+        "attention_",
+    ):
+        return "attention"
+
+    return "language"
 
 
 class FakeFusionService:
@@ -470,6 +524,39 @@ def test_completes_full_session_pipeline(
         assert result["features"][
             "category_balanced_median_delay"
         ] == 1.0
+
+        snapshot = result[
+            "feature_snapshot"
+        ]
+        assert snapshot[
+            "schema_version"
+        ] == "cognitive-feature-snapshot-v1"
+        assert snapshot[
+            "model_score"
+        ] == result["model_score"]
+        assert snapshot[
+            "fusion_features"
+        ] == result["features"]
+        assert len(
+            snapshot[
+                "ast_question_features"
+            ],
+        ) == 12
+        assert len(
+            snapshot[
+                "kcelectra_question_features"
+            ],
+        ) == 12
+        assert len(
+            snapshot[
+                "wrong_event_observations"
+            ],
+        ) == 17
+        assert len(
+            snapshot[
+                "response_delay_observations"
+            ],
+        ) == 17
 
         assert len(
             ast_service.received_codes,

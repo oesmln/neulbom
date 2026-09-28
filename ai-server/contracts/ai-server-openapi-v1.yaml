@@ -1106,6 +1106,146 @@ components:
           minimum: 0
           description: Seconds
 
+    CoreCistCategory:
+      type: string
+      enum:
+        - orientation
+        - memory
+        - attention
+        - language
+
+    AstQuestionFeatureSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - category
+        - dementia_logit
+        - segment_count
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        category:
+          $ref: '#/components/schemas/CoreCistCategory'
+        dementia_logit:
+          type: number
+          format: double
+        segment_count:
+          type: integer
+          minimum: 1
+
+    KcElectraQuestionFeatureSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - category
+        - dementia_logit
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        category:
+          $ref: '#/components/schemas/CoreCistCategory'
+        dementia_logit:
+          type: number
+          format: double
+
+    WrongEventFeatureObservation:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - wrong_event
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        wrong_event:
+          $ref: '#/components/schemas/WrongEvent'
+
+    ResponseDelayFeatureObservation:
+      type: object
+      additionalProperties: false
+      required:
+        - question_code
+        - response_delay_ms
+      properties:
+        question_code:
+          $ref: '#/components/schemas/QuestionCode'
+        response_delay_ms:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+
+    CognitiveFeatureSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - question_set_version
+        - wrong_event_rule_version
+        - ast_model_version
+        - kcelectra_model_version
+        - fusion_model_version
+        - threshold_version
+        - model_score
+        - ast_question_features
+        - kcelectra_question_features
+        - wrong_event_observations
+        - response_delay_observations
+        - fusion_features
+      properties:
+        schema_version:
+          type: string
+          const: cognitive-feature-snapshot-v1
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        wrong_event_rule_version:
+          $ref: '#/components/schemas/WrongEventRuleVersion'
+        ast_model_version:
+          type: string
+          const: final_ast_core4_epoch6_3seed_ensemble
+        kcelectra_model_version:
+          type: string
+          const: final_kcelectra_service_352clips_seed_ensemble_v1
+        fusion_model_version:
+          type: string
+          const: final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2
+        threshold_version:
+          type: string
+          const: fusion-threshold-v2
+        model_score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        ast_question_features:
+          type: array
+          minItems: 1
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/AstQuestionFeatureSnapshot'
+        kcelectra_question_features:
+          type: array
+          minItems: 1
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/KcElectraQuestionFeatureSnapshot'
+        wrong_event_observations:
+          type: array
+          minItems: 17
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/WrongEventFeatureObservation'
+        response_delay_observations:
+          type: array
+          minItems: 17
+          maxItems: 17
+          items:
+            $ref: '#/components/schemas/ResponseDelayFeatureObservation'
+        fusion_features:
+          $ref: '#/components/schemas/FusionFeatures'
+
     FinalAnalysisResult:
       type: object
       additionalProperties: false
@@ -1120,6 +1260,7 @@ components:
         - risk_level
         - risk_flag
         - features
+        - feature_snapshot
         - question_results
       properties:
         question_set_version:
@@ -1160,6 +1301,8 @@ components:
           description: Three-level auxiliary screening result; not a diagnosis
         features:
           $ref: '#/components/schemas/FusionFeatures'
+        feature_snapshot:
+          $ref: '#/components/schemas/CognitiveFeatureSnapshot'
         question_results:
           type: array
           minItems: 17
