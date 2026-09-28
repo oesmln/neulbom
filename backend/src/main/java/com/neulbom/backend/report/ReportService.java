@@ -239,13 +239,24 @@ public class ReportService {
                 : new DashboardResponse.Summary(latestSummaryEntity.getId(), latestSummaryEntity.getSessionId(), latestSummaryEntity.getSummary(), latestSummaryEntity.getCreatedAt());
         Instant now = clock.instant();
         LocalDate today = now.atZone(BUSINESS_ZONE).toLocalDate();
+        Instant todayStart = today.atStartOfDay(BUSINESS_ZONE).toInstant();
         Instant monthStart = today.withDayOfMonth(1).atStartOfDay(BUSINESS_ZONE).toInstant();
-        Instant monthEnd = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
-        long emotionalCount = sessions.stream().filter(session -> "emotional_qa".equals(session.getSessionType()))
+        Instant todayEnd = today.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        List<SessionEntity> emotionalSessions = sessions.stream()
+                .filter(session -> "emotional_qa".equals(session.getSessionType())).toList();
+        long emotionalCount = emotionalSessions.stream()
                 .filter(session -> SessionEntity.ENDED.equals(session.getStatus()))
-                .filter(session -> between(session.getStartedAt(), monthStart, monthEnd)).count();
-        long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(userId, monthStart, monthEnd);
-        int attendanceDays = (int) sessions.stream().filter(session -> between(session.getStartedAt(), monthStart, monthEnd))
+                .filter(session -> between(session.getStartedAt(), monthStart, todayEnd)).count();
+        boolean emotionalCompletedToday = emotionalSessions.stream()
+                .anyMatch(session -> SessionEntity.ENDED.equals(session.getStatus())
+                        && session.getEndedAt() != null
+                        && between(session.getEndedAt(), todayStart, todayEnd));
+        String emotionalTaskStatus = emotionalCompletedToday ? "completed" : emotionalSessions.stream()
+                .anyMatch(session -> SessionEntity.ACTIVE.equals(session.getStatus())
+                        && between(session.getStartedAt(), todayStart, todayEnd))
+                ? "in_progress" : "not_started";
+        long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(userId, monthStart, todayEnd);
+        int attendanceDays = (int) sessions.stream().filter(session -> between(session.getStartedAt(), monthStart, todayEnd))
                 .map(session -> session.getStartedAt().atZone(BUSINESS_ZONE).toLocalDate()).distinct().count();
         int streak = attendanceStreak(sessions, today);
         CharacterEntity character = characterRepository.findById(userId).orElse(null);
@@ -262,7 +273,7 @@ public class ReportService {
         DashboardResponse.CognitiveActivity activity = toCognitiveActivity(latestAnalysis, today);
         DashboardResponse.DiarySummary latestDiary = latestDiary(userId, today);
         List<DashboardResponse.Task> tasks = List.of(
-                new DashboardResponse.Task("emotional_qa", "not_started", "AI 정서 문답", "오늘의 기억을 AI와 함께 이야기해요", "/ai"),
+                new DashboardResponse.Task("emotional_qa", emotionalTaskStatus, "AI 정서 문답", "오늘의 기억을 AI와 함께 이야기해요", "/ai"),
                 new DashboardResponse.Task("memory_game", "new", "기억력 게임", "카드를 뒤집어 짝을 맞춰보세요", "/games/memory"),
                 new DashboardResponse.Task("diary", "scheduled", "오늘의 일기", "오늘 대화를 일기로 남겨보세요", "/diary"));
         return new DashboardResponse(userId, target.getRole(), characterSummary, latestScreening, latestSummary, tasks,

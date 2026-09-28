@@ -1,12 +1,12 @@
 import React from "react";
 import { View, StyleSheet, ScrollView, Pressable } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { newClientId, sessions } from "@/api";
+import { game, newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
@@ -17,7 +17,7 @@ import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
-import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET } from "@/components/memoiCharacters";
+import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI, DEFAULT_MOUTH_SET, memoiForLevel } from "@/components/memoiCharacters";
 import { withParticle } from "@/utils/format";
 
 /**
@@ -49,8 +49,16 @@ const SAMPLE_ANSWERS = [
 
 export default function ElderAiChatScreen() {
   const navigation = useNavigation<ElderNav>();
+  const isFocused = useIsFocused();
   const { userId, characterName } = useApp();
   const companionName = characterName?.trim() || DEFAULT_CHARACTER_NAME;
+
+  const character = useApi(() => game.character(userId as string), [userId, isFocused], {
+    enabled: !!userId && isFocused,
+  });
+  const companionModel = memoiForLevel(character.data?.level);
+  // Only level 1 has matching mouth models. Keep evolved models visible during speech.
+  const mouthSet = companionModel.id === DEFAULT_MEMOI.id ? DEFAULT_MOUTH_SET : undefined;
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
   const [index, setIndex] = React.useState(0);
@@ -143,8 +151,8 @@ export default function ElderAiChatScreen() {
 
         <View style={styles.introCharacter}>
           <Memoi3D
-            character={DEFAULT_MEMOI}
-            mouthSet={DEFAULT_MOUTH_SET}
+            character={companionModel}
+            mouthSet={mouthSet}
             speaking={voice.speaking}
             height={180}
             spinnerColor={colors.primary}
@@ -190,8 +198,8 @@ export default function ElderAiChatScreen() {
           mid-conversation, and unmounting it would drop four loaded models. */}
       <View style={styles.stage}>
         <Memoi3D
-          character={DEFAULT_MEMOI}
-          mouthSet={DEFAULT_MOUTH_SET}
+          character={companionModel}
+          mouthSet={mouthSet}
           speaking={voice.speaking}
           height={130}
           spinnerColor={colors.primary}

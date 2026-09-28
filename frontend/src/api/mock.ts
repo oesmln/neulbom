@@ -140,9 +140,14 @@ export function mockProfile(userId: Uuid, role: Role): UserProfileResponse {
 
 /* ── dashboard ──────────────────────────────────────────────────────────── */
 
+let mockLastEmotionalEndedAt: string | null = null;
+
 export function mockDashboard(userId: Uuid): DashboardResponse {
   const today = new Date();
   const character = mockCharacter(userId);
+  const seoulDate = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const emotionalCompletedToday = mockLastEmotionalEndedAt !== null
+    && seoulDate(new Date(mockLastEmotionalEndedAt)) === seoulDate(today);
   return {
     user_id: userId,
     role: "elder",
@@ -168,7 +173,7 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
     today_tasks: [
       {
         task_type: "emotional_qa",
-        status: "pending",
+        status: emotionalCompletedToday ? "completed" : "not_started",
         title: "AI 정서 문답",
         description: "오늘의 기억을 AI와 함께 이야기해요",
         target_route: "ElderAiChat",
@@ -727,6 +732,7 @@ export function mockSessionEnd(sessionId: Uuid): SessionEndResponse {
   if (!mockEndedSessions.has(sessionId)) {
     mockEndedSessions.add(sessionId);
     if (sessionType === "emotional_qa") {
+      mockLastEmotionalEndedAt = new Date().toISOString();
       xpEarned = awardMockXp(20, "emotional_qa", "AI 정서 문답 완료", `emotional_qa:${sessionId}`);
     } else if (!mockFirstCistAwarded && (sessionType === "cist" || sessionType === "baseline")) {
       mockFirstCistAwarded = true;
