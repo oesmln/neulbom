@@ -27,6 +27,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.analysis.CognitiveAnalysisEntity;
 import com.neulbom.backend.analysis.CognitiveAnalysisRepository;
+import com.neulbom.backend.analysis.CistAiAnalysisEntity;
+import com.neulbom.backend.analysis.CistAiAnalysisRepository;
 import com.neulbom.backend.analysis.DailySummaryEntity;
 import com.neulbom.backend.analysis.DailySummaryRepository;
 import com.neulbom.backend.analysis.ScreeningResultEntity;
@@ -79,6 +81,7 @@ public class ReportService {
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
     private final CognitiveAnalysisRepository cognitiveAnalysisRepository;
+    private final CistAiAnalysisRepository cistAiAnalysisRepository;
     private final ScreeningResultRepository screeningResultRepository;
     private final SessionSummaryRepository sessionSummaryRepository;
     private final DailySummaryRepository dailySummaryRepository;
@@ -98,6 +101,7 @@ public class ReportService {
             UserRepository userRepository,
             SessionRepository sessionRepository,
             CognitiveAnalysisRepository cognitiveAnalysisRepository,
+            CistAiAnalysisRepository cistAiAnalysisRepository,
             ScreeningResultRepository screeningResultRepository,
             SessionSummaryRepository sessionSummaryRepository,
             DailySummaryRepository dailySummaryRepository,
@@ -116,6 +120,7 @@ public class ReportService {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.cognitiveAnalysisRepository = cognitiveAnalysisRepository;
+        this.cistAiAnalysisRepository = cistAiAnalysisRepository;
         this.screeningResultRepository = screeningResultRepository;
         this.sessionSummaryRepository = sessionSummaryRepository;
         this.dailySummaryRepository = dailySummaryRepository;
@@ -311,6 +316,7 @@ public class ReportService {
         Instant now = clock.instant();
         Instant sevenDaysAgo = now.minus(Duration.ofDays(7));
         List<SessionEntity> sessions = sessionRepository.findAllByUserIdOrderByStartedAtDesc(elderId);
+        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints = aiRiskTrendPoints(sessions, fromDate, toDate);
         long sessionCount = sessions.stream().filter(session -> session.getStartedAt().isAfter(sevenDaysAgo)).count();
         long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(elderId, sevenDaysAgo, now);
         List<GuardianReportResponse.Alert> alerts = notificationRepository.findAllByRecipientUserIdAndCreatedAtAfterOrderByCreatedAtDesc(elderId, sevenDaysAgo).stream()
@@ -327,7 +333,7 @@ public class ReportService {
                 new GuardianReportResponse.ActivitySummary(sessionCount, gameCount,
                         diaryRepository.findAllByUserIdOrderByWrittenAtDesc(elderId).stream()
                                 .filter(diary -> diary.getWrittenAt().isAfter(sevenDaysAgo)).count()),
-                trendPoints, alerts, daily);
+                trendPoints, aiRiskTrendPoints, alerts, daily);
     }
 
     @Transactional
@@ -478,6 +484,22 @@ public class ReportService {
             previous = display;
         }
         return result;
+    }
+
+    private List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints(
+            List<SessionEntity> sessions, LocalDate fromDate, LocalDate toDate) {
+        Map<UUID, SessionEntity> cistSessions = sessions.stream()
+                .filter(session -> Set.of("cist", "baseline", "onboarding").contains(session.getSessionType()))
+                .filter(session -> inDateRange(session.getStartedAt(), fromDate, toDate))
+                .collect(Collectors.toMap(SessionEntity::getId, Function.identity()));
+        if (cistSessions.isEmpty()) return List.of();
+        return cistAiAnalysisRepository.findAllBySessionIdIn(cistSessions.keySet()).stream()
+                .filter(analysis -> "completed".equals(analysis.getStatus()) && analysis.getModelScore() != null)
+                .sorted(Comparator.comparing(analysis -> cistSessions.get(analysis.getSessionId()).getStartedAt()))
+                .map(analysis -> new GuardianReportResponse.AiRiskTrendPoint(
+                        cistSessions.get(analysis.getSessionId()).getStartedAt().atZone(BUSINESS_ZONE).toLocalDate(),
+                        analysis.getModelScore(), analysis.getRiskLevel()))
+                .toList();
     }
 
     private DashboardResponse.ScreeningSummary latestScreeningSummary(UUID sessionId, boolean guardian) {
