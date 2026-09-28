@@ -19,7 +19,7 @@ FROM eclipse-temurin:21-jre-jammy
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends ca-certificates curl \
+    && apt-get install --yes --no-install-recommends ca-certificates curl ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 appuser \
     && useradd --system --uid 10001 --gid appuser --home-dir /app appuser \

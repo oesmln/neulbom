@@ -764,6 +764,8 @@
 - [x] 로컬 Whisper는 OpenAI 호환 `/v1/audio/transcriptions` adapter로 연결한다.
 - [x] Google Cloud STT V2는 ADC 인증과 regional recognizer endpoint를 사용한다.
 - [x] 운영 Google STT 기본값을 `us`, `chirp_3`, `ko-KR`, 자동 문장부호 사용으로 고정한다. (#123)
+- [x] Google STT로 보내는 M4A를 16kHz 모노 PCM WAV로 변환한다. (#177, 원인 분석 #174)
+- [ ] 운영 백엔드에서 `ffmpeg` 실행 가능 여부와 30초 이상 실기기 녹음 전사를 확인한다. (#177)
 - [x] 답변 녹음은 60초 이하만 허용하고 초과 요청은 STT 호출 전에 거부한다. (#123)
 - [x] `recording_id` 기반 서버 작업 호출을 우선 지원한다.
 - [x] `transcript`, `duration_sec`, `confidence`, `language`, `model`을 저장한다.

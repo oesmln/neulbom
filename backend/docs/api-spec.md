@@ -1401,6 +1401,8 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 STT provider는 `STT_PROVIDER`로 선택하며 앱 기본값은 `google`이다. 운영 Google STT는 V2, `location=us`, `model=chirp_3`, `language=ko-KR`, 자동 문장부호 사용으로 고정한다. `openai`, `local`, `auto`는 로컬 진단·이전 환경 호환을 위해 유지하고 `none`은 외부 STT를 사용하지 않는다.
 
+Google STT adapter는 M4A(`audio/mp4`) 입력을 요청 전에 `ffmpeg`로 16kHz 모노 PCM WAV로 변환해 `content`에 넣는다. 업로드 MIME이 잘못 `audio/mpeg`로 기록된 과거 M4A도 MP4 컨테이너 헤더로 식별한다. WAV·MP3·WebM 입력과 AST 분석에는 이 변환을 적용하지 않는다. 실행 환경의 `PATH`에 `ffmpeg`가 없거나 변환이 시간 초과되면 `503`, 파일을 디코딩할 수 없으면 `422`를 반환한다. 원본 녹음은 변환하지 않고 보관한다.
+
 로컬 Whisper 서버는 `POST /v1/audio/transcriptions` multipart 계약(`file`, `model`, `language`, `response_format`)을 제공해야 한다. Google Cloud STT는 서버의 Application Default Credentials(로컬 `gcloud auth application-default login`, 운영 서비스 계정 또는 workload identity)를 사용하며 앱에 provider credential을 노출하지 않는다.
 
 #### Form Data

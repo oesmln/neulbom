@@ -487,7 +487,7 @@ public class AnalysisService {
             }
         }
         RecordingStorage.StoredAudio stored = recordingStorage.load(recording.getStorageKey());
-        return new SpeechToTextClient.AudioFile(stored.content(), stored.filename(), stored.contentType());
+        return new SpeechToTextClient.AudioFile(stored.content(), stored.filename(), recording.getMimeType());
     }
 
     private JsonNode fallbackFlags(String questionType, BigDecimal screeningScore) {
