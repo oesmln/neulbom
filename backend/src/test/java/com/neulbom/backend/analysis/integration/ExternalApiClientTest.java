@@ -2,6 +2,9 @@ package com.neulbom.backend.analysis.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -10,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Base64;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.neulbom.backend.config.ExternalApiExecutor;
@@ -87,6 +91,7 @@ class ExternalApiClientTest {
 
         GoogleCloudSpeechToTextClient client = new GoogleCloudSpeechToTextClient(
                 builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper(),
+                new GoogleSttAudioConverter(),
                 () -> "test-token");
         SpeechToTextClient.TranscriptionResult result = client.transcribe(
                 new SpeechToTextClient.AudioFile(new byte[]{1, 2}, "sample.webm", "audio/webm"));
@@ -109,11 +114,38 @@ class ExternalApiClientTest {
 
         GoogleCloudSpeechToTextClient client = new GoogleCloudSpeechToTextClient(
                 builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper(),
+                new GoogleSttAudioConverter(),
                 () -> "test-token");
 
         assertThatThrownBy(() -> client.transcribe(
                 new SpeechToTextClient.AudioFile(new byte[]{1}, "sample.webm", "audio/webm")))
                 .isInstanceOf(EmptyTranscriptException.class);
+        server.verify();
+    }
+
+    @Test
+    void googleSttSendsConvertedWavForM4aRecording() {
+        ExternalApiProperties properties = sttProperties("google", "", "neulbom-test");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        byte[] wav = new byte[]{'R', 'I', 'F', 'F'};
+        SpeechToTextClient.AudioFile m4a = new SpeechToTextClient.AudioFile(
+                new byte[]{1, 2, 3}, "answer.m4a", "audio/mp4");
+        GoogleSttAudioConverter converter = mock(GoogleSttAudioConverter.class);
+        when(converter.convert(m4a)).thenReturn(wav);
+        server.expect(requestTo("https://us-speech.googleapis.com/v2/projects/neulbom-test/locations/us/recognizers/_:recognize"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"content\":\"" + Base64.getEncoder().encodeToString(wav) + "\"")))
+                .andRespond(withSuccess("""
+                        {"results":[{"alternatives":[{"transcript":"변환 후 전사"}]}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        GoogleCloudSpeechToTextClient client = new GoogleCloudSpeechToTextClient(
+                builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper(),
+                converter, () -> "test-token");
+
+        assertThat(client.transcribe(m4a).transcript()).isEqualTo("변환 후 전사");
+        verify(converter).convert(m4a);
         server.verify();
     }
 

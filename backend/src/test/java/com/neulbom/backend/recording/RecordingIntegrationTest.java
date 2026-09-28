@@ -35,7 +35,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -151,6 +153,34 @@ class RecordingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recording_id").value(recordingId.toString()))
                 .andExpect(jsonPath("$.transcript").isNotEmpty());
+    }
+
+    @Test
+    void savedM4aUsesItsUploadMimeTypeForStt() throws Exception {
+        UserEntity elder = saveUser("recording-m4a-mime");
+        UUID sessionId = saveSession(elder.getId());
+        byte[] audio = new byte[]{1, 2, 3};
+        String uploadBody = mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(new MockMultipartFile("audio_file", "answer.m4a", "audio/mp4", audio))
+                        .with(jwtFor(elder))
+                        .param("client_recording_id", UUID.randomUUID().toString())
+                        .param("user_id", elder.getId().toString())
+                        .param("purpose", "answer")
+                        .param("session_id", sessionId.toString())
+                        .param("question_id", QUESTION_ID.toString())
+                        .param("recorded_at", Instant.now().minusSeconds(1).toString())
+                        .param("duration_ms", "1000"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID recordingId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(uploadBody).get("recording_id").asText());
+
+        mockMvc.perform(post("/api/v1/recordings/{recordingId}/transcribe", recordingId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isOk());
+        verify(speechToTextClient).transcribe(argThat(file ->
+                "audio/mp4".equals(file.contentType())
+                        && java.util.Arrays.equals(audio, file.content())));
     }
 
     @Test
