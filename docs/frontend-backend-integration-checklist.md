@@ -88,6 +88,7 @@
 - [x] 녹음 목적 enum을 백엔드 계약인 `answer`, `diary`로 정렬했다.
 - [x] Expo Web이 생성하는 `audio/webm`·`.webm` 업로드를 백엔드에서 허용하고 테스트했다.
 - [x] CIST·정서 문답의 실제 녹음 업로드 결과를 답변의 `recording_id`로 연결했다.
+- [x] 보호자 일기 반응을 서버 enum 코드로 저장하고 고령자 일기 화면에서 반응·메시지를 갱신한다. (#191, 원문·scope·반응 통합 테스트와 모의 화면 검증)
 - [x] 색상 맞추기 결과의 `color_match`를 프론트 타입, API 명세, 서비스 검증, DB 제약조건에 추가했다.
 - [x] multipart 업로드도 access token 만료 시 refresh 후 한 번 재시도한다.
 - [x] 답변 녹음을 앱에서 60초에 자동 종료하고 서버에서도 `duration_ms`를 검증한다. (#123)

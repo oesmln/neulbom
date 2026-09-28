@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useApp } from "@/store/AppContext";
@@ -79,6 +79,7 @@ function Indicator({ label, value, unit, color }: { label: string; value: string
 }
 
 export default function GuardianDashboardScreen() {
+  const isFocused = useIsFocused();
   const navigation = useNavigation<GuardianNav>();
   const { userId, userName, selectedElderId, setSelectedElderId } = useApp();
 
@@ -104,8 +105,8 @@ export default function GuardianDashboardScreen() {
 
   const recentDiaries = useApi(
     () => diariesApi.listForUser(elderId as string, { limit: RECENT_DIARY_LIMIT }),
-    [elderId],
-    { enabled: !!elderId },
+    [elderId, isFocused],
+    { enabled: !!elderId && isFocused },
   );
 
   const header = (
