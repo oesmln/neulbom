@@ -46,6 +46,19 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 음성 인식이 결과를 만들지 못한 응답인지 확인한다.
+ *
+ * 무음이거나 잡음만 녹음되면 Google STT가 결과를 돌려주지 않고, 백엔드는 이를
+ * 외부 서비스 오류(503)로 감싸 내려준다. 사용자 입장에서는 장애가 아니라 다시
+ * 말하면 되는 상황이라 문구를 분리한다.
+ */
+function isUnrecognizedSpeech(error: ApiError): boolean {
+  if (error.status < 500) return false;
+  const text = `${error.message} ${error.detail ?? ""}`;
+  return text.includes("results") || text.includes("전사") || text.includes("STT");
+}
+
 /** Korean copy for the states a screen is expected to render. */
 export function apiErrorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) {
@@ -53,6 +66,11 @@ export function apiErrorMessage(error: unknown): string {
   }
   if (error.isNetworkFailure) {
     return "인터넷 연결을 확인해 주세요.";
+  }
+  // 음성이 비어 있거나 알아듣지 못한 녹음은 서버 장애가 아니라 다시 말하면 되는
+  // 상황이다. 백엔드가 이 경우에도 5xx를 주므로 응답 본문으로 구분한다.
+  if (isUnrecognizedSpeech(error)) {
+    return "잘 들리지 않았어요. 버튼을 누르고 다시 한번 말씀해 주세요.";
   }
   switch (error.status) {
     case 400:
