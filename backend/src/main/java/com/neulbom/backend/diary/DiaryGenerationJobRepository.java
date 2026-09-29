@@ -10,4 +10,6 @@ public interface DiaryGenerationJobRepository extends JpaRepository<DiaryGenerat
     Optional<DiaryGenerationJobEntity> findByUserIdAndTargetDate(UUID userId, java.time.LocalDate targetDate);
 
     Optional<DiaryGenerationJobEntity> findByDailySummaryId(UUID dailySummaryId);
+
+    boolean existsByUserIdAndTargetDate(UUID userId, java.time.LocalDate targetDate);
 }
