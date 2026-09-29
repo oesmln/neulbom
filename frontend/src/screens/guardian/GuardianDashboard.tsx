@@ -367,17 +367,17 @@ export default function GuardianDashboardScreen() {
       {(report.data?.ai_risk_trend_points?.length ?? 0) > 0 ? (
         <Card style={{ marginTop: spacing.lg }}>
           <View style={styles.rowBetween}>
-            <Body style={{ fontWeight: fontWeight.semibold }}>CIST AI 위험 신호 추이</Body>
+            <Body style={{ fontWeight: fontWeight.semibold }}>AI 인지 위험 신호 추이</Body>
             <Pressable
               onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianChart" })}
               accessibilityRole="button"
-              accessibilityLabel="CIST AI 위험 신호 추이 상세 보기"
+              accessibilityLabel="AI 인지 위험 신호 추이 상세 보기"
             >
               <Text style={styles.link}>상세 보기</Text>
             </Pressable>
           </View>
           <AiRiskTrendChart points={report.data?.ai_risk_trend_points ?? []} compact />
-          <Caption>AI 분석 참고 지수입니다. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.</Caption>
+          <Caption>AI 위험 점수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호예요. 일상 문답 추정점은 일부 문항만 갱신한 참고값이며 진단 결과는 아닙니다.</Caption>
         </Card>
       ) : null}
 

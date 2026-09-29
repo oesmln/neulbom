@@ -142,9 +142,7 @@ export default function GuardianChartScreen() {
   const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
   const run = decliningRun(points);
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
-  const aiRiskPoints = (report.data?.ai_risk_trend_points ?? []).filter(
-    (point) => point.date >= dateRange.fromDate && point.date <= dateRange.toDate,
-  );
+  const aiRiskPoints = history.data.ai_risk_trend_points ?? [];
 
   return (
     <Screen header={header}>
@@ -181,12 +179,12 @@ export default function GuardianChartScreen() {
       {aiRiskPoints.length > 0 ? (
         <Card style={{ marginTop: spacing.lg }}>
           <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
-            CIST AI 위험 신호 추이
+            AI 인지 위험 신호 추이
           </Body>
           <AiRiskTrendChart points={aiRiskPoints} />
-          <Caption>AI 분석 참고 지수(0~100)입니다. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.</Caption>
+          <Caption>AI 위험 점수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다. 일상 문답 추정점은 일부 문항만 갱신한 결과예요.</Caption>
           {aiRiskPoints.length < 2 ? (
-            <Caption style={{ marginTop: spacing.sm }}>검사 한 번으로 변화 추이는 판단할 수 없어요.</Caption>
+            <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
           ) : null}
         </Card>
       ) : null}

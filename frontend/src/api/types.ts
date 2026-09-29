@@ -617,6 +617,18 @@ export interface GuardianReportTrendPoint {
   risk_level: string | null;
 }
 
+export interface GuardianAiRiskTrendPoint {
+  date: IsoDate;
+  risk_score: number;
+  risk_level: string | null;
+  point_type: "full_cist" | "daily_partial_estimate";
+  is_estimated: boolean;
+  analyzed_at: IsoInstant;
+  session_id: Uuid;
+  baseline_session_id: Uuid;
+  baseline_snapshot_id: Uuid | null;
+}
+
 export interface GuardianReportAlert {
   notification_id: Uuid;
   title: string;
@@ -660,7 +672,7 @@ export interface GuardianReportResponse {
   last_session_at: IsoInstant | null;
   activity_summary7d: GuardianReportActivitySummary | null;
   trend_points: GuardianReportTrendPoint[];
-  ai_risk_trend_points: { date: IsoDate; risk_score: number; risk_level: string }[];
+  ai_risk_trend_points: GuardianAiRiskTrendPoint[];
   recent_alerts: GuardianReportAlert[];
   daily_summary: GuardianReportDaily | null;
 }
@@ -686,6 +698,7 @@ export interface HistoryResponse {
   total: number;
   aggregation: string | null;
   sample_sufficient: boolean;
+  ai_risk_trend_points: GuardianAiRiskTrendPoint[];
 }
 
 export interface ReportExportResponse {

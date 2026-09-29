@@ -972,8 +972,24 @@ export function mockGuardianReport(): GuardianReportResponse {
       risk_level: "low",
     })),
     ai_risk_trend_points: [
-      { date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed" },
-      { date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable" },
+      {
+        date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(30).toISOString(),
+        session_id: fixedId("33333333", 1), baseline_session_id: fixedId("33333333", 1),
+        baseline_snapshot_id: fixedId("99999999", 1),
+      },
+      {
+        date: isoDate(daysAgo(15)), risk_score: 0.38, risk_level: "stable",
+        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(15).toISOString(),
+        session_id: fixedId("33333333", 2), baseline_session_id: fixedId("33333333", 1),
+        baseline_snapshot_id: fixedId("99999999", 1),
+      },
+      {
+        date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(0).toISOString(),
+        session_id: fixedId("33333333", 3), baseline_session_id: fixedId("33333333", 3),
+        baseline_snapshot_id: fixedId("99999999", 3),
+      },
     ],
     recent_alerts: guardianNotifications.slice(0, 2).map((n) => ({
       notification_id: n.notification_id,
@@ -1098,5 +1114,6 @@ export function mockHistory(): HistoryResponse {
     total: weekly.length,
     aggregation: "weekly",
     sample_sufficient: true,
+      ai_risk_trend_points: mockGuardianReport().ai_risk_trend_points,
   };
 }

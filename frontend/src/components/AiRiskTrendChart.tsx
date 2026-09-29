@@ -1,10 +1,12 @@
 import React from "react";
-import Svg, { Circle, Line, Polyline, Text as SvgText } from "react-native-svg";
+import { StyleSheet, Text, View } from "react-native";
+import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
 
-import { colors, guardian } from "@/theme";
+import type { GuardianAiRiskTrendPoint } from "@/api/types";
+import { colors, fontSize, guardian } from "@/theme";
 import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
-export type AiRiskPoint = { date: string; risk_score: number };
+export type AiRiskPoint = GuardianAiRiskTrendPoint;
 
 /** CIST AI model scores use their own 0–1 scale, separate from CIST's 0–30 score. */
 export default function AiRiskTrendChart({
@@ -26,29 +28,67 @@ export default function AiRiskTrendChart({
   const x = (index: number) =>
     points.length === 1 ? (left + right) / 2 : left + (index / (points.length - 1)) * (right - left);
   const y = (score: number) => bottom - Math.max(0, Math.min(1, score)) * (bottom - top);
-  const ordered = [...points].sort((a, b) => a.date.localeCompare(b.date));
-  const line = ordered.map((point, index) => `${x(index)},${y(point.risk_score)}`).join(" ");
+  // A date can contain several analyses; keep the backend's analysis-time order.
+  const ordered = [...points].sort((a, b) =>
+    a.analyzed_at.localeCompare(b.analyzed_at) || a.session_id.localeCompare(b.session_id));
 
   return (
-    <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-      {[0, 0.5, 1].map((tick) => (
-        <React.Fragment key={tick}>
-          <Line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke={colors.border} />
-          <SvgText x={left - 5} y={y(tick) + 4} textAnchor="end" fontSize={10} fill={colors.mutedForeground}>
-            {Math.round(tick * 100)}
-          </SvgText>
-        </React.Fragment>
-      ))}
-      <Polyline points={line} fill="none" stroke={guardian.blue} strokeWidth={2.5} />
-      {ordered.map((point, index) => (
-        <Circle key={`${point.date}-${index}`} cx={x(index)} cy={y(point.risk_score)} r={4} fill={guardian.blue} />
-      ))}
-      <SvgText x={left} y={height - 5} fontSize={10} fill={colors.mutedForeground}>
-        {ordered[0].date.slice(5)}
-      </SvgText>
-      <SvgText x={right} y={height - 5} textAnchor="end" fontSize={10} fill={colors.mutedForeground}>
-        {ordered[ordered.length - 1].date.slice(5)}
-      </SvgText>
-    </Svg>
+    <View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+        {[0, 0.5, 1].map((tick) => (
+          <React.Fragment key={tick}>
+            <Line x1={left} x2={right} y1={y(tick)} y2={y(tick)} stroke={colors.border} />
+            <SvgText x={left - 5} y={y(tick) + 4} textAnchor="end" fontSize={10} fill={colors.mutedForeground}>
+              {Math.round(tick * 100)}
+            </SvgText>
+          </React.Fragment>
+        ))}
+        {ordered.slice(1).map((point, index) => {
+          const previous = ordered[index];
+          const estimated = point.is_estimated || previous.is_estimated;
+          return (
+            <Line
+              key={`${previous.session_id}-${point.session_id}`}
+              x1={x(index)} y1={y(previous.risk_score)}
+              x2={x(index + 1)} y2={y(point.risk_score)}
+              stroke={guardian.blue} strokeWidth={2.5}
+              strokeDasharray={estimated ? "4 4" : undefined}
+            />
+          );
+        })}
+        {ordered.map((point, index) => (
+          <Circle
+            key={point.session_id}
+            cx={x(index)} cy={y(point.risk_score)} r={5}
+            fill={point.is_estimated ? colors.card : guardian.blue}
+            stroke={point.is_estimated ? colors.accent : guardian.blue}
+            strokeWidth={point.is_estimated ? 2.5 : 1}
+          />
+        ))}
+        <SvgText x={left} y={height - 5} fontSize={10} fill={colors.mutedForeground}>
+          {ordered[0].date.slice(5)}
+        </SvgText>
+        <SvgText x={right} y={height - 5} textAnchor="end" fontSize={10} fill={colors.mutedForeground}>
+          {ordered[ordered.length - 1].date.slice(5)}
+        </SvgText>
+      </Svg>
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: guardian.blue, borderColor: guardian.blue }]} />
+          <Text style={[styles.legendText, { color: colors.mutedForeground }]}>전체 CIST 기준점</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: colors.card, borderColor: colors.accent }]} />
+          <Text style={[styles.legendText, { color: colors.mutedForeground }]}>일상 문답 추정점</Text>
+        </View>
+      </View>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4, marginBottom: 8 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
+  legendText: { fontSize: fontSize.micro },
+});
