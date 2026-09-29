@@ -26,6 +26,7 @@ import type {
   CharacterResponse,
   CistAiAnalysisResponse,
   CistRecognitionPlanResponse,
+  CistRetestScheduleResponse,
   ConsentRequest,
   ConsentResponse,
   ConsentsResponse,
@@ -383,6 +384,11 @@ export const sessions = {
 /* ── integrated CIST AI analysis ───────────────────────────────────────── */
 
 export const cistAi = {
+  getRetestSchedule(): Promise<CistRetestScheduleResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockCistRetestSchedule());
+    return request("/cist/retest-schedule");
+  },
+
   createRecognitionPlan(sessionId: Uuid): Promise<CistRecognitionPlanResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockCistRecognitionPlan(sessionId));
     return request(`/sessions/${sessionId}/cist-ai/recognition-plan`, { method: "POST" });

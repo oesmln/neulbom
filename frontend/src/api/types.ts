@@ -469,6 +469,14 @@ export interface CistAiAnalysisResponse {
   updated_at: IsoInstant;
 }
 
+export interface CistRetestScheduleResponse {
+  last_completed_session_id: Uuid | null;
+  last_completed_date: IsoDate | null;
+  next_due_date: IsoDate | null;
+  retest_due: boolean;
+  timezone: string;
+}
+
 /* ── dashboard & screening result ───────────────────────────────────────── */
 
 /** `stable | observe | attention_required` — the server decides, never the app. */
