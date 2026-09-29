@@ -28,6 +28,12 @@ class DatabaseMigrationTest {
         Integer migrationCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"success\" = TRUE",
                 Integer.class);
+        Integer appliedV25Checksum = jdbcTemplate.queryForObject(
+                "SELECT checksum FROM flyway_schema_history WHERE version = '25'",
+                Integer.class);
+        String appliedV25Script = jdbcTemplate.queryForObject(
+                "SELECT script FROM flyway_schema_history WHERE version = '25'",
+                String.class);
         Integer voiceProfileCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM voice_profiles",
                 Integer.class);
@@ -81,6 +87,8 @@ class DatabaseMigrationTest {
                 Integer.class);
 
         assertThat(migrationCount).isGreaterThanOrEqualTo(10);
+        assertThat(appliedV25Checksum).isEqualTo(-312812440);
+        assertThat(appliedV25Script).isEqualTo("V25__add_daily_cognitive_trend_schema.sql");
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(22);
         assertThat(featureSnapshotColumnCount).isEqualTo(1);
