@@ -169,7 +169,13 @@ export function Button({
   };
   const p = palette[variant];
   // Disabled primary actions go flat-muted in the Figma rather than translucent.
-  const flattens = disabled && (variant === "primary" || variant === "danger");
+  // A caller that paints its own background keeps it, so the muted grey label
+  // would sit on that colour and turn unreadable. Those fade instead.
+  const customBackground = Boolean(
+    (StyleSheet.flatten(style) as ViewStyle | undefined)?.backgroundColor,
+  );
+  const flattens =
+    disabled && !customBackground && (variant === "primary" || variant === "danger");
   const height =
     size === "sm" ? sizes.buttonHeightSm : size === "lg" ? sizes.buttonHeightLg : sizes.buttonHeight;
 
@@ -187,7 +193,7 @@ export function Button({
           backgroundColor: flattens ? colors.muted : p.bg,
           borderColor: p.border ?? "transparent",
           borderWidth: p.border ? 1.5 : 0,
-          opacity: pressed ? 0.85 : 1,
+          opacity: pressed ? 0.85 : disabled && customBackground ? 0.6 : 1,
         },
         style,
       ]}
