@@ -78,6 +78,8 @@ public class CistAiAnalysisService {
     private final CistRecognitionPlanRepository recognitionPlanRepository;
     private final CistAiAnalysisRepository analysisRepository;
     private final CognitiveFeatureSnapshotService featureSnapshotService;
+    private final CognitiveFeatureSnapshotRepository featureSnapshotRepository;
+    private final DailyCognitiveEstimateService dailyEstimateService;
     private final AiServerOperationRepository operationRepository;
     private final AiServerClient aiServerClient;
     private final AiAudioUrlSigner audioUrlSigner;
@@ -98,6 +100,8 @@ public class CistAiAnalysisService {
             CistRecognitionPlanRepository recognitionPlanRepository,
             CistAiAnalysisRepository analysisRepository,
             CognitiveFeatureSnapshotService featureSnapshotService,
+            CognitiveFeatureSnapshotRepository featureSnapshotRepository,
+            DailyCognitiveEstimateService dailyEstimateService,
             AiServerOperationRepository operationRepository,
             AiServerClient aiServerClient,
             AiAudioUrlSigner audioUrlSigner,
@@ -117,6 +121,8 @@ public class CistAiAnalysisService {
         this.recognitionPlanRepository = recognitionPlanRepository;
         this.analysisRepository = analysisRepository;
         this.featureSnapshotService = featureSnapshotService;
+        this.featureSnapshotRepository = featureSnapshotRepository;
+        this.dailyEstimateService = dailyEstimateService;
         this.operationRepository = operationRepository;
         this.aiServerClient = aiServerClient;
         this.audioUrlSigner = audioUrlSigner;
@@ -349,7 +355,7 @@ public class CistAiAnalysisService {
 
     @Transactional
     public CistAiAnalysisResponse createDailyAnalysis(UUID userId, UUID sessionId) {
-        SessionEntity session = ownedDailySessionForUpdate(userId, sessionId);
+        SessionEntity session = ownedDailySession(userId, sessionId);
         CistAiAnalysisEntity existing = analysisRepository.findBySessionId(sessionId).orElse(null);
         if (existing != null) {
             return toResponse(existing);
@@ -363,24 +369,35 @@ public class CistAiAnalysisService {
         if (baseline == null) {
             throw validation("완료된 CIST 기준 분석과 특징 스냅샷이 필요합니다.");
         }
-        UUID previousDailySessionId = previousDailySessionId(userId, session.getStartedAt(), baseline.getAnalysisId());
-        CistAiAnalysisEntity previousDailyAnalysis = previousDailySessionId == null
-                ? null : analysisRepository.findBySessionId(previousDailySessionId).orElse(null);
-        AiServerContracts.CognitiveFeatureSnapshot inputSnapshot = previousDailyAnalysis == null
-                ? read(baseline.getFeatureSnapshot(), AiServerContracts.CognitiveFeatureSnapshot.class)
-                : read(previousDailyAnalysis.getFeatureSnapshot(), AiServerContracts.CognitiveFeatureSnapshot.class);
+        AiServerContracts.CognitiveFeatureSnapshot baselineFeatureSnapshot =
+                read(baseline.getFeatureSnapshot(), AiServerContracts.CognitiveFeatureSnapshot.class);
+        CognitiveFeatureSnapshotEntity baselineSnapshot = featureSnapshotRepository
+                .findBySourceAnalysisId(baseline.getAnalysisId())
+                .orElseGet(() -> featureSnapshotService.saveBaselineSnapshot(
+                        userId, baseline.getSessionId(), baseline.getAnalysisId(),
+                        baselineFeatureSnapshot.questionSetVersion(), baseline.getModelVersion(),
+                        baseline.getThresholdVersion(), baseline.getModelScore(), baseline.getFeatureSnapshot()));
+        DailyCognitiveEstimateEntity estimate = dailyEstimateService.createDailyEstimate(
+                userId, sessionId, baselineSnapshot.getSnapshotId());
+        CistAiAnalysisEntity concurrentAnalysis = analysisRepository.findBySessionId(sessionId).orElse(null);
+        if (concurrentAnalysis != null) {
+            return toResponse(concurrentAnalysis);
+        }
+        AiServerContracts.CognitiveFeatureSnapshot inputSnapshot = read(
+                dailyEstimateService.findInputSnapshot(estimate.getEstimateId()).featureSnapshot(),
+                AiServerContracts.CognitiveFeatureSnapshot.class);
         if (inputSnapshot == null) {
             throw validation("일상 인지 분석에 사용할 기준 특징 스냅샷이 없습니다.");
         }
 
         List<AdministeredQuestionResponse> responses = buildDailyResponses(sessionId);
-        BigDecimal baselineModelScore = baseline.getModelScore();
+        BigDecimal baselineModelScore = estimate.getBaselineModelScore();
         UUID analysisId = UUID.nameUUIDFromBytes(
                 ("neulbom:daily-cognitive-analysis:" + sessionId).getBytes(StandardCharsets.UTF_8));
         DailyAnalysisCreateRequest request = new DailyAnalysisCreateRequest(
                 analysisId,
                 sessionId,
-                baseline.getAnalysisId(),
+                baselineSnapshot.getSourceAnalysisId(),
                 assessmentDate(session),
                 baselineModelScore,
                 inputSnapshot,
@@ -404,7 +421,7 @@ public class CistAiAnalysisService {
                 json(responseIdentities(responses)),
                 accepted.createdAt(),
                 now);
-        entity.linkBaselineAnalysis(baseline.getAnalysisId());
+        entity.linkBaselineAnalysis(baselineSnapshot.getSourceAnalysisId());
         analysisRepository.save(entity);
         AiServerOperationEntity operation = new AiServerOperationEntity(
                 uuidGenerator.generate(), sessionId, analysisId, "daily_analysis_create", 0, key, requestHash, now);
@@ -524,18 +541,6 @@ public class CistAiAnalysisService {
         return session;
     }
 
-    private SessionEntity ownedDailySessionForUpdate(UUID userId, UUID sessionId) {
-        SessionEntity session = sessionRepository.findByIdForUpdate(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
-        if (!userId.equals(session.getUserId())) {
-            throw new AccessDeniedException("본인 일상 문답 세션만 분석할 수 있습니다.");
-        }
-        if (!"emotional_qa".equals(session.getSessionType())) {
-            throw validation("일상 문답 세션만 부분 갱신 분석을 요청할 수 있습니다.");
-        }
-        return session;
-    }
-
     private void requireDailyAnalysisConsent(UUID userId) {
         requireAgreedConsent(userId, "analysis", "인지 활동 분석 동의가 필요합니다.");
         requireAgreedConsent(userId, "voice_collection", "음성 수집 동의가 필요합니다.");
@@ -560,25 +565,9 @@ public class CistAiAnalysisService {
             }
             CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
             if (analysis != null && "completed".equals(analysis.getStatus())
+                    && !analysis.getUpdatedAt().isAfter(before)
                     && analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())) {
                 return analysis;
-            }
-        }
-        return null;
-    }
-
-    private UUID previousDailySessionId(UUID userId, java.time.Instant before, UUID baselineAnalysisId) {
-        for (SessionEntity candidate : sessionRepository.findAllByUserIdOrderByStartedAtDesc(userId)) {
-            if (!"emotional_qa".equals(candidate.getSessionType())
-                    || !SessionEntity.ENDED.equals(candidate.getStatus())
-                    || candidate.getEndedAt() == null || candidate.getEndedAt().isAfter(before)) {
-                continue;
-            }
-            CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
-            if (analysis != null && "completed".equals(analysis.getStatus())
-                    && StringUtils.hasText(analysis.getFeatureSnapshot())
-                    && baselineAnalysisId.equals(analysis.getBaselineAnalysisId())) {
-                return candidate.getId();
             }
         }
         return null;

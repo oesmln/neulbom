@@ -73,6 +73,9 @@ class DailyCognitiveTrendIntegrationTest {
                 .isEqualTo(second.getEstimateId());
 
         CognitiveFeatureSnapshotEntity nextBaseline = saveBaseline(userId, "baseline", "0.35", "{\"step\":0,\"new\":true}");
+        assertThatThrownBy(() -> estimates.createDailyEstimate(
+                userId, firstSessionId, nextBaseline.getSnapshotId()))
+                .hasMessageContaining("기준 스냅샷은 변경할 수 없습니다");
         DailyCognitiveEstimateEntity afterRetest = estimates.createDailyEstimate(userId, endedDailySession(userId));
         assertThat(afterRetest.getBaselineSnapshotId()).isEqualTo(nextBaseline.getSnapshotId());
         assertThat(afterRetest.getParentEstimateId()).isNull();
@@ -80,6 +83,23 @@ class DailyCognitiveTrendIntegrationTest {
                 .isEqualTo(new ObjectMapper().readTree("{\"step\":0,\"new\":true}"));
         assertThat(estimates.findLatestCurrentSnapshot(userId, firstBaseline.getSnapshotId()).parentEstimateId())
                 .isEqualTo(second.getEstimateId());
+    }
+
+    @Test
+    void laterDailySessionDoesNotBecomeParentOfEarlierSession() {
+        UUID userId = saveUser();
+        CognitiveFeatureSnapshotEntity baseline = saveBaseline(userId, "cist", "0.42", "{\"step\":0}");
+        Instant firstStart = Instant.now().plusSeconds(60);
+        UUID laterSessionId = endedDailySession(userId, firstStart.plusSeconds(3600));
+        DailyCognitiveEstimateEntity later = estimates.createDailyEstimate(
+                userId, laterSessionId, baseline.getSnapshotId());
+        estimates.completeDailyEstimate(later.getEstimateId(), completion("0.45", "{\"step\":1}"));
+
+        UUID earlierSessionId = endedDailySession(userId, firstStart);
+        DailyCognitiveEstimateEntity earlier = estimates.createDailyEstimate(
+                userId, earlierSessionId, baseline.getSnapshotId());
+        assertThat(earlier.getBaselineSnapshotId()).isEqualTo(baseline.getSnapshotId());
+        assertThat(earlier.getParentEstimateId()).isNull();
     }
 
     private UUID saveUser() {
@@ -109,6 +129,14 @@ class DailyCognitiveTrendIntegrationTest {
         Instant now = Instant.now();
         SessionEntity session = new SessionEntity(UUID.randomUUID(), userId, "emotional_qa", 7, "{}", false, now);
         session.end(now);
+        sessions.save(session);
+        return session.getId();
+    }
+
+    private UUID endedDailySession(UUID userId, Instant startedAt) {
+        SessionEntity session = new SessionEntity(
+                UUID.randomUUID(), userId, "emotional_qa", 7, "{}", false, startedAt);
+        session.end(startedAt.plusSeconds(30));
         sessions.save(session);
         return session.getId();
     }
