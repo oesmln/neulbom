@@ -254,7 +254,7 @@ public class CistAiAnalysisService {
     @Transactional
     public CistAiAnalysisResponse refreshAnalysis(UUID userId, UUID sessionId) {
         ownedCistSession(userId, sessionId);
-        CistAiAnalysisEntity entity = analysisRepository.findBySessionId(sessionId)
+        CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("CIST AI 분석을 찾을 수 없습니다."));
         AnalysisStatusResponse result = aiServerClient.getAnalysis(entity.getAnalysisId());
         validator.validateAnalysisStatus(result, entity.getAnalysisId(), sessionId);
