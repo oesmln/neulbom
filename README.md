@@ -305,7 +305,9 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ### 6.1. 프로젝트 소개 자료
 
-[늘봄 프로젝트 소개 자료 (Google Slides)](https://docs.google.com/presentation/d/11qWvt2otd0U5ijl2KU0iGcvjQMmvF9uW/edit)
+[늘봄 프로젝트 소개 자료 (Google Slides)](https://docs.google.com/presentation/d/11qWvt2otd0U5ijl2KU0iGcvjQMmvF9uW/edit?usp=sharing&ouid=102796737423625953081&rtpof=true&sd=true)
+
+저장소 사본: [`docs/03.발표자료/2026발표자료_21_효자손.pptx`](docs/03.발표자료/2026발표자료_21_효자손.pptx)
 
 ### 6.2. 시연 영상
 
