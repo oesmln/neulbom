@@ -179,6 +179,43 @@ class AiServerClientTest {
     }
 
     @Test
+    void analysisStatusMapsLegacyScoreWithoutFeatureSnapshot() throws Exception {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID analysisId = UUID.randomUUID();
+        UUID assessmentId = UUID.randomUUID();
+        var score = new BigDecimal("0.42");
+        var result = new AiServerContracts.FinalAnalysisResult(
+                AiServerContracts.QUESTION_SET_VERSION,
+                AiServerContracts.WRONG_EVENT_RULE_VERSION,
+                AiServerContracts.FUSION_MODEL_VERSION,
+                score,
+                new BigDecimal("0.38592870327757767"),
+                new BigDecimal("0.8061380697921943"),
+                AiServerContracts.THRESHOLD_VERSION,
+                true,
+                "monitoring_needed",
+                new AiServerContracts.FusionFeatures(
+                        new BigDecimal("0.1"), new BigDecimal("0.2"),
+                        new BigDecimal("0.3"), new BigDecimal("0.4")),
+                null,
+                AiServerContractFixtures.fullQuestionResults());
+        Instant now = Instant.parse("2026-09-29T10:00:00Z");
+        var response = new AiServerContracts.AnalysisStatusResponse(
+                analysisId, assessmentId, "completed", now, now, false, null, List.of(), result);
+        String body = new ObjectMapper().registerModule(new JavaTimeModule()).writeValueAsString(response);
+        server.expect(requestTo("http://ai.test/v1/analyses/" + analysisId))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        var actual = client(builder).getAnalysis(analysisId);
+
+        assertThat(actual.result().modelScore()).isEqualByComparingTo(score);
+        assertThat(actual.result().featureSnapshot()).isNull();
+        server.verify();
+    }
+
+    @Test
     void dailyCognitiveAnalysisUsesDedicatedCreateGetAndRetryPaths() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

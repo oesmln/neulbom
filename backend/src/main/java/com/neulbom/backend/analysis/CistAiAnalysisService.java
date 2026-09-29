@@ -273,9 +273,10 @@ public class CistAiAnalysisService {
                 finalResult == null ? null : finalResult.riskFlag(),
                 finalResult == null ? null : finalResult.riskLevel(),
                 result.updatedAt());
-        entity.updateFeatureSnapshot(finalResult == null ? null : json(finalResult.featureSnapshot()));
+        entity.updateFeatureSnapshot(finalResult == null || finalResult.featureSnapshot() == null
+                ? null : json(finalResult.featureSnapshot()));
         analysisRepository.save(entity);
-        if ("completed".equals(result.status())) {
+        if ("completed".equals(result.status()) && finalResult.featureSnapshot() != null) {
             featureSnapshotService.saveBaselineSnapshot(
                     userId,
                     sessionId,
@@ -608,9 +609,9 @@ public class CistAiAnalysisService {
             }
             CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
             if (analysis != null && "completed".equals(analysis.getStatus())
-                    && !analysis.getUpdatedAt().isAfter(before)
-                    && analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())) {
-                return analysis;
+                    && !analysis.getUpdatedAt().isAfter(before)) {
+                return analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())
+                        ? analysis : null;
             }
         }
         return null;

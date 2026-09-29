@@ -388,6 +388,11 @@ GET /v1/analyses/{analysis_id}
 - `completed`: 분석 완료
 - `failed`: 재시도할 수 없는 실패
 
+스냅샷 계약 도입 이전에 저장된 완료 결과는 `model_score`가 있어도
+`result.feature_snapshot`이 `null`일 수 있습니다. 조회 API는 해당 점수를 그대로
+반환하며, 백엔드는 이 결과로 일상 부분 갱신의 기준 스냅샷을 만들지 않습니다.
+새 전체 CIST 분석 결과에는 특징 스냅샷을 계속 포함합니다.
+
 ### 4. 분석 재시도
 
 ```text

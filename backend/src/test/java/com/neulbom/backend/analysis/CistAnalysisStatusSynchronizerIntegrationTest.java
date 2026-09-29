@@ -16,6 +16,11 @@ import java.util.UUID;
 
 import com.neulbom.backend.analysis.integration.aiserver.AiServerClient;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts;
+import com.neulbom.backend.guardian.GuardianLinkEntity;
+import com.neulbom.backend.guardian.GuardianLinkRepository;
+import com.neulbom.backend.guardian.GuardianLinkScopeEntity;
+import com.neulbom.backend.guardian.GuardianLinkScopeRepository;
+import com.neulbom.backend.report.ReportService;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -37,6 +42,9 @@ class CistAnalysisStatusSynchronizerIntegrationTest {
     @Autowired private CognitiveFeatureSnapshotRepository snapshots;
     @Autowired private SessionRepository sessions;
     @Autowired private UserRepository users;
+    @Autowired private GuardianLinkRepository links;
+    @Autowired private GuardianLinkScopeRepository scopes;
+    @Autowired private ReportService reports;
 
     @MockitoBean private AiServerClient aiServerClient;
 
@@ -114,6 +122,59 @@ class CistAnalysisStatusSynchronizerIntegrationTest {
         assertThat(analyses.findById(analysis.getAnalysisId()).orElseThrow().getStatus())
                 .isEqualTo("failed");
         assertThat(snapshots.findBySourceAnalysisId(analysis.getAnalysisId())).isEmpty();
+    }
+
+    @Test
+    void syncsLegacyCompletedScoreIntoGuardianTrendWithoutInventingSnapshot() {
+        Instant startedAt = Instant.parse("2026-09-29T02:00:00Z");
+        UserEntity elder = elder(startedAt);
+        UserEntity guardian = users.save(new UserEntity(
+                UUID.randomUUID(), "guardian-" + UUID.randomUUID() + "@example.com",
+                null, "보호자", "guardian", null, null, null, null, true, startedAt, startedAt));
+        GuardianLinkEntity link = links.save(new GuardianLinkEntity(
+                UUID.randomUUID(), guardian.getId(), elder.getId(), "자녀",
+                GuardianLinkEntity.ACTIVE, false, startedAt, startedAt));
+        scopes.save(new GuardianLinkScopeEntity(link.getId(), "screening"));
+        scopes.save(new GuardianLinkScopeEntity(link.getId(), "summary"));
+        SessionEntity cist = sessions.save(new SessionEntity(
+                UUID.randomUUID(), elder.getId(), "cist", 17, "{}", false, startedAt));
+        CistAiAnalysisEntity analysis = analysis(cist, "processing", startedAt);
+        BigDecimal score = new BigDecimal("0.4234567891");
+        var result = new AiServerContracts.FinalAnalysisResult(
+                AiServerContracts.QUESTION_SET_VERSION,
+                AiServerContracts.WRONG_EVENT_RULE_VERSION,
+                AiServerContracts.FUSION_MODEL_VERSION,
+                score,
+                new BigDecimal("0.38592870327757767"),
+                new BigDecimal("0.8061380697921943"),
+                AiServerContracts.THRESHOLD_VERSION,
+                true,
+                "monitoring_needed",
+                new AiServerContracts.FusionFeatures(
+                        new BigDecimal("0.1"), new BigDecimal("0.2"),
+                        new BigDecimal("0.3"), new BigDecimal("0.4")),
+                null,
+                fullQuestionResults());
+        when(aiServerClient.getAnalysis(analysis.getAnalysisId())).thenReturn(
+                new AiServerContracts.AnalysisStatusResponse(
+                        analysis.getAnalysisId(), cist.getId(), "completed",
+                        startedAt, startedAt.plusSeconds(120), false, null, List.of(), result));
+
+        synchronize();
+
+        CistAiAnalysisEntity stored = analyses.findById(analysis.getAnalysisId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo("completed");
+        assertThat(stored.getModelScore()).isEqualByComparingTo(score);
+        assertThat(stored.getFeatureSnapshot()).isNull();
+        assertThat(snapshots.findBySourceAnalysisId(analysis.getAnalysisId())).isEmpty();
+        var report = reports.getGuardianReport(guardian.getId(), guardian.getId(), elder.getId(),
+                null, null, null, "Asia/Seoul");
+        assertThat(report.aiRiskTrendPoints()).hasSize(1);
+        assertThat(report.aiRiskTrendPoints().getFirst().riskScore()).isEqualByComparingTo(score);
+        assertThat(report.aiRiskTrendPoints().getFirst().baselineSnapshotId()).isNull();
+
+        synchronize();
+        verify(aiServerClient, times(1)).getAnalysis(analysis.getAnalysisId());
     }
 
     private UserEntity elder(Instant now) {

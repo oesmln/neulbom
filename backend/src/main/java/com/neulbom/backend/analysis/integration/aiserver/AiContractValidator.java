@@ -102,8 +102,10 @@ public class AiContractValidator {
                             "미시행 문항에는 녹음·응답 ID가 없어야 합니다.");
                 }
             }
-            require(snapshotQuestionCodes(response.result().featureSnapshot()).equals(administeredCodes),
-                    "feature_snapshot의 모델 문항이 시행 문항과 일치하지 않습니다.");
+            if (response.result().featureSnapshot() != null) {
+                require(snapshotQuestionCodes(response.result().featureSnapshot()).equals(administeredCodes),
+                        "feature_snapshot의 모델 문항이 시행 문항과 일치하지 않습니다.");
+            }
         } else {
             require(response.result() == null, "completed 이외 상태에는 최종 result가 없어야 합니다.");
         }
@@ -199,9 +201,11 @@ public class AiContractValidator {
         require(expectedRiskLevel.equals(result.riskLevel()),
                 "risk_level이 model_score 구간과 일치하지 않습니다.");
         validateFusionFeatures(result.features());
-        validateFeatureSnapshot(result.featureSnapshot(), score);
-        require(sameFeatures(result.features(), result.featureSnapshot().fusionFeatures()),
-                "feature_snapshot의 Fusion 특징이 최종 결과와 일치하지 않습니다.");
+        if (result.featureSnapshot() != null) {
+            validateFeatureSnapshot(result.featureSnapshot(), score);
+            require(sameFeatures(result.features(), result.featureSnapshot().fusionFeatures()),
+                    "feature_snapshot의 Fusion 특징이 최종 결과와 일치하지 않습니다.");
+        }
     }
 
     private void validateDailyResult(DailyAnalysisResult result) {

@@ -971,7 +971,9 @@ class FinalAnalysisResult(APIModel):
     risk_flag: bool
     risk_level: RiskLevel
     features: FusionFeatureValues
-    feature_snapshot: CognitiveFeatureSnapshot
+    # Results persisted before the snapshot contract have a real model_score
+    # but no per-question features to reconstruct a baseline snapshot.
+    feature_snapshot: CognitiveFeatureSnapshot | None = None
     question_results: list[
         QuestionAnalysisResult
     ] = Field(
@@ -1070,6 +1072,9 @@ class FinalAnalysisResult(APIModel):
             )
 
         snapshot = self.feature_snapshot
+
+        if snapshot is None:
+            return self
 
         if (
             snapshot.question_set_version
