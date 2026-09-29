@@ -14,7 +14,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -25,13 +24,11 @@ class RecentDiaryRecoverySchedulerTest {
 
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Seoul");
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-09-29T04:00:00Z"), ZoneOffset.UTC);
-    private static final LocalDate MISSED_DATE = LocalDate.of(2026, 9, 28);
-
     @Test
-    void recoversOneDiaryForMultipleSessionsOnTheSameDay() {
+    void recoversEveryMissingSessionDiaryOnTheSameDay() {
         SessionRepository sessions = mock(SessionRepository.class);
         UserRepository users = mock(UserRepository.class);
-        DiaryGenerationJobRepository jobs = mock(DiaryGenerationJobRepository.class);
+        DiaryRepository diaries = mock(DiaryRepository.class);
         DailyDiaryGenerator generator = mock(DailyDiaryGenerator.class);
         UUID userId = UUID.randomUUID();
         SessionEntity first = session(userId, Instant.parse("2026-09-28T01:00:00Z"));
@@ -39,20 +36,17 @@ class RecentDiaryRecoverySchedulerTest {
         when(sessions.findEndedEmotionalQaSessionsStartedBetween(windowStart(), windowEnd()))
                 .thenReturn(List.of(first, second));
         activeElder(users, userId);
-        when(generator.qaPairs(first.getId())).thenReturn(List.of(
-                new QaPair(UUID.randomUUID(), "오늘 무엇을 하셨어요?", "산책했어요.", "emotion")));
+        new RecentDiaryRecoveryScheduler(sessions, users, diaries, generator, CLOCK).recoverRecentDiaryDays();
 
-        new RecentDiaryRecoveryScheduler(sessions, users, jobs, generator, CLOCK).recoverRecentDiaryDays();
-
-        verify(generator).generate(userId, MISSED_DATE);
-        verify(generator, never()).qaPairs(second.getId());
+        verify(generator).generateForSession(first.getId());
+        verify(generator).generateForSession(second.getId());
     }
 
     @Test
-    void skipsExistingJobAndDayWithoutUsableConversationText() {
+    void skipsExistingSessionDiary() {
         SessionRepository sessions = mock(SessionRepository.class);
         UserRepository users = mock(UserRepository.class);
-        DiaryGenerationJobRepository jobs = mock(DiaryGenerationJobRepository.class);
+        DiaryRepository diaries = mock(DiaryRepository.class);
         DailyDiaryGenerator generator = mock(DailyDiaryGenerator.class);
         UUID completedUser = UUID.randomUUID();
         UUID untranscribedUser = UUID.randomUUID();
@@ -60,15 +54,14 @@ class RecentDiaryRecoverySchedulerTest {
         SessionEntity untranscribed = session(untranscribedUser, Instant.parse("2026-09-28T03:00:00Z"));
         when(sessions.findEndedEmotionalQaSessionsStartedBetween(windowStart(), windowEnd()))
                 .thenReturn(List.of(completed, untranscribed));
-        when(jobs.existsByUserIdAndTargetDate(completedUser, MISSED_DATE)).thenReturn(true);
+        when(diaries.findFirstBySessionIdAndSourceTypeOrderByCreatedAtAsc(completed.getId(), "session"))
+                .thenReturn(Optional.of(mock(DiaryEntity.class)));
         activeElder(users, untranscribedUser);
 
-        new RecentDiaryRecoveryScheduler(sessions, users, jobs, generator, CLOCK).recoverRecentDiaryDays();
+        new RecentDiaryRecoveryScheduler(sessions, users, diaries, generator, CLOCK).recoverRecentDiaryDays();
 
-        verify(generator, never()).qaPairs(completed.getId());
-        verify(generator, never()).generate(completedUser, MISSED_DATE);
-        verify(generator).qaPairs(untranscribed.getId());
-        verify(generator, never()).generate(untranscribedUser, MISSED_DATE);
+        verify(generator, never()).generateForSession(completed.getId());
+        verify(generator).generateForSession(untranscribed.getId());
     }
 
     private SessionEntity session(UUID userId, Instant startedAt) {
@@ -91,6 +84,6 @@ class RecentDiaryRecoverySchedulerTest {
     }
 
     private Instant windowEnd() {
-        return LocalDate.of(2026, 9, 29).atStartOfDay(BUSINESS_ZONE).toInstant();
+        return CLOCK.instant();
     }
 }

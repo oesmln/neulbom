@@ -6,6 +6,7 @@ import com.neulbom.backend.auth.service.AuthService;
 import com.neulbom.backend.config.ServerWorkerOnly;
 import com.neulbom.backend.notification.api.NotificationPushRequest;
 import com.neulbom.backend.notification.api.NotificationPushResponse;
+import com.neulbom.backend.notification.api.PushDeviceRequest;
 import com.neulbom.backend.notification.api.NotificationReadResponse;
 import com.neulbom.backend.notification.api.NotificationsReadAllResponse;
 import com.neulbom.backend.notification.api.NotificationsResponse;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,10 +31,24 @@ public class NotificationController {
 
     private final AuthService authService;
     private final NotificationService notificationService;
+    private final PushDeviceService pushDeviceService;
 
-    public NotificationController(AuthService authService, NotificationService notificationService) {
+    public NotificationController(AuthService authService, NotificationService notificationService, PushDeviceService pushDeviceService) {
         this.authService = authService;
         this.notificationService = notificationService;
+        this.pushDeviceService = pushDeviceService;
+    }
+
+    @PostMapping("/devices")
+    public ResponseEntity<Void> registerDevice(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody PushDeviceRequest request) {
+        pushDeviceService.register(authenticatedUserId(jwt), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/devices")
+    public ResponseEntity<Void> unregisterDevice(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody PushDeviceRequest request) {
+        pushDeviceService.unregister(authenticatedUserId(jwt), request);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/push")

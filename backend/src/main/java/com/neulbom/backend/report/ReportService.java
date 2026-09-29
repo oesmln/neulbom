@@ -553,6 +553,9 @@ public class ReportService {
     }
 
     private DashboardResponse.DiarySummary latestDiary(UUID userId, LocalDate today) {
+        DiaryEntity diary = diaryRepository.findAllByUserIdOrderByWrittenAtDesc(userId).stream().findFirst().orElse(null);
+        if (diary != null) return new DashboardResponse.DiarySummary(localDate(diary.getWrittenAt()), "completed", diary.getId(),
+                "일기 생성 완료", "새 일기를 확인해 보세요.", diary.getCreatedAt());
         DiaryGenerationJobEntity job = diaryGenerationJobRepository.findByUserIdAndTargetDate(userId, today)
                 .orElseGet(() -> diaryGenerationJobRepository.findByUserIdAndTargetDate(userId, today.minusDays(1)).orElse(null));
         if (job != null) {
@@ -566,9 +569,7 @@ public class ReportService {
             return new DashboardResponse.DiarySummary(job.getTargetDate(), job.getStatus(), job.getDiaryId(), label,
                     "completed".equals(job.getStatus()) ? "오늘의 일기를 확인해 보세요." : "오늘 대화를 바탕으로 일기를 준비해요.", job.getAvailableAt());
         }
-        DiaryEntity diary = diaryRepository.findAllByUserIdOrderByWrittenAtDesc(userId).stream().findFirst().orElse(null);
-        if (diary == null) return new DashboardResponse.DiarySummary(today, "scheduled", null, "내일 일기 생성 예정", "오늘 대화를 바탕으로 내일 일기를 준비해요.", null);
-        return new DashboardResponse.DiarySummary(localDate(diary.getWrittenAt()), "completed", diary.getId(), "일기 생성 완료", "오늘의 일기를 확인해 보세요.", diary.getCreatedAt());
+        return new DashboardResponse.DiarySummary(today, "processing", null, "일기 준비 중", "대화를 마치면 일기를 바로 준비해요.", null);
     }
 
     private LocalDate localDate(Instant instant) {

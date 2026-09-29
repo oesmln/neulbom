@@ -1,5 +1,6 @@
 package com.neulbom.backend.diary;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -156,10 +157,55 @@ class DiaryIntegrationTest {
         String generatedDiaryId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(generationBody).get("diary_id").asText();
         mockMvc.perform(get("/api/v1/diaries/{userId}/generation-status", elder.getId()).with(jwtFor(elder))
                         .param("date", dailySummary.getLocalDate().toString()))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.diary_id").value(generatedDiaryId));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.diary_id").value(diaryId.toString()));
+        assertThat(generatedDiaryId).isNotEqualTo(diaryId.toString());
 
         mockMvc.perform(delete("/api/v1/diaries/{diaryId}", diaryId).with(jwtFor(guardian)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void separateConversationsCreateSeparateDiariesAndGuardianNotificationsWithoutDuplicates() throws Exception {
+        UserEntity elder = saveUser("multi-diary-elder", "elder");
+        UserEntity guardian = saveUser("multi-diary-guardian", "guardian");
+        UserEntity unrelated = saveUser("multi-diary-unrelated", "guardian");
+        Instant now = Instant.now();
+        GuardianLinkEntity link = guardianLinkRepository.save(new GuardianLinkEntity(uuidGenerator.generate(), guardian.getId(), elder.getId(),
+                "자녀", GuardianLinkEntity.ACTIVE, false, now, now));
+        guardianLinkScopeRepository.save(new GuardianLinkScopeEntity(link.getId(), "diary"));
+        SessionEntity first = sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "emotional_qa", 3, "{}", false, now));
+        SessionEntity second = sessionRepository.save(new SessionEntity(uuidGenerator.generate(), elder.getId(), "emotional_qa", 3, "{}", false, now.plusSeconds(30)));
+        sessionSummaryRepository.save(new SessionSummaryEntity(uuidGenerator.generate(), first.getId(), elder.getId(), "오전에 산책했어요.",
+                new BigDecimal("70"), "[]", 1, "completed", now, now));
+        sessionSummaryRepository.save(new SessionSummaryEntity(uuidGenerator.generate(), second.getId(), elder.getId(), "오후에 친구를 만났어요.",
+                new BigDecimal("70"), "[]", 1, "completed", now, now));
+
+        String firstResponse = mockMvc.perform(post("/api/v1/diaries/from-session").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"session_id\":\"" + first.getId() + "\",\"user_id\":\"" + elder.getId() + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String secondResponse = mockMvc.perform(post("/api/v1/diaries/from-session").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"session_id\":\"" + second.getId() + "\",\"user_id\":\"" + elder.getId() + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID firstDiaryId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(firstResponse).get("diary_id").asText());
+        UUID secondDiaryId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper().readTree(secondResponse).get("diary_id").asText());
+        assertThat(firstDiaryId).isNotEqualTo(secondDiaryId);
+
+        mockMvc.perform(post("/api/v1/diaries/from-session").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"session_id\":\"" + first.getId() + "\",\"user_id\":\"" + elder.getId() + "\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.diary_id").value(firstDiaryId.toString()));
+        mockMvc.perform(get("/api/v1/diaries/{userId}", elder.getId()).with(jwtFor(guardian)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.diaries.length()").value(2));
+        mockMvc.perform(get("/api/v1/notifications/{userId}", guardian.getId()).with(jwtFor(guardian))
+                        .param("type", "diary_generated"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notifications.length()").value(2));
+        mockMvc.perform(get("/api/v1/diaries/{userId}", elder.getId()).with(jwtFor(unrelated)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/notifications/{userId}", unrelated.getId()).with(jwtFor(unrelated))
+                        .param("type", "diary_generated"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.notifications.length()").value(0));
     }
 
     @Test

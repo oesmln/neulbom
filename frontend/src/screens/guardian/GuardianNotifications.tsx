@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet, Pressable } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { notifications as notificationsApi } from "@/api";
@@ -41,14 +41,15 @@ function badgeFor(item: NotificationResponse) {
 
 export default function GuardianNotificationsScreen() {
   const navigation = useNavigation<GuardianNav>();
-  const { userId, role } = useApp();
+  const isFocused = useIsFocused();
+  const { userId, role, setSelectedElderId } = useApp();
   const [items, setItems] = React.useState<NotificationResponse[]>([]);
   const [actionError, setActionError] = React.useState<string | null>(null);
 
   const { data, error, loading, reload } = useApi(
     () => notificationsApi.list(userId as string, role ?? "guardian"),
-    [userId, role],
-    { enabled: !!userId },
+    [userId, role, isFocused],
+    { enabled: !!userId && isFocused, intervalMs: isFocused ? 5000 : undefined },
   );
 
   React.useEffect(() => {
@@ -81,6 +82,16 @@ export default function GuardianNotificationsScreen() {
   };
 
   const hasUnread = items.some((n) => !n.is_read);
+
+  const openNotification = (item: NotificationResponse) => {
+    void markRead(item.notification_id);
+    if (item.type !== "diary_generated" || !item.data || typeof item.data !== "object") return;
+    const elderId = (item.data as Record<string, unknown>).elder_id;
+    const diaryId = (item.data as Record<string, unknown>).reference_id;
+    if (typeof elderId !== "string") return;
+    setSelectedElderId(elderId);
+    navigation.navigate("GuardianTabs", { screen: "GuardianRecord", params: { diaryId: typeof diaryId === "string" ? diaryId : undefined } });
+  };
 
   const header = (
     <ScreenHeader
@@ -123,7 +134,7 @@ export default function GuardianNotificationsScreen() {
           return (
             <Pressable
               key={n.notification_id}
-              onPress={() => void markRead(n.notification_id)}
+              onPress={() => openNotification(n)}
               accessibilityRole="button"
               accessibilityLabel={`${n.title}. ${n.body}`}
             >

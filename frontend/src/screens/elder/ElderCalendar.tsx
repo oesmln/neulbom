@@ -8,7 +8,7 @@ import { diaries as diariesApi } from "@/api";
 import DiaryReactionList from "@/components/DiaryReactionList";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
-import { isoDateOf, moodEmoji } from "@/utils/format";
+import { isoDateOf, moodEmoji, parseIso } from "@/utils/format";
 import type { DiaryListItem } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import {
@@ -71,6 +71,7 @@ export default function ElderCalendarScreen() {
   const monthLabel = `${monthBase.getFullYear()}년 ${monthBase.getMonth() + 1}월`;
 
   const [selected, setSelected] = React.useState<string | null>(todayDate);
+  const [selectedDiaryId, setSelectedDiaryId] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState(false);
 
   const calendar = useApi(
@@ -80,9 +81,9 @@ export default function ElderCalendarScreen() {
   );
 
   const diaryList = useApi(
-    () => diariesApi.listForUser(userId as string, { fromDate, toDate, limit: 31 }),
+    () => diariesApi.listForUser(userId as string, { fromDate, toDate, limit: 100 }),
     [userId, fromDate, toDate, isFocused],
-    { enabled: !!userId && isFocused },
+    { enabled: !!userId && isFocused, intervalMs: isFocused ? 5000 : undefined },
   );
 
   /** date → mood, taken from the calendar activities. */
@@ -96,11 +97,12 @@ export default function ElderCalendarScreen() {
     return map;
   }, [calendar.data]);
 
-  /** date → diary, so tapping a day can show what was written. */
+  /** date → diaries, preserving every conversation on the selected day. */
   const diaryByDate = React.useMemo(() => {
-    const map = new Map<string, DiaryListItem>();
+    const map = new Map<string, DiaryListItem[]>();
     for (const diary of diaryList.data?.diaries ?? []) {
-      map.set(isoDateOf(new Date(diary.written_at)), diary);
+      const date = isoDateOf(parseIso(diary.written_at));
+      map.set(date, [...(map.get(date) ?? []), diary]);
     }
     return map;
   }, [diaryList.data]);
@@ -115,7 +117,8 @@ export default function ElderCalendarScreen() {
   const dateOf = (day: number) =>
     isoDateOf(new Date(monthBase.getFullYear(), monthBase.getMonth(), day));
 
-  const selectedDiary = selected ? diaryByDate.get(selected) : undefined;
+  const selectedDiaries = selected ? diaryByDate.get(selected) ?? [] : [];
+  const selectedDiary = selectedDiaries.find((diary) => diary.diary_id === selectedDiaryId) ?? selectedDiaries[0];
   const selectedDay = selected ? Number(selected.slice(8, 10)) : null;
   const showGenerationStatus =
     selected === todayDate && Boolean(diaryList.data) && !selectedDiary;
@@ -141,16 +144,18 @@ export default function ElderCalendarScreen() {
   const moveMonth = (delta: number) => {
     setMonthOffset((offset) => offset + delta);
     setSelected(null);
+    setSelectedDiaryId(null);
     setExpanded(false);
   };
 
   const selectDay = (date: string) => {
     setSelected((current) => (current === date ? null : date));
+    setSelectedDiaryId(null);
     setExpanded(false);
   };
 
   return (
-    <Screen header={<ScreenHeader title={monthLabel} subtitle={`${diaryByDate.size}일 일기 작성`} />}>
+    <Screen header={<ScreenHeader title={monthLabel} subtitle={`${diaryList.data?.total ?? 0}편 일기 작성`} />}>
       {error && !calendar.data ? (
         <ErrorState
           message={apiErrorMessage(error)}
@@ -249,6 +254,21 @@ export default function ElderCalendarScreen() {
           {selected && selectedDiary ? (
             // Light-sage entry card: "9월 8일의 일기" + mood, body, 전체 보기 toggle.
             <View style={styles.entryCard}>
+              <Text style={styles.entryTitle}>{selectedDiaries.length}편의 일기</Text>
+              {selectedDiaries.map((diary) => (
+                <Pressable
+                  key={diary.diary_id}
+                  onPress={() => { setSelectedDiaryId(diary.diary_id); setExpanded(false); }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: diary.diary_id === selectedDiary.diary_id }}
+                  style={[styles.diaryChoice, diary.diary_id === selectedDiary.diary_id && styles.diaryChoiceSelected]}
+                >
+                  <Text style={styles.diaryChoiceTitle}>
+                    {parseIso(diary.written_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} · {diary.title ?? "일기"}
+                  </Text>
+                  <Caption>{diary.preview ?? ""}</Caption>
+                </Pressable>
+              ))}
               <View style={styles.entryHead}>
                 <Text style={styles.entryTitle}>
                   {monthBase.getMonth() + 1}월 {selectedDay}일의 일기
@@ -372,6 +392,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   entryHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  diaryChoice: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.card },
+  diaryChoiceSelected: { borderColor: colors.primary },
+  diaryChoiceTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   entryTitle: { fontSize: 16, fontWeight: fontWeight.bold, color: colors.foreground },
   entryMood: { fontSize: 22 },
   entryBody: { fontSize: 14, lineHeight: 24, color: colors.mutedForeground },

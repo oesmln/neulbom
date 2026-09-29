@@ -81,7 +81,7 @@ function isTodayDiaryTask(task: DashboardTask): boolean {
  * The status wording is the server's — `display_label` and `message` come from
  * `latest_diary`, and only the badge colour is decided here. The prototype
  * hardcoded "생성 완료"; deriving it from `generation_status` keeps the card
- * honest when the overnight job is still running or failed.
+ * honest while a conversation diary is still being prepared or has failed.
  */
 function diaryBadge(status: string): { color: string; background: string } {
   if (status === "completed") {

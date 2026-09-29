@@ -46,6 +46,17 @@ npm run eas:build:android:preview
 `preview` profile은 내부 배포용 APK를 만든다. API 주소나 JavaScript 번들이 바뀌면
 APK를 다시 빌드하고 발표 기기에 설치해야 한다.
 
+## 보호자 일기 푸시 시연
+
+보호자 계정으로 실제 iOS·Android 앱에 로그인하면 알림 권한을 요청하고 Expo 푸시 토큰을 서버에 등록한다. AI 대화를 끝내 일기가 생성되면 연결·동의·일기 접근 범위가 유효한 보호자의 기기에 알림을 보낸다. 알림을 누르면 해당 어르신의 일기를 연다.
+
+- EAS 프로젝트를 연결하고 앱 빌드에 프로젝트 UUID를 포함한다. 로컬 개발 빌드에서 자동 인식되지 않으면 `.env`의 `EXPO_PUBLIC_EAS_PROJECT_ID`를 설정한다.
+- Android EAS 자격증명에 FCM v1 서비스 계정을, iOS에는 APNs 키를 등록한다. 자격증명 원문은 저장소에 두지 않는다.
+- Expo Go와 Web에서는 원격 휴대폰 푸시를 검증할 수 없다. EAS development/preview 빌드를 실제 기기에 설치하고 알림 권한을 허용한다.
+- 알림이 오지 않으면 먼저 보호자 계정의 일기 접근 범위, 서버 알림 설정, 기기 등록 응답, Expo 푸시 자격증명을 확인한다.
+
+설정 절차: [Expo 푸시 설정](https://docs.expo.dev/push-notifications/push-notifications-setup/), [Expo Push Service 전송](https://docs.expo.dev/push-notifications/sending-notifications/).
+
 ## Web 빌드
 
 ```bash

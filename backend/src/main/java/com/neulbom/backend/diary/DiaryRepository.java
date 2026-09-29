@@ -11,4 +11,6 @@ public interface DiaryRepository extends JpaRepository<DiaryEntity, UUID> {
     List<DiaryEntity> findAllByUserIdOrderByWrittenAtDesc(UUID userId);
 
     Optional<DiaryEntity> findByDailySummaryId(UUID dailySummaryId);
+
+    Optional<DiaryEntity> findFirstBySessionIdAndSourceTypeOrderByCreatedAtAsc(UUID sessionId, String sourceType);
 }

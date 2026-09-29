@@ -2,7 +2,6 @@ package com.neulbom.backend.diary;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,12 +9,11 @@ import com.neulbom.backend.analysis.AnalysisService;
 import com.neulbom.backend.analysis.SessionSummaryEntity;
 import com.neulbom.backend.analysis.SessionSummaryRepository;
 import com.neulbom.backend.analysis.api.DailySummaryRequest;
-import com.neulbom.backend.analysis.api.DailySummaryResponse;
 import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.analysis.api.SessionSummaryRequest;
 import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
-import com.neulbom.backend.diary.api.DiaryFromDailySummaryRequest;
-import com.neulbom.backend.diary.api.GenerationStatusResponse;
+import com.neulbom.backend.diary.api.DiaryFromSessionRequest;
+import com.neulbom.backend.diary.api.DiaryResponse;
 import com.neulbom.backend.recording.TranscriptEntity;
 import com.neulbom.backend.recording.TranscriptRepository;
 import com.neulbom.backend.session.AnswerEntity;
@@ -29,12 +27,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 하루치 정서 문답을 분석 요약으로 저장하고, 전체 답변을 통합해 그날의 일기를 만든다.
- *
- * {@link DailyReportScheduler}가 자정 이후 전날 것을 만들 때 쓰는 공통 경로다. 그날의
- * 정서 문답 세션마다 세션 요약(Gemini)이 없으면 답변·STT 전사문으로 만들고, 같은 날 모든
- * 세션의 문답을 Gemini 일기 작성기에 전달해 한 편으로 통합한다. 같은 날 일기가 이미 있으면 {@link DiaryService}가
- * 기존 것을 돌려주므로 재실행해도 안전하다.
+ * 정서 문답 세션마다 답변과 전사문으로 일기를 만든다. 일일 요약은 리포트에만 사용한다.
  */
 @Component
 public class DailyDiaryGenerator {
@@ -51,6 +44,7 @@ public class DailyDiaryGenerator {
     private final TranscriptRepository transcriptRepository;
     private final AnalysisService analysisService;
     private final DiaryService diaryService;
+    private final DiaryRepository diaryRepository;
     private final DailyDiaryWriter dailyDiaryWriter;
 
     public DailyDiaryGenerator(
@@ -61,6 +55,7 @@ public class DailyDiaryGenerator {
             TranscriptRepository transcriptRepository,
             AnalysisService analysisService,
             DiaryService diaryService,
+            DiaryRepository diaryRepository,
             DailyDiaryWriter dailyDiaryWriter
     ) {
         this.sessionRepository = sessionRepository;
@@ -70,30 +65,39 @@ public class DailyDiaryGenerator {
         this.transcriptRepository = transcriptRepository;
         this.analysisService = analysisService;
         this.diaryService = diaryService;
+        this.diaryRepository = diaryRepository;
         this.dailyDiaryWriter = dailyDiaryWriter;
     }
 
-    /** {@code date}(Asia/Seoul)의 정서 문답으로 그날 일기를 만든다. 결과는 생성 상태 응답. */
-    public GenerationStatusResponse generate(UUID userId, LocalDate date) {
-        List<List<QaPair>> conversations = new ArrayList<>();
-        for (SessionEntity session : emotionalSessionsOn(userId, date)) {
-            List<QaPair> pairs = qaPairs(session.getId());
-            if (pairs.isEmpty()) {
-                log.info("문답 텍스트가 없어 일기 집계에서 건너뜁니다 session_id={}", session.getId());
-                continue;
-            }
-            summarize(session, pairs);
-            conversations.add(pairs);
+    /** 세션 종료 직후 호출하며 같은 세션의 재처리에서는 이미 만든 일기를 반환한다. */
+    public DiaryResponse generateForSession(UUID sessionId) {
+        SessionEntity session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null || !DIARY_SESSION_TYPE.equals(session.getSessionType())
+                || !SessionEntity.ENDED.equals(session.getStatus())) return null;
+        DiaryEntity existing = diaryRepository.findFirstBySessionIdAndSourceTypeOrderByCreatedAtAsc(sessionId, "session").orElse(null);
+        if (existing != null) return diaryService.createFromSession(session.getUserId(),
+                new DiaryFromSessionRequest(sessionId, session.getUserId(), null, null, null, null, null));
+        List<QaPair> pairs = qaPairs(sessionId);
+        if (pairs.isEmpty()) {
+            log.info("문답 텍스트가 없어 일기 생성을 건너뜁니다 session_id={}", sessionId);
+            return null;
         }
-        DailySummaryResponse dailySummary = analysisService.createDailySummary(
-                new DailySummaryRequest(userId, date, BUSINESS_ZONE.getId()));
-        String content = conversations.isEmpty() ? "" : dailyDiaryWriter.write(date, conversations);
-        GenerationStatusResponse status = diaryService.createFromDailySummary(
-                userId,
-                new DiaryFromDailySummaryRequest(dailySummary.dailySummaryId(), userId, DIARY_TITLE, content, null, null));
-        log.info("일기 생성 user_id={} target_date={} sessions={} status={}",
-                userId, date, conversations.size(), status.status());
-        return status;
+        summarize(session, pairs);
+        LocalDate date = (session.getEndedAt() == null ? session.getStartedAt() : session.getEndedAt())
+                .atZone(BUSINESS_ZONE).toLocalDate();
+        String content = dailyDiaryWriter.write(date, List.of(pairs));
+        DiaryResponse diary = diaryService.createFromSession(session.getUserId(),
+                new DiaryFromSessionRequest(sessionId, session.getUserId(), null, DIARY_TITLE, content, null, null));
+        log.info("세션 일기 생성 user_id={} session_id={} diary_id={}", session.getUserId(), sessionId, diary.diaryId());
+        return diary;
+    }
+
+    /** 자정 리포트에 쓸 하루 요약을 만들고 아직 빠진 세션 일기는 다시 시도한다. */
+    public void summarizeDay(UUID userId, LocalDate date) {
+        for (SessionEntity session : emotionalSessionsOn(userId, date)) {
+            generateForSession(session.getId());
+        }
+        analysisService.createDailySummary(new DailySummaryRequest(userId, date, BUSINESS_ZONE.getId()));
     }
 
     private List<SessionEntity> emotionalSessionsOn(UUID userId, LocalDate date) {

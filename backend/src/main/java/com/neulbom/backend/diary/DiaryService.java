@@ -119,6 +119,9 @@ public class DiaryService {
         if ("daily_summary".equals(request.sourceType())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "daily_summary 일기는 전용 endpoint를 사용하세요.");
         }
+        if ("session".equals(request.sourceType())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다.", "session 일기는 전용 endpoint를 사용하세요.");
+        }
         if (request.sessionId() != null) requireOwnedSession(request.userId(), request.sessionId());
         if (request.recordingId() != null) validateDiaryRecording(request.userId(), request.recordingId());
         if ("voice".equals(request.sourceType()) && request.recordingId() == null) {
@@ -134,10 +137,14 @@ public class DiaryService {
     @Transactional
     public DiaryResponse createFromSession(UUID authenticatedUserId, DiaryFromSessionRequest request) {
         requireOwner(authenticatedUserId, request.userId());
-        SessionEntity session = requireOwnedSession(request.userId(), request.sessionId());
+        requireOwnedSession(request.userId(), request.sessionId());
+        SessionEntity session = sessionRepository.findByIdForUpdate(request.sessionId())
+                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
         if (Set.of("baseline", "onboarding").contains(session.getSessionType())) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "초기 설정 세션은 일기로 만들 수 없습니다.", "일반 AI 대화 세션만 일기 생성에 사용할 수 있습니다.");
         }
+        DiaryEntity existing = diaryRepository.findFirstBySessionIdAndSourceTypeOrderByCreatedAtAsc(session.getId(), "session").orElse(null);
+        if (existing != null) return toResponse(existing);
         SessionSummaryEntity summary = request.summaryId() == null
                 ? sessionSummaryRepository.findBySessionId(session.getId()).orElseThrow(() -> new ResourceNotFoundException("세션 요약을 찾을 수 없습니다."))
                 : sessionSummaryRepository.findById(request.summaryId()).filter(item -> item.getSessionId().equals(session.getId()))
@@ -195,11 +202,14 @@ public class DiaryService {
     @Transactional(readOnly = true)
     public GenerationStatusResponse generationStatus(UUID authenticatedUserId, UUID userId, LocalDate targetDate) {
         authorizeRead(authenticatedUserId, userId, "diary");
+        DiaryEntity latest = diaryRepository.findAllByUserIdOrderByWrittenAtDesc(userId).stream()
+                .filter(diary -> targetDate.equals(localDate(diary.getWrittenAt())))
+                .findFirst().orElse(null);
+        if (latest != null) return completedStatus(latest, targetDate);
         DiaryGenerationJobEntity job = generationJobRepository.findByUserIdAndTargetDate(userId, targetDate).orElse(null);
         if (job != null) return toGenerationStatus(job);
-        Instant scheduledAt = targetDate.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
-        return new GenerationStatusResponse(null, targetDate, "scheduled", scheduledAt, null, null, null, true,
-                "내일 일기 생성 예정", "오늘 대화를 바탕으로 내일 일기를 준비해요.");
+        return new GenerationStatusResponse(null, targetDate, "processing", null, null, null, null, true,
+                "일기 준비 중", "대화가 끝나면 일기를 바로 준비해요. 잠시 후 다시 확인해 주세요.");
     }
 
     @Transactional(readOnly = true)

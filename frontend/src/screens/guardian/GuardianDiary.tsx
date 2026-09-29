@@ -1,7 +1,7 @@
 import React from "react";
 import { View, StyleSheet, Pressable, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useRoute, type RouteProp } from "@react-navigation/native";
 
 import { useApp } from "@/store/AppContext";
 import { diaries as diariesApi, reports } from "@/api";
@@ -25,6 +25,7 @@ import {
   SentenceText as Text,
 } from "@/components/ui";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
+import type { GuardianTabParamList } from "@/navigation/types";
 
 /**
  * The elder's month of diaries, with the guardian's reaction.
@@ -57,11 +58,13 @@ function monthRange(year: number, month: number) {
 
 export default function GuardianDiaryScreen() {
   const isFocused = useIsFocused();
+  const route = useRoute<RouteProp<GuardianTabParamList, "GuardianRecord">>();
   const { userId, selectedElderId } = useApp();
 
   const today = React.useMemo(() => new Date(), []);
   const [cursor, setCursor] = React.useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selected, setSelected] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<string | null>(() => isoDateOf(today));
+  const [selectedDiaryId, setSelectedDiaryId] = React.useState<string | null>(null);
   const [reaction, setReaction] = React.useState<Exclude<DiaryReactionType, "message"> | null>(null);
   const [message, setMessage] = React.useState("");
   const [submitted, setSubmitted] = React.useState(false);
@@ -72,15 +75,29 @@ export default function GuardianDiaryScreen() {
   const month = cursor.getMonth();
   const range = React.useMemo(() => monthRange(year, month), [year, month]);
 
+  React.useEffect(() => {
+    const diaryId = route.params?.diaryId;
+    if (!diaryId || !selectedElderId) return;
+    let cancelled = false;
+    void diariesApi.detail(diaryId).then((entry) => {
+      if (cancelled || entry.user_id !== selectedElderId) return;
+      const written = parseIso(entry.written_at);
+      setCursor(new Date(written.getFullYear(), written.getMonth(), 1));
+      setSelected(isoDateOf(written));
+      setSelectedDiaryId(diaryId);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [route.params?.diaryId, selectedElderId]);
+
   const list = useApi(
     () =>
       diariesApi.listForUser(selectedElderId as string, {
         fromDate: range.from,
         toDate: range.to,
-        limit: 31,
+        limit: 100,
       }),
     [selectedElderId, range.from, range.to, isFocused],
-    { enabled: !!selectedElderId && isFocused },
+    { enabled: !!selectedElderId && isFocused, intervalMs: isFocused ? 5000 : undefined },
   );
 
   // Risk marks only — the report is not required for the calendar to render.
@@ -96,12 +113,13 @@ export default function GuardianDiaryScreen() {
     setMessage("");
     setSubmitted(false);
     setReactionError(null);
-  }, [selected]);
+  }, [selected, selectedDiaryId]);
 
   const byDate = React.useMemo(() => {
-    const map: Record<string, DiaryListItem> = {};
+    const map: Record<string, DiaryListItem[]> = {};
     for (const entry of list.data?.diaries ?? []) {
-      map[isoDateOf(parseIso(entry.written_at))] = entry;
+      const date = isoDateOf(parseIso(entry.written_at));
+      (map[date] ??= []).push(entry);
     }
     return map;
   }, [list.data]);
@@ -117,7 +135,8 @@ export default function GuardianDiaryScreen() {
     return map;
   }, [report.data]);
 
-  const selectedEntry = selected ? byDate[selected] : undefined;
+  const selectedEntries = selected ? byDate[selected] ?? [] : [];
+  const selectedEntry = selectedEntries.find((entry) => entry.diary_id === selectedDiaryId) ?? selectedEntries[0];
   const selectedRisk = selected ? riskByDate[selected] : undefined;
 
   const detail = useApi(
@@ -159,7 +178,7 @@ export default function GuardianDiaryScreen() {
     <ScreenHeader
       color={guardian.blue}
       title="기록"
-      subtitle={`${list.data?.diaries.length ?? 0}일 일기 기록됨 · ${month + 1}월`}
+      subtitle={`${list.data?.total ?? 0}편 일기 기록됨 · ${month + 1}월`}
       right={<GuardianHeaderActions />}
     />
   );
@@ -191,6 +210,7 @@ export default function GuardianDiaryScreen() {
 
   const shiftMonth = (by: number) => {
     setSelected(null);
+    setSelectedDiaryId(null);
     setCursor(new Date(year, month + by, 1));
   };
 
@@ -240,7 +260,7 @@ export default function GuardianDiaryScreen() {
           {Array.from({ length: dayCount }).map((_, i) => {
             const day = i + 1;
             const date = isoDateOf(new Date(year, month, day));
-            const entry = byDate[date];
+            const entry = byDate[date]?.[0];
             const risk = riskByDate[date]?.risk ?? false;
             const isSelected = selected === date;
             const isToday = isCurrentMonth && day === today.getDate();
@@ -248,7 +268,7 @@ export default function GuardianDiaryScreen() {
             return (
               <Pressable
                 key={date}
-                onPress={() => setSelected(isSelected ? null : date)}
+                onPress={() => { setSelected(isSelected ? null : date); setSelectedDiaryId(null); }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={`${month + 1}월 ${day}일${entry ? " 일기 있음" : ""}`}
@@ -343,6 +363,25 @@ export default function GuardianDiaryScreen() {
 
       {selectedEntry ? (
         <View style={{ gap: spacing.md, marginTop: spacing.lg }}>
+          <Card>
+            <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.sm }}>
+              {month + 1}월 {dayOf(selected as string)}일의 일기 {selectedEntries.length}편
+            </Body>
+            {selectedEntries.map((entry) => (
+              <Pressable
+                key={entry.diary_id}
+                onPress={() => setSelectedDiaryId(entry.diary_id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: entry.diary_id === selectedEntry.diary_id }}
+                style={[styles.diaryChoice, entry.diary_id === selectedEntry.diary_id && styles.diaryChoiceSelected]}
+              >
+                <Text style={styles.diaryChoiceTitle}>
+                  {parseIso(entry.written_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} · {entry.title ?? "일기"}
+                </Text>
+                <Caption>{entry.preview ?? ""}</Caption>
+              </Pressable>
+            ))}
+          </Card>
           {selectedRisk?.risk ? (
             <View style={styles.riskCard}>
               <Ionicons name="warning-outline" size={18} color={colors.destructive} />
@@ -510,6 +549,9 @@ const styles = StyleSheet.create({
   reportEyebrow: { color: guardian.blueDark, marginBottom: 4 },
   reportText: { marginTop: spacing.md, lineHeight: 23 },
   reportMeta: { marginTop: spacing.md },
+  diaryChoice: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginTop: spacing.sm },
+  diaryChoiceSelected: { borderColor: guardian.blue, backgroundColor: guardian.blueLight },
+  diaryChoiceTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   monthButton: {
     width: 36,
     height: 36,
