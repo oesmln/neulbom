@@ -123,12 +123,28 @@ class CistRetestTrendFlowIntegrationTest {
                 .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(5))
                 .andExpect(jsonPath("$.ai_risk_trend_points[0].point_type").value("full_cist"))
                 .andExpect(jsonPath("$.ai_risk_trend_points[1].point_type").value("daily_partial_estimate"))
+                .andExpect(jsonPath("$.ai_risk_trend_points[1].baseline_session_id")
+                        .value(firstCist.getId().toString()))
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].baseline_snapshot_id")
                         .value(firstBaseline.getSnapshotId().toString()))
                 .andExpect(jsonPath("$.ai_risk_trend_points[3].point_type").value("full_cist"))
+                .andExpect(jsonPath("$.ai_risk_trend_points[3].baseline_snapshot_id")
+                        .value(newBaseline.getSnapshotId().toString()))
                 .andExpect(jsonPath("$.ai_risk_trend_points[4].baseline_snapshot_id")
                         .value(newBaseline.getSnapshotId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points[4].baseline_session_id")
+                        .value(retest.getId().toString()))
                 .andExpect(jsonPath("$.ai_risk_trend_points[4].is_estimated").value(true));
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString())
+                        .param("from_date", today.minusMonths(1).toString())
+                        .param("to_date", today.plusDays(1).toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prior_cist_baseline.session_id")
+                        .value(firstCist.getId().toString()))
+                .andExpect(jsonPath("$.prior_cist_baseline.baseline_snapshot_id")
+                        .value(firstBaseline.getSnapshotId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(4));
         mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId())
                         .with(jwtFor(guardian)))
                 .andExpect(status().isOk())
@@ -137,6 +153,71 @@ class CistRetestTrendFlowIntegrationTest {
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(0));
+    }
+
+    @Test
+    void guardianReportAndHistoryKeepSeoulDateBoundariesAndPriorCistSeparate() throws Exception {
+        UserEntity elder = saveUser("elder");
+        UserEntity guardian = saveUser("guardian");
+        Instant now = Instant.now();
+        GuardianLinkEntity link = links.save(new GuardianLinkEntity(UUID.randomUUID(), guardian.getId(),
+                elder.getId(), "자녀", GuardianLinkEntity.ACTIVE, false, now, now));
+        scopes.save(new GuardianLinkScopeEntity(link.getId(), "screening"));
+        scopes.save(new GuardianLinkScopeEntity(link.getId(), "summary"));
+
+        LocalDate day = LocalDate.now(BUSINESS_ZONE).plusDays(2);
+        Instant start = day.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant end = day.plusDays(1).atStartOfDay(BUSINESS_ZONE).toInstant();
+        SessionEntity older = endedSession(elder.getId(), "cist",
+                start.minusSeconds(172800), start.minusSeconds(172200));
+        completedAnalysis(older, "0.20", start.minusSeconds(172140));
+        SessionEntity prior = endedSession(elder.getId(), "cist",
+                start.minusSeconds(660), start.minusSeconds(60));
+        CistAiAnalysisEntity priorAnalysis = completedAnalysis(prior, "0.30", start.minusNanos(1000));
+        CognitiveFeatureSnapshotEntity priorSnapshot = saveBaseline(elder.getId(), prior, priorAnalysis,
+                "0.30", "{\"boundary\":true}");
+        SessionEntity atStart = endedSession(elder.getId(), "cist",
+                start.minusSeconds(600), start.minusSeconds(1));
+        completedAnalysis(atStart, "0.40", start);
+        SessionEntity atEnd = endedSession(elder.getId(), "cist",
+                end.minusSeconds(660), end.minusSeconds(60));
+        completedAnalysis(atEnd, "0.50", end.minusNanos(1000));
+        SessionEntity after = endedSession(elder.getId(), "cist",
+                end.minusSeconds(600), end.minusSeconds(1));
+        completedAnalysis(after, "0.60", end);
+
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString())
+                        .param("from_date", day.toString()).param("to_date", day.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prior_cist_baseline.session_id").value(prior.getId().toString()))
+                .andExpect(jsonPath("$.prior_cist_baseline.risk_score").value(0.30))
+                .andExpect(jsonPath("$.prior_cist_baseline.baseline_snapshot_id")
+                        .value(priorSnapshot.getSnapshotId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(2))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].session_id")
+                        .value(atStart.getId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points[1].session_id")
+                        .value(atEnd.getId().toString()));
+        mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId())
+                        .with(jwtFor(guardian))
+                        .param("from_date", day.toString()).param("to_date", day.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prior_cist_baseline.session_id").value(prior.getId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(2));
+        LocalDate noCistDay = day.plusDays(2);
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString())
+                        .param("from_date", noCistDay.toString())
+                        .param("to_date", noCistDay.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prior_cist_baseline.session_id").value(after.getId().toString()))
+                .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(0));
+        mockMvc.perform(get("/api/v1/guardian/{guardianId}/report", guardian.getId())
+                        .with(jwtFor(guardian)).param("elder_id", elder.getId().toString())
+                        .param("from_date", day.plusDays(1).toString())
+                        .param("to_date", day.toString()))
+                .andExpect(status().isBadRequest());
     }
 
     private UserEntity saveUser(String role) {
