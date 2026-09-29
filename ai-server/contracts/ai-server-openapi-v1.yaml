@@ -1616,7 +1616,6 @@ components:
         - risk_level
         - risk_flag
         - features
-        - feature_snapshot
         - question_results
       properties:
         question_set_version:
@@ -1658,7 +1657,11 @@ components:
         features:
           $ref: '#/components/schemas/FusionFeatures'
         feature_snapshot:
-          $ref: '#/components/schemas/CognitiveFeatureSnapshot'
+          description: Null for completed analyses persisted before the feature snapshot contract
+          anyOf:
+            - $ref: '#/components/schemas/CognitiveFeatureSnapshot'
+            - type: 'null'
+          default: null
         question_results:
           type: array
           minItems: 17

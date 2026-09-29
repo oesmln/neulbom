@@ -11,6 +11,9 @@ from app.api.routes.analyses import (
     get_analysis_idempotency_service,
     router,
 )
+from app.api.schemas.analysis import (
+    EXPECTED_QUESTION_CODES,
+)
 from app.contracts.loader import (
     load_contract_bundle,
 )
@@ -537,6 +540,66 @@ def test_unknown_analysis_returns_404(
     assert response.json()["error"]["code"] == (
         "ANALYSIS_NOT_FOUND"
     )
+
+
+def test_gets_completed_legacy_analysis_without_feature_snapshot(
+    tmp_path: Path,
+) -> None:
+    client, _worker, repository, _contracts = create_test_client(tmp_path)
+    analysis_id = uuid4()
+    assessment_id = uuid4()
+    repository.create_pending(
+        analysis_id=analysis_id,
+        assessment_id=assessment_id,
+        request_body={"analysis_id": str(analysis_id)},
+    )
+    repository.mark_processing(analysis_id)
+    repository.mark_completed(
+        analysis_id=analysis_id,
+        result_body={
+            "question_set_version": "cist-v1",
+            "wrong_event_rule_version": "wrong-event-v1",
+            "model_version": "final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2",
+            "model_score": 0.42,
+            "decision_threshold": 0.38592870327757767,
+            "review_threshold": 0.8061380697921943,
+            "threshold_version": "fusion-threshold-v2",
+            "risk_flag": True,
+            "risk_level": "monitoring_needed",
+            "features": {
+                "ast_logit": 0.1,
+                "kcelectra_logit": 0.2,
+                "category_balanced_wrong_event_score": 0.3,
+                "category_balanced_median_delay": 0.4,
+            },
+            "question_results": [
+                {
+                    "question_code": code,
+                    "administration_status": "not_applicable",
+                    "recording_id": None,
+                    "response_id": None,
+                    "vad_status": None,
+                    "scoring_status": None,
+                    "answer_status": None,
+                    "wrong_event": None,
+                    "wrong_event_reason": None,
+                    "response_delay_ms": None,
+                    "recognized_memory_units": None,
+                }
+                for code in sorted(EXPECTED_QUESTION_CODES)
+            ],
+        },
+    )
+
+    response = client.get(
+        f"/v1/analyses/{analysis_id}",
+        headers={"Authorization": f"Bearer {SERVICE_TOKEN}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed"
+    assert response.json()["result"]["model_score"] == 0.42
+    assert response.json()["result"]["feature_snapshot"] is None
 
 
 def test_analysis_api_requires_authentication(

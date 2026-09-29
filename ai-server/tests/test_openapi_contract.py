@@ -564,18 +564,17 @@ def test_fixed_analysis_metadata_matches(
         "threshold_version"
     ]["const"] == "fusion-threshold-v2"
 
-    assert reference_result["properties"][
-        "feature_snapshot"
-    ]["$ref"] == (
-        "#/components/schemas/"
-        "CognitiveFeatureSnapshot"
-    )
-    assert runtime_result["properties"][
-        "feature_snapshot"
-    ]["$ref"] == (
-        "#/components/schemas/"
-        "CognitiveFeatureSnapshot"
-    )
+    for result_schema in (
+        reference_result,
+        runtime_result,
+    ):
+        assert "feature_snapshot" not in result_schema["required"]
+        assert {"$ref": "#/components/schemas/CognitiveFeatureSnapshot"} in (
+            result_schema["properties"]["feature_snapshot"]["anyOf"]
+        )
+        assert {"type": "null"} in (
+            result_schema["properties"]["feature_snapshot"]["anyOf"]
+        )
 
     reference_snapshot = (
         reference_openapi["components"]
