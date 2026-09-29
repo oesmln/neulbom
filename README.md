@@ -312,7 +312,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ### 6.1. 프로젝트 소개 자료
 
-프로젝트 소개 자료는 별도 문서로 제공한다.
+[늘봄 프로젝트 소개 자료 (Google Slides)](https://docs.google.com/presentation/d/11qWvt2otd0U5ijl2KU0iGcvjQMmvF9uW/edit)
 
 ### 6.2. 시연 영상
 
