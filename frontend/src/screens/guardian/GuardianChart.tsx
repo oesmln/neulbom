@@ -6,7 +6,8 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { guardianAccessErrorMessage } from "@/api/errors";
-import { sharesCistBaseline } from "@/utils/aiRiskTrend";
+import { PERIODS, dateRangeInSeoul, nextPeriodContainingBaseline, trendView } from "@/utils/aiRiskTrend";
+import type { PeriodKey, ViewMode } from "@/utils/aiRiskTrend";
 import type { GuardianAiRiskTrendPoint } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
@@ -24,33 +25,7 @@ import {
 } from "@/components/ui";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
-const PERIODS = [
-  { key: "1m", label: "1개월", months: 1 },
-  { key: "3m", label: "3개월", months: 3 },
-  { key: "6m", label: "6개월", months: 6 },
-  { key: "1y", label: "1년", months: 12 },
-  { key: "all", label: "전체", months: 0 },
-] as const;
-
-type PeriodKey = (typeof PERIODS)[number]["key"];
-type ViewMode = "all" | "cist";
-
 const HISTORY_LIMIT = 100;
-const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
-
-function dateRangeInSeoul(months: number) {
-  const today = new Date(Date.now() + SEOUL_OFFSET_MS);
-  if (months === 0) return { fromDate: undefined, toDate: today.toISOString().slice(0, 10) };
-  const year = today.getUTCFullYear();
-  const month = today.getUTCMonth();
-  const day = today.getUTCDate();
-  const lastDayOfStartMonth = new Date(Date.UTC(year, month - months + 1, 0)).getUTCDate();
-  const from = new Date(Date.UTC(year, month - months, Math.min(day, lastDayOfStartMonth)));
-  return {
-    fromDate: from.toISOString().slice(0, 10),
-    toDate: today.toISOString().slice(0, 10),
-  };
-}
 
 function riskIndex(point: GuardianAiRiskTrendPoint): number {
   return Math.round(point.risk_score * 100);
@@ -129,26 +104,12 @@ export default function GuardianChartScreen() {
     );
   }
 
-  const aiRiskPoints = history.data.ai_risk_trend_points ?? [];
-  const visibleAiRiskPoints = viewMode === "cist"
-    ? aiRiskPoints.filter((point) => point.point_type === "full_cist")
-    : aiRiskPoints;
-  const cistPoints = aiRiskPoints.filter((point) => point.point_type === "full_cist")
-    .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at));
-  const priorCistBaseline = history.data.prior_cist_baseline;
-  const recentCist = cistPoints.at(-1) ?? priorCistBaseline;
-  const previousCist = cistPoints.at(-2) ?? (cistPoints.length > 0 ? priorCistBaseline : null);
-  const recentDaily = recentCist && aiRiskPoints
-    .filter((point) => point.point_type === "daily_partial_estimate"
-      && sharesCistBaseline(point, recentCist)
-      && point.analyzed_at > recentCist.analyzed_at)
-    .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1);
+  const {
+    visibleAiRiskPoints, cistPoints, priorCistBaseline, recentCist, previousCist, recentDaily, isEmpty,
+  } = trendView(history.data, viewMode, dateRange);
   const expandPeriod = () => {
     if (!priorCistBaseline) return;
-    const selectedMonths = PERIODS.find((item) => item.key === period)?.months ?? 6;
-    const wider = PERIODS.find((item) => item.months > selectedMonths
-      && (dateRangeInSeoul(item.months).fromDate ?? "") <= priorCistBaseline.date);
-    setPeriod(wider?.key ?? "all");
+    setPeriod(nextPeriodContainingBaseline(period, priorCistBaseline.date));
   };
 
   return (
@@ -213,7 +174,7 @@ export default function GuardianChartScreen() {
             <Caption>{priorCistBaseline.date} · 위험 신호 지수 {riskIndex(priorCistBaseline)}</Caption>
           </View>
         ) : null}
-        {visibleAiRiskPoints.length > 0 ? (
+        {!isEmpty ? (
           <>
             <AiRiskTrendChart points={visibleAiRiskPoints} hasPriorCistBaseline={!!priorCistBaseline} />
             {previousCist && recentCist ? (
