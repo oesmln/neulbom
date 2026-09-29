@@ -378,10 +378,12 @@
   - [x] `question_type`: `orientation`, `memory`, `attention`, `language`, `emotion`
   - [x] `session_type`
   - [x] `content`
+  - [x] `display_content` (nullable, 화면 표시용 안내문)
   - [x] `hint`
   - [x] `display_order`
   - [x] `subtitle_available`
 - [x] CIST 기본 질문 seed 데이터를 등록한다.
+- [x] V29 마이그레이션으로 자극 텍스트가 포함된 CIST 5문항의 `display_content`를 채우고 전체 음성용 `content`는 유지한다. (#213)
 - [x] AI 정서 문답 질문 seed 데이터를 등록한다.
 - [x] `sessions` 테이블을 만든다.
   - [x] `user_id`
@@ -626,6 +628,7 @@
 - [x] 질문 유형을 `orientation`, `memory`, `attention`, `language`로 관리한다.
 - [x] AI 정서 문답 질문을 `emotion` 유형으로 seed한다.
 - [x] 질문별 자막 가능 여부를 저장한다.
+- [x] CIST 자극 문항은 음성용 `content`와 화면 안내용 `display_content`를 분리해 저장한다. (#213)
 - [ ] 질문 내용과 정답·채점 기준의 접근 권한을 분리한다.
 - [ ] 외부로 공개하면 안 되는 검사 원문·해설지 보관 범위를 검토한다.
 
@@ -662,6 +665,7 @@
 - [x] AI 정서 문답을 7문항으로 진행하고 Gemini 질문·후속 질문 5개와 독립 시행 CIST 문항 2개를 무작위 혼합한다. (#193)
 - [x] 후속 질문은 최근 답변에 있는 사실만 사용하고 짧거나 모호한 답변에 사건·감정을 추측하지 않도록 prompt를 보강한다. (#207)
 - [x] `POST /sessions/{session_id}/questions/next`에서 질문 출처와 문제은행 원문 ID를 보존한다. (#193)
+- [x] 질문 목록·단건 조회·일상 문답 다음 질문 응답에 `display_content`를 포함하고, 일상 CIST 문제은행 문항은 원문의 값을 복사한다. (#213)
 - [x] 일기 요약 입력에서 CIST 문제은행 답변을 분리한다. (#193)
 - [ ] 일상 문답의 CIST 문제은행 지남력 1문항과 주의력 1문항만 AI 서버 인지 분석 입력으로 연결하고 Gemini 5문항은 제외한다. (#198)
 - [x] 일상 문답의 CIST 문항을 지남력 1개와 주의력 1개로 배정한다. (#200)
