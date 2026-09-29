@@ -28,6 +28,7 @@ public record GuardianReportResponse(
         ActivitySummary activitySummary7d,
         List<TrendPoint> trendPoints,
         List<AiRiskTrendPoint> aiRiskTrendPoints,
+        AiRiskTrendPoint priorCistBaseline,
         List<Alert> recentAlerts,
         DailyReport dailySummary
 ) {
