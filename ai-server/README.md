@@ -403,6 +403,18 @@ POST /v1/analyses/{analysis_id}/retry
 
 한 분석에 URL 재발급과 응답 교체가 함께 필요한 혼합 재시도 항목도 지원합니다.
 
+### 5. 일상 문답 인지 추이 분석
+
+전체 CIST 분석의 `result.feature_snapshot`을 기준으로 `emotional_qa`의 CIST 문제은행 문항 2개(지남력 1개·주의력 1개)만 다시 분석합니다. Gemini 일상 문답은 모델 입력에서 제외합니다. AI 서버는 두 문항의 특징을 교체한 뒤 전체 Fusion 특징을 재집계해 `estimated_model_score`와 `output_snapshot`을 반환합니다.
+
+```text
+POST /v1/daily-cognitive-analyses
+GET /v1/daily-cognitive-analyses/{analysis_id}
+POST /v1/daily-cognitive-analyses/{analysis_id}/retry
+```
+
+첫 일상 분석의 `input_snapshot`은 전체 CIST 기준 스냅샷이며, 다음 분석은 같은 기준 계보에서 직전에 완료된 일상 분석의 `output_snapshot`을 사용합니다. 새 전체 CIST 기준 분석이 완료되면 그 결과로 새 계보를 시작합니다. 결과의 `score_delta_from_baseline`과 `score_delta_from_previous`는 각각 기준·직전 위험 점수 대비 차이입니다. 이 값과 세 단계 안내는 부분 갱신에 따른 참고용 추정치이지 독립 CIST 검사나 의료적 진단이 아닙니다. 서버 간 필드와 저장·표시 범위는 [`일상 인지 추이 분석 계약`](../docs/daily-cognitive-trend-contract.md)을 참조합니다.
+
 ## 인증
 
 상태 확인 API를 제외한 서비스 API에는 Bearer Token이 필요합니다.
@@ -420,6 +432,7 @@ Authorization: Bearer {AI_SERVER_SERVICE_TOKEN}
 - recognition plan 생성
 - 분석 생성
 - 분석 재시도
+- 일상 인지 부분 갱신 분석 생성·재시도
 
 규칙:
 

@@ -208,6 +208,9 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `POST` | `/sessions/{session_id}/cist-ai/analyses` | 17문항 통합 AI 분석 생성 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/sessions/{session_id}/cist-ai/analyses` | 통합 AI 분석 상태 동기화·조회 | 필요 | 세션 사용자 | MVP |
 | `POST` | `/sessions/{session_id}/cist-ai/analyses/retry` | signed URL·응답 교체 분석 재시도 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/daily-analyses` | 일상 CIST 2문항 부분 갱신 분석 생성 | 필요 | 세션 사용자 | MVP |
+| `GET` | `/sessions/{session_id}/cist-ai/daily-analyses` | 일상 인지 분석 상태 동기화·조회 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/daily-analyses/retry` | 일상 인지 분석 재시도 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/history` | 인지 분석 이력·추이 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
 | `GET` | `/analysis/cognitive/{user_id}/benchmark` | 지역 기준선 비교 | 필요 | 권한 보유 보호자 | MVP |
 | `GET` | `/screenings/{session_id}/result` | 검사·정서 문답 세션 결과 조회 | 필요 | 본인, 권한 보유 보호자 | MVP |
@@ -1291,7 +1294,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 생성·배정된 질문은 세션 문항으로 저장되어 같은 순서의 재요청에 같은 질문을 반환한다. CIST 표본은 일상 문답과 데이터상 구분되며 공식 17문항 CIST 검사 점수로 합산하지 않는다. 일기 요약에는 Gemini가 만든 일상 문답의 답변만 전달한다.
 
-이 흐름은 위험 점수를 계산하지 않는다. 현재 AI 서버 분석 입력은 공식 17문항 CIST 세션을 대상으로 하므로, 일상 문답과 혼합 표본을 위험 점수에 반영하려면 AI 서버 입력 계약과 점수 모델을 별도로 확장해야 한다.
+일상 세션 종료 후 CIST 문제은행 문항 2개의 특징으로 기존 전체 CIST 특징 스냅샷을 부분 갱신하고 추이용 추정 점수를 계산한다. Gemini 문답은 이 모델의 입력이 아니다. 두 CIST 문항은 지남력 1개와 주의력 1개이며 공식 전체 CIST 점수로 합산하지 않는다. 기준 스냅샷 계보와 결과 해석은 [`일상 인지 추이 분석 계약`](../../docs/daily-cognitive-trend-contract.md)을 따른다.
 
 #### Response `200`
 
@@ -1625,6 +1628,12 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 
 저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
+
+#### 일상 문답의 부분 갱신 분석
+
+`emotional_qa` 세션 종료 후 `POST /sessions/{session_id}/cist-ai/daily-analyses`가 비동기 분석을 생성하고 `202`를 반환한다. `GET /sessions/{session_id}/cist-ai/daily-analyses`는 상태를 동기화하며, `needs_retry` 상태에서는 `POST /sessions/{session_id}/cist-ai/daily-analyses/retry`로 재시도한다. 세 API 모두 본인 세션을 확인하고, 생성·재시도 시에는 분석·음성 수집 동의를 재확인한다. 앱 응답은 `analysis_id`, `session_id`, `status`, `retry_count`, `retryable`, `reason_code`, `created_at`, `updated_at`만 포함한다.
+
+AI 서버에는 지남력 1문항·주의력 1문항의 음성 URL·STT·응답 시간과 `baseline_analysis_id`, `baseline_model_score`, `input_snapshot`을 전달한다. 첫 일상 분석은 최신 완료 전체 CIST의 `feature_snapshot`을, 다음 분석은 같은 기준 계보의 직전 완료 일상 분석 `output_snapshot`을 입력으로 사용한다. 새 전체 CIST가 완료되면 새 계보를 시작한다. 결과의 `estimated_model_score`, `score_delta_from_baseline`, `score_delta_from_previous`, `output_snapshot`은 참고용 부분 갱신 추정치이며 전체 CIST 검사 결과를 대체하지 않는다. 상세 계약은 [`일상 인지 추이 분석 계약`](../../docs/daily-cognitive-trend-contract.md)과 AI 서버 OpenAPI를 따른다.
 
 #### signed URL과 환경 설정
 
@@ -2247,7 +2256,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 ]
 ```
 
-`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 AI 분석만 포함한다. 각 항목은 검사 시작일(`date`, `Asia/Seoul`), AI 서버 원본 `model_score`(`risk_score`, 0~1), 원본 `risk_level`을 담는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. AI 정서 문답은 현재 CIST 모델 계약의 질문 세트에 포함되지 않아 이 추이에 넣지 않는다.
+`ai_risk_trend_points[]`는 현재 `cist`·`baseline`·`onboarding` 세션에서 완료된 전체 CIST AI 분석만 포함한다. 각 항목은 검사 시작일(`date`, `Asia/Seoul`), AI 서버 원본 `model_score`(`risk_score`, 0~1), 원본 `risk_level`을 담는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다. `emotional_qa`의 부분 갱신 추정치는 별도로 생성·저장되지만 아직 이 보호자 조회 응답에는 포함되지 않는다.
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 
