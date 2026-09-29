@@ -56,6 +56,6 @@ class GoogleCloudTextToSpeechClientTest {
                 "https://texttospeech.googleapis.com", "neulbom-tts-test", "ko-KR",
                 "ko-KR-Neural2-A", "ko-KR-Neural2-C",
                 "", "", "v1", "", "", "v1",
-                "", "https://generativelanguage.googleapis.com", "gemini-2.5-flash");
+                "", "https://generativelanguage.googleapis.com", "gemini-3.5-flash-lite");
     }
 }

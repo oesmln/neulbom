@@ -116,7 +116,7 @@ app:
     kc-electra-model: ${KCELECTRA_MODEL:kcelectra-cist-v1}
     gemini-api-key: ${GEMINI_API_KEY:}
     gemini-base-url: ${GEMINI_API_BASE_URL:https://generativelanguage.googleapis.com}
-    gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
+    gemini-model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
   security:
     email-verification-required: ${EMAIL_VERIFICATION_REQUIRED:false}
     jwt:

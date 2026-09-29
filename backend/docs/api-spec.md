@@ -1860,9 +1860,10 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | TTS | Google Cloud Text-to-Speech v1 | `GOOGLE_TTS_PROJECT_ID`(미지정 시 STT project), `GOOGLE_TTS_LANGUAGE_CODE`, `GOOGLE_TTS_DEFAULT_VOICE`, `GOOGLE_TTS_CLEAR_VOICE`, ADC credential | `POST /v1/text:synthesize` JSON `input.text`, `voice`, `audioConfig`; MP3 base64 응답 |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
 | 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `question_id`, `question`, `transcript`, `question_type`, `model_version` |
-| 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
+| 일상 질문·세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL`(기본 `gemini-3.5-flash-lite`) | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.
+운영 배포는 `GEMINI_API_KEY`가 있어야 시작된다. 일상 문답의 첫 질문과 후속 질문, 세션 요약은 같은 모델을 사용한다. 저장된 세션 요약이 없는 일기는 Gemini 요약 요청 실패 시 자동 생성되지 않으며, 기존 요약이 있으면 다시 사용한다.
 
 로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다. Google Cloud STT의 `GOOGLE_APPLICATION_CREDENTIALS`는 서비스 계정 JSON 경로를 가리키거나 실행 환경의 ADC를 사용하며, JSON 원문은 저장소에 두지 않는다.
 

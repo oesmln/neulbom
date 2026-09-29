@@ -59,7 +59,7 @@ public class GeminiConversationQuestionClient implements ConversationQuestionGen
 
         JsonNode response = executor.execute("Gemini", () -> restClient.post()
                 .uri(ProviderUrls.resolve(properties.geminiBaseUrl(),
-                        "/v1beta/models/" + model() + ":generateContent"))
+                        "/v1beta/models/" + properties.resolvedGeminiModel() + ":generateContent"))
                 .header("x-goog-api-key", properties.geminiApiKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
@@ -120,9 +120,5 @@ public class GeminiConversationQuestionClient implements ConversationQuestionGen
                     .replaceFirst("\\s*```$", "").trim();
         }
         return candidate;
-    }
-
-    private String model() {
-        return StringUtils.hasText(properties.geminiModel()) ? properties.geminiModel() : "gemini-2.5-flash";
     }
 }

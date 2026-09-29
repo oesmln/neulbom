@@ -836,6 +836,7 @@
 
 ### 8.7 Gemini 문답 요약
 
+- [x] 일상 질문·세션 요약의 기본 모델을 운영 Compose와 일치시키고 실제 Gemini 호출을 확인한다. (#207)
 - [x] `POST /summary/session`을 구현한다.
 - [x] `GET /summary/session/{session_id}`를 구현한다.
 - [x] 질문·답변 쌍을 문항 순서대로 전달한다.

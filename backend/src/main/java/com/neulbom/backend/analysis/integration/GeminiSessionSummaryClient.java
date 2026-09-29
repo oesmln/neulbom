@@ -45,7 +45,7 @@ public class GeminiSessionSummaryClient implements SessionSummaryClient {
 
     @Override
     public SummaryResult summarize(List<QaPair> qaPairs) {
-        String model = model();
+        String model = properties.resolvedGeminiModel();
         ObjectNode requestBody = objectMapper.createObjectNode();
         ArrayNode contents = requestBody.putArray("contents");
         ObjectNode content = contents.addObject();
@@ -133,9 +133,5 @@ public class GeminiSessionSummaryClient implements SessionSummaryClient {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
         return value.max(BigDecimal.ZERO).min(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private String model() {
-        return StringUtils.hasText(properties.geminiModel()) ? properties.geminiModel() : "gemini-2.5-flash";
     }
 }

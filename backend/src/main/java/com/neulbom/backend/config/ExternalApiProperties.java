@@ -39,6 +39,8 @@ public record ExternalApiProperties(
         String geminiModel
 ) {
 
+    public static final String DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+
     public boolean whisperConfigured() {
         return hasText(whisperApiKey);
     }
@@ -73,6 +75,10 @@ public record ExternalApiProperties(
 
     public boolean geminiConfigured() {
         return hasText(geminiApiKey);
+    }
+
+    public String resolvedGeminiModel() {
+        return hasText(geminiModel) ? geminiModel.trim() : DEFAULT_GEMINI_MODEL;
     }
 
     private boolean hasText(String value) {

@@ -117,7 +117,9 @@ chmod 600 deploy/.env
 - `JWT_SECRET`, `AI_SERVER_SERVICE_TOKEN`, `AI_AUDIO_SIGNING_SECRET`: 각각 독립적인 32자 이상 난수
 - `CORS_ALLOWED_ORIGINS`: 공개 HTTPS origin
 - `GOOGLE_STT_PROJECT_ID`, 필요하면 `GOOGLE_TTS_PROJECT_ID`
-- OAuth, Gemini, SMTP를 발표에서 사용할 경우 각 provider 값
+- `GEMINI_API_KEY`: 일상 문답 질문과 일기용 세션 요약에 필요
+- `GEMINI_MODEL`: 기본 `gemini-3.5-flash-lite`; VM의 기존 `.env`에 이전 모델이 적혀 있으면 교체
+- OAuth와 SMTP를 사용할 경우 각 provider 값
 
 난수는 VM에서 다음처럼 생성할 수 있다.
 
@@ -126,6 +128,10 @@ openssl rand -hex 32
 ```
 
 실제 값은 Git, 메신저, `.env.example`에 기록하지 않는다.
+
+일상 문답 질문과 새 세션 요약은 같은 `GEMINI_MODEL`을 사용한다. 키가 없으면
+Compose 설정 단계에서 배포가 중단된다. 기존 세션 요약이 없는 일기는 요약 호출에
+실패하면 생성되지 않으므로, 모델을 바꾼 뒤 질문 생성과 요약 생성까지 확인한다.
 
 ## 4. 배포 및 확인
 
@@ -149,6 +155,21 @@ sudo docker compose --env-file /opt/neulbom/app/deploy/.env \
 curl -fsS "https://${PUBLIC_API_HOST}/health"
 curl -fsS "https://${PUBLIC_API_HOST}/actuator/health/readiness"
 ```
+
+Gemini 설정을 바꾼 뒤에는 백엔드 컨테이너에 적용된 모델명과 키 존재 여부를
+값을 노출하지 않고 확인한다.
+
+```bash
+revision="$(sudo cat /opt/neulbom/app/.deploy-revision)"
+sudo docker compose --env-file /opt/neulbom/app/deploy/.env \
+  -f "/opt/neulbom/releases/${revision}/deploy/compose.prod.yml" exec -T backend \
+  sh -c 'test -n "$GEMINI_API_KEY" && printf "GEMINI_MODEL=%s\n" "$GEMINI_MODEL"'
+```
+
+`/actuator/health/readiness`는 외부 Gemini 호출까지 확인하지 않는다. 배포 후에는
+테스트 계정으로 일상 문답의 첫 질문을 받고, 답변을 저장한 뒤 후속 질문과
+세션 요약·일기 생성 결과를 확인한다. 외부 provider의 일시적 `429`·`5xx`는
+재시도될 수 있으므로 지속되는 실패와 구분한다.
 
 AI readiness는 외부에 공개하지 않는다. VM 내부에서 확인한다.
 

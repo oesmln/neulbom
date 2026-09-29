@@ -14,11 +14,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.config.ExternalApiExecutor;
 import com.neulbom.backend.config.ExternalApiProperties;
 import com.neulbom.backend.common.exception.EmptyTranscriptException;
+import com.neulbom.backend.session.integration.GeminiConversationQuestionClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -154,7 +158,7 @@ class ExternalApiClientTest {
         ExternalApiProperties properties = properties("", "", "", "gemini-secret");
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"))
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("x-goog-api-key", "gemini-secret"))
                 .andRespond(withSuccess("""
@@ -170,6 +174,30 @@ class ExternalApiClientTest {
         assertThat(result.summary()).contains("가족");
         assertThat(result.vocabularyScore()).isEqualByComparingTo("72.00");
         assertThat(result.keywords()).containsExactly("가족", "즐거움");
+        assertThat(result.modelVersion()).isEqualTo("gemini-3.5-flash-lite");
+        server.verify();
+    }
+
+    @Test
+    void geminiQuestionUsesTheSameDefaultModelAsSessionSummary() {
+        ExternalApiProperties properties = properties("", "", "", "gemini-secret");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("x-goog-api-key", "gemini-secret"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("공원에서 산책했어요")))
+                .andRespond(withSuccess("""
+                        {"candidates":[{"content":{"parts":[{"text":"{\\"question\\":\\"공원에서 무엇이 가장 기억에 남으셨어요?\\"}"}]}}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        GeminiConversationQuestionClient client = new GeminiConversationQuestionClient(
+                builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper());
+        String question = client.generateNextQuestion(
+                List.of(new QaPair(UUID.randomUUID(), "오늘 무엇을 하셨어요?", "공원에서 산책했어요", "emotion")),
+                2, 6);
+
+        assertThat(question).isEqualTo("공원에서 무엇이 가장 기억에 남으셨어요?");
         server.verify();
     }
 
@@ -253,7 +281,7 @@ class ExternalApiClientTest {
                 "kc-v1",
                 geminiKey,
                 "https://generativelanguage.googleapis.com",
-                "gemini-2.5-flash");
+                "");
     }
 
     private ExternalApiProperties sttProperties(String provider, String localUrl, String googleProjectId) {
@@ -288,6 +316,6 @@ class ExternalApiClientTest {
                 "kc-v1",
                 "",
                 "https://generativelanguage.googleapis.com",
-                "gemini-2.5-flash");
+                "");
     }
 }
