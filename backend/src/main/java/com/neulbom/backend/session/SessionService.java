@@ -573,6 +573,7 @@ public class SessionService {
                 sourceQuestion == null ? "emotion" : sourceQuestion.getQuestionType(),
                 "emotional_qa",
                 content,
+                sourceQuestion == null ? null : sourceQuestion.getDisplayContent(),
                 sourceQuestion == null ? null : sourceQuestion.getHint(),
                 slot.getQuestionOrder(),
                 true,
@@ -862,6 +863,7 @@ public class SessionService {
         return new QuestionResponse(
                 question.getId(),
                 question.getContent(),
+                question.getDisplayContent(),
                 question.getQuestionType(),
                 question.getDisplayOrder(),
                 question.getHint(),

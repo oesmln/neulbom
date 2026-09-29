@@ -38,7 +38,7 @@ class DatabaseMigrationTest {
                 "SELECT COUNT(*) FROM voice_profiles",
                 Integer.class);
         Integer questionCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM questions",
+                "SELECT COUNT(*) FROM questions WHERE session_id IS NULL",
                 Integer.class);
         Integer featureSnapshotColumnCount = jdbcTemplate.queryForObject(
                 """
@@ -95,6 +95,36 @@ class DatabaseMigrationTest {
         assertThat(baselineAnalysisLinkColumnCount).isEqualTo(1);
         assertThat(operationTypeConstraint).contains("daily_analysis_create", "daily_analysis_retry");
         assertThat(coreTableCount).isEqualTo(40);
+    }
+
+    @Test
+    void migrationSeparatesAllFiveCistStimuliFromScreenPrompts() {
+        Integer targetCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM questions
+                        WHERE question_code IN (
+                            'attention_digit_span_4', 'attention_digit_span_5',
+                            'attention_word_reverse', 'memory_registration_first',
+                            'memory_registration_second'
+                        )
+                        """, Integer.class);
+        Integer separatedCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM questions
+                        WHERE question_code IN (
+                            'attention_digit_span_4', 'attention_digit_span_5',
+                            'attention_word_reverse', 'memory_registration_first',
+                            'memory_registration_second'
+                        )
+                          AND display_content IS NOT NULL
+                          AND btrim(display_content) <> ''
+                          AND display_content <> content
+                          AND position(':' IN display_content) = 0
+                          AND position(':' IN content) > 0
+                        """, Integer.class);
+
+        assertThat(targetCount).isEqualTo(5);
+        assertThat(separatedCount).isEqualTo(5);
     }
 
     @Test

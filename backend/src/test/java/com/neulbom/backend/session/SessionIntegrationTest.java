@@ -382,6 +382,51 @@ class SessionIntegrationTest {
     }
 
     @Test
+    void emotionalQaCurrentQuestionHidesCistStimulusFromDisplayButKeepsItForSpeech() throws Exception {
+        UserEntity elder = saveUser("emotional-qa-attention-display", "elder");
+        Instant now = Instant.now();
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "analysis", true, now, "test-v1", now));
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "voice_collection", true, now, "test-v1", now));
+
+        String sessionBody = mockMvc.perform(post("/api/v1/sessions")
+                        .with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID sessionId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(sessionBody).get("session_id").asText());
+
+        var attentionSlot = sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(sessionId).stream()
+                .filter(slot -> "cist_bank".equals(slot.getQuestionSource()))
+                .filter(slot -> "attention".equals(
+                        questionRepository.findById(slot.getSourceQuestionId()).orElseThrow().getQuestionType()))
+                .findFirst().orElseThrow();
+        QuestionEntity sourceQuestion = questionRepository.findById(attentionSlot.getSourceQuestionId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(sourceQuestion.getDisplayContent()).isNotBlank();
+        org.assertj.core.api.Assertions.assertThat(sourceQuestion.getDisplayContent())
+                .isNotEqualTo(sourceQuestion.getContent());
+
+        jdbcTemplate.update(
+                "UPDATE sessions SET current_question_order = ? WHERE id = ?",
+                attentionSlot.getQuestionOrder(), sessionId);
+
+        String questionBody = mockMvc.perform(post("/api/v1/sessions/{sessionId}/questions/next", sessionId)
+                        .with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var questionNode = new com.fasterxml.jackson.databind.ObjectMapper().readTree(questionBody).get("question");
+
+        org.assertj.core.api.Assertions.assertThat(questionNode.get("content").asText())
+                .isEqualTo(sourceQuestion.getContent());
+        org.assertj.core.api.Assertions.assertThat(questionNode.get("display_content").asText())
+                .isEqualTo(sourceQuestion.getDisplayContent())
+                .isNotEqualTo(sourceQuestion.getContent());
+    }
+
+    @Test
     void emotionalQaStartFailsWithCommonErrorWhenAttentionQuestionsAreUnavailable() throws Exception {
         UserEntity elder = saveUser("emotional-qa-no-attention", "elder");
         Instant now = Instant.now();

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 public record QuestionResponse(
         UUID questionId,
         String content,
+        String displayContent,
         String type,
         int order,
         String hint,

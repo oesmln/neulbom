@@ -630,8 +630,9 @@ class DailyCognitiveAnalysisIntegrationTest {
     ) {
         QuestionEntity dailyQuestion = questionRepository.save(new QuestionEntity(
                 UUID.randomUUID(), sourceQuestion.getQuestionType(), "emotional_qa", sourceQuestion.getContent(),
-                sourceQuestion.getHint(), questionOrder, true, session.getId(), "cist_bank", sourceQuestion.getId(),
-                sourceQuestion.getVariantId(), sourceQuestion.getAdministrationMode(), answeredAt));
+                sourceQuestion.getDisplayContent(), sourceQuestion.getHint(), questionOrder, true, session.getId(),
+                "cist_bank", sourceQuestion.getId(), sourceQuestion.getVariantId(),
+                sourceQuestion.getAdministrationMode(), answeredAt));
         SessionQuestionSlotEntity slot = new SessionQuestionSlotEntity(
                 session.getId(), questionOrder, "cist_bank", sourceQuestion.getId());
         slot.assignQuestion(dailyQuestion.getId());
