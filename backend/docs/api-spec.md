@@ -1286,7 +1286,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `question_source` | enum/null | `gemini`, `cist_bank`; 기존 고정 문항은 `null` |
 | `source_question_id` | string/null | 문제은행 원문 ID |
 
-일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다.
+일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다. Gemini 후속 질문은 최근 답변의 명시된 사실만 사용하며, 짧거나 모호한 답변에서 식사·사람·활동·감정을 추측하지 않는다. 슬픔·상실·질병·불안에는 짧게 공감하고 설명이나 긍정적인 결론을 강요하지 않는다.
 
 ### 6.8.1 `POST /sessions/{session_id}/questions/next` - 현재 순서의 일상 문답 질문 가져오기
 
@@ -1860,9 +1860,11 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | TTS | Google Cloud Text-to-Speech v1 | `GOOGLE_TTS_PROJECT_ID`(미지정 시 STT project), `GOOGLE_TTS_LANGUAGE_CODE`, `GOOGLE_TTS_DEFAULT_VOICE`, `GOOGLE_TTS_CLEAR_VOICE`, ADC credential | `POST /v1/text:synthesize` JSON `input.text`, `voice`, `audioConfig`; MP3 base64 응답 |
 | 음향 분석 | AST HTTP service | `AST_API_URL`, `AST_API_KEY`, `AST_MODEL` | multipart `audio_file`, `recording_id`, `segment_length_sec`, `model_version` |
 | 텍스트 분석 | KcELECTRA HTTP service | `KCELECTRA_API_URL`, `KCELECTRA_API_KEY`, `KCELECTRA_MODEL` | JSON `question_id`, `question`, `transcript`, `question_type`, `model_version` |
-| 세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL` | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
+| 일상 질문·세션 요약 | Gemini API | `GEMINI_API_KEY`, `GEMINI_API_BASE_URL`, `GEMINI_MODEL`(기본 `gemini-3.5-flash-lite`) | `POST {base_url}/v1beta/models/{model}:generateContent` JSON `contents`와 구조화 응답 지시 |
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.
+운영 배포는 `GEMINI_API_KEY`가 있어야 시작된다. 일상 문답의 첫 질문과 후속 질문, 세션 요약은 같은 모델을 사용한다. 저장된 세션 요약이 없는 일기는 Gemini 요약 요청 실패 시 자동 생성되지 않으며, 기존 요약이 있으면 다시 사용한다.
+스케줄러는 최근 7일의 활성 고령자 계정에서 종료된 정서 문답에서 일기 생성 작업이 없고 답변 텍스트 또는 전사문이 있는 날짜를 기동 후와 매시간 다시 처리한다. 기존 생성 작업은 재사용하고, 텍스트가 아직 없으면 다음 실행까지 기다린다.
 
 로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다. Google Cloud STT의 `GOOGLE_APPLICATION_CREDENTIALS`는 서비스 계정 JSON 경로를 가리키거나 실행 환경의 ADC를 사용하며, JSON 원문은 저장소에 두지 않는다.
 
@@ -1948,7 +1950,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 }
 ```
 
-동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 대화가 없으면 `conversation_incomplete`로 종료한다.
+동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 세션이 없거나 요청의 `content`가 명시적으로 빈 문자열이면 `conversation_incomplete`로 종료한다. 자동 일기 작업은 일기용 문답 답변이 하나도 없을 때 빈 문자열을 보내 CIST 표본이나 일반 활동 요약으로 일기를 대신 만들지 않는다.
 
 ### 8.3.1 `GET /diaries/{user_id}/generation-status` - 날짜별 일기 생성 상태
 
@@ -2230,7 +2232,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 `daily_summary`에는 `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`, `conversation_results[]`를 포함한다. `conversation_results[]`에는 날짜 안에 종료된 각 세션의 `session_id`, `session_type`, `result_type`, `display_label`, `screening_reference_score`, `domain_scores`를 포함한다. `screening_reference_score`와 `domain_scores`는 보호자 리포트에서만 반환한다.
 
-서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
+서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 종료된 같은 날짜의 `emotional_qa` 세션을 모두 시작 시각 순서로 읽고, 각 세션의 Gemini 질문·답변과 음성 답변 전사문을 모아 Gemini가 하루 일기 한 편으로 통합한다. 세션별 요약은 분석 기록으로 각각 보관하며, 일기에는 CIST 문제은행 답변을 포함하지 않는다. 음성 답변 전사가 아직 준비되지 않은 경우 일부 답변만으로 일기를 확정하지 않고 다음 복구 실행에서 다시 시도한다. 일기는 확인된 답변 사실만 반영하고 모호한 내용을 추측하지 않는다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
 
 `trend_points[]` 예시:
 

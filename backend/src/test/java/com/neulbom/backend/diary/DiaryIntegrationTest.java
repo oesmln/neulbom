@@ -162,6 +162,25 @@ class DiaryIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void dailySummaryWithoutDiaryReadyConversationContentIsIncomplete() throws Exception {
+        UserEntity elder = saveUser("diary-no-content-elder", "elder");
+        Instant now = Instant.now();
+        LocalDate date = now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate();
+        DailySummaryEntity dailySummary = dailySummaryRepository.save(new DailySummaryEntity(
+                uuidGenerator.generate(), elder.getId(), date, "Asia/Seoul", 1, 0, "completed",
+                "오늘 대화 분석이 집계되었습니다.", "[]", now, now));
+
+        mockMvc.perform(post("/api/v1/diaries/from-daily-summary").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"daily_summary_id\":\"" + dailySummary.getId()
+                                + "\",\"user_id\":\"" + elder.getId() + "\",\"content\":\"\"}"))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("conversation_incomplete"))
+                .andExpect(jsonPath("$.failure_reason").value("insufficient_conversation"))
+                .andExpect(jsonPath("$.diary_id").doesNotExist());
+    }
+
     private UserEntity saveUser(String prefix, String role) {
         UUID id = UUID.randomUUID();
         Instant now = Instant.now();

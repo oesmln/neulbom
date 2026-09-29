@@ -167,7 +167,7 @@ public class DiaryService {
         UUID diaryId = null;
         Instant availableAt = null;
         String failureReason = null;
-        if (summary.getSessionCount() <= 0) {
+        if (summary.getSessionCount() <= 0 || (request.content() != null && request.content().isBlank())) {
             status = "conversation_incomplete";
             failureReason = "insufficient_conversation";
         } else if (!"completed".equals(summary.getAnalysisStatus())) {
