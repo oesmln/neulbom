@@ -1276,7 +1276,8 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | --- | --- | --- |
 | `questions[]` | array | 질문 배열 |
 | `question_id` | string | 질문 ID |
-| `content` | string | 질문 내용 |
+| `content` | string | 음성 재생용 전체 질문. CIST 자극 텍스트가 포함될 수 있음 |
+| `display_content` | string/null | 화면 표시용 안내문. 별도 안내문이 없는 질문은 `null` |
 | `type` | enum | 질문 유형 |
 | `order` | integer | 진행 순서 |
 | `subtitle_available` | boolean | 자막 표시 가능 여부 |
@@ -1286,6 +1287,8 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `administration_mode` | enum/null | `always`, `conditional`. 비-CIST 문항은 `null` |
 | `question_source` | enum/null | `gemini`, `cist_bank`; 기존 고정 문항은 `null` |
 | `source_question_id` | string/null | 문제은행 원문 ID |
+
+화면에는 `display_content`가 있으면 이를 표시하고, `null`이면 `content`를 표시한다. TTS에는 항상 전체 `content`를 전달한다. 숫자 따라 말하기 2문항, 단어 거꾸로 말하기 1문항, 기억 등록 2문항의 자극은 `content`에만 포함되므로 화면에 그대로 출력하지 않는다.
 
 일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다. Gemini 후속 질문은 최근 답변의 명시된 사실만 사용하며, 짧거나 모호한 답변에서 식사·사람·활동·감정을 추측하지 않는다. 슬픔·상실·질병·불안에는 짧게 공감하고 설명이나 긍정적인 결론을 강요하지 않는다.
 
@@ -1304,11 +1307,14 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `session_id` | string | 활성 일상 문답 세션 ID |
 | `question` | object | 현재 질문 |
 | `question.question_id` | string | 이 세션에 배정된 질문 ID |
-| `question.content` | string | 화면에 표시할 질문 |
+| `question.content` | string | 음성 재생용 전체 질문. CIST 자극 텍스트가 포함될 수 있음 |
+| `question.display_content` | string/null | 화면 표시용 안내문. CIST 문제은행 문항은 원문의 값을 이어받으며 Gemini 질문은 `null` |
 | `question.order` | integer | `1`부터 `7`까지의 순서 |
 | `question.question_source` | enum | `gemini`, `cist_bank` |
 | `question.source_question_id` | string/null | CIST 문항이면 문제은행 원문 ID |
 | `question.question_code` | string/null | CIST 문항이면 문제은행 원문 코드 |
+
+화면에는 `question.display_content ?? question.content`를 표시하고, TTS에는 `question.content`를 전달한다. `question.content`에 포함된 CIST 자극을 화면에 그대로 노출하지 않는다.
 
 요청을 반복해도 현재 순서의 질문만 반환한다. 답변 저장 후 다시 호출하면 세션의 다음 순서가 생성되거나 조회된다. Gemini 설정·응답에 문제가 있으면 `503`을 반환하고 현재 질문은 저장하지 않는다.
 
@@ -1319,18 +1325,21 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 ```json
 {
   "question_id": "q_01J...",
-  "content": "오늘이 무슨 요일인지 말씀해 주세요.",
+  "content": "오늘은 무슨 요일입니까?",
+  "display_content": null,
   "type": "orientation",
   "order": 1,
   "hint": null,
   "subtitle_available": true,
-  "question_code": "orientation_year",
-  "variant_id": "orientation-year-fixed-v1",
+  "question_code": "orientation_weekday",
+  "variant_id": "orientation-weekday-fixed-v1",
   "administration_mode": "always",
   "question_source": null,
   "source_question_id": null
 }
 ```
+
+단건 조회도 위 질문 목록과 동일한 `content`·`display_content` 계약을 따른다. `display_content`가 있는 문항은 화면에 안내문만 표시하고, 전체 `content`는 TTS에 사용한다.
 
 > 화면은 한 번에 하나의 질문만 표시한다. 정서 문답은 서버가 `questions/next` 응답으로 진행할 질문을 결정하고, 프론트엔드는 `다음`, `다시 듣기`, `처음으로` 동작을 처리한다.
 
@@ -1490,6 +1499,8 @@ Google STT adapter는 M4A(`audio/mp4`) 입력을 요청 전에 `ffmpeg`로 16kHz
 | `text` | string | Y | 합성할 문장, 공백 제외 최대 2,000자 |
 | `voice_profile_id` | string | N | 미지정 시 사용자 설정 또는 `voice_ko_01` |
 | `speech_rate` | float | N | 미지정 시 사용자 설정, 허용 범위 `0.75~1.25` |
+
+CIST 질문의 음성 재생에는 질문 응답의 전체 `content`를 `text`로 전달한다. 화면 표시는 `display_content`가 있으면 이를 우선 사용하여 자극 텍스트가 보이지 않게 한다.
 
 #### Response `200`
 

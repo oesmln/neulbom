@@ -591,6 +591,8 @@ const CIST_QUESTIONS: Array<{
   code: string;
   variant: string;
   content: string;
+  /** 화면 표시용 안내문. 제시 내용(숫자·문장·단어)이 섞인 문항만 채운다. */
+  display?: string;
   type: string;
   conditional?: boolean;
 }> = [
@@ -599,11 +601,11 @@ const CIST_QUESTIONS: Array<{
   { code: "orientation_day", variant: "orientation-day-fixed-v1", content: "오늘은 며칠입니까?", type: "orientation" },
   { code: "orientation_weekday", variant: "orientation-weekday-fixed-v1", content: "오늘은 무슨 요일입니까?", type: "orientation" },
   { code: "orientation_place", variant: "orientation-place-fixed-v1", content: "지금 대상자님이 계신 여기는 어디인가요?", type: "orientation" },
-  { code: "memory_registration_first", variant: "memory-registration-first-fixed-v1", content: "민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다. 끝까지 듣고 따라 해 주세요.", type: "memory" },
-  { code: "memory_registration_second", variant: "memory-registration-second-fixed-v1", content: "같은 문장을 다시 한번 듣고 따라 해 주세요. 민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다.", type: "memory" },
-  { code: "attention_digit_span_4", variant: "attention-digit-span-4-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 6 - 9 - 7 - 3", type: "attention" },
-  { code: "attention_digit_span_5", variant: "attention-digit-span-5-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 5 - 7 - 2 - 8 - 4", type: "attention" },
-  { code: "attention_word_reverse", variant: "attention-word-reverse-fixed-v1", content: "제가 불러 드리는 말을 끝에서부터 거꾸로 따라해 주세요: 금수강산", type: "attention" },
+  { code: "memory_registration_first", variant: "memory-registration-first-fixed-v1", content: "민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다. 끝까지 듣고 따라 해 주세요.", display: "지금부터 외우셔야 하는 문장을 하나 들려드릴게요. 끝까지 잘 듣고 따라 해 보세요.", type: "memory" },
+  { code: "memory_registration_second", variant: "memory-registration-second-fixed-v1", content: "같은 문장을 다시 한번 듣고 따라 해 주세요. 민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다.", display: "같은 문장을 다시 한번 들려드릴게요. 이번에도 잘 듣고 따라 해 보세요.", type: "memory" },
+  { code: "attention_digit_span_4", variant: "attention-digit-span-4-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 6 - 9 - 7 - 3", display: "제가 불러드리는 숫자를 그대로 따라 해 주세요.", type: "attention" },
+  { code: "attention_digit_span_5", variant: "attention-digit-span-5-fixed-v1", content: "제가 불러드리는 숫자를 그대로 따라 해 주세요: 5 - 7 - 2 - 8 - 4", display: "제가 불러드리는 숫자를 그대로 따라 해 주세요.", type: "attention" },
+  { code: "attention_word_reverse", variant: "attention-word-reverse-fixed-v1", content: "제가 불러 드리는 말을 끝에서부터 거꾸로 따라해 주세요: 금수강산", display: "제가 불러 드리는 말을 끝에서부터 거꾸로 따라 해 주세요.", type: "attention" },
   { code: "memory_delayed_free_recall", variant: "memory-delayed-free-recall-fixed-v1", content: "제가 조금 전에 외우라고 불러드렸던 문장을 다시 한번 말씀해 주세요.", type: "memory" },
   { code: "memory_recognition_person", variant: "memory-recognition-person-fixed-v1", content: "제가 아까 어떤 사람의 이름을 말했는데 누구일까요? 영수, 민수, 진수", type: "memory", conditional: true },
   { code: "memory_recognition_transport", variant: "memory-recognition-transport-fixed-v1", content: "무엇을 타고 갔습니까? 버스, 오토바이, 자전거", type: "memory", conditional: true },
@@ -618,6 +620,7 @@ export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse 
     questions: CIST_QUESTIONS.map((q, i) => ({
       question_id: fixedId("99999999", i + 1),
       content: q.content,
+      display_content: q.display ?? null,
       type: q.type,
       order: i + 1,
       hint: null,
@@ -825,6 +828,7 @@ function createMockDailySessionQuestions(sessionId: Uuid): QuestionResponse[] {
       return {
         question_id: fixedId("eeeeeeee", mockSessionQuestionSequence++),
         content: source.content,
+        display_content: source.display ?? null,
         type: source.type,
         order,
         hint: null,
@@ -846,6 +850,7 @@ function createMockDailySessionQuestions(sessionId: Uuid): QuestionResponse[] {
     return {
       question_id: fixedId("eeeeeeee", mockSessionQuestionSequence++),
       content: generated,
+      display_content: null,
       type: "emotion",
       order,
       hint: null,

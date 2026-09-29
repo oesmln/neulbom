@@ -323,6 +323,7 @@ export interface SessionsResponse {
 export interface QuestionResponse {
   question_id: Uuid;
   content: string;
+  display_content: string | null;
   type: string;
   order: number;
   hint: string | null;

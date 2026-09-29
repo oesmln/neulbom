@@ -42,6 +42,9 @@ public class QuestionEntity {
     @Column(nullable = false, columnDefinition = "text")
     private String content;
 
+    @Column(name = "display_content", columnDefinition = "text")
+    private String displayContent;
+
     @Column(columnDefinition = "text")
     private String hint;
 
@@ -65,6 +68,7 @@ public class QuestionEntity {
             String questionType,
             String sessionType,
             String content,
+            String displayContent,
             String hint,
             int displayOrder,
             boolean subtitleAvailable,
@@ -79,6 +83,7 @@ public class QuestionEntity {
         this.questionType = questionType;
         this.sessionType = sessionType;
         this.content = content;
+        this.displayContent = displayContent;
         this.hint = hint;
         this.displayOrder = displayOrder;
         this.subtitleAvailable = subtitleAvailable;
@@ -129,6 +134,11 @@ public class QuestionEntity {
 
     public String getContent() {
         return content;
+    }
+
+    /** Screen-safe prompt text, when the full {@link #getContent()} embeds a CIST stimulus after a colon that must stay audio-only. */
+    public String getDisplayContent() {
+        return displayContent;
     }
 
     public String getHint() {

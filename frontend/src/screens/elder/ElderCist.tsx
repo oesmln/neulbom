@@ -46,23 +46,6 @@ function domainOf(question: QuestionResponse): string {
 }
 
 /**
- * 듣고 그대로 따라 말하거나 거꾸로 말해야 하는 문항과, 화면에 대신 보여줄 안내 문구.
- *
- * 이 문항들의 `content`에는 외워야 할 문장이나 숫자가 들어 있어, 전문을 그대로
- * 그리면 답을 읽을 수 있다. 원문 형식은 데이터마다 다르다("안내: 제시 내용"일 수도,
- * 제시 문장이 앞에 오고 구분자가 없을 수도 있다). 그래서 원문을 잘라 쓰지 않고
- * 코드별 고정 문구를 표시한다. 음성(`useSpeechPlayback`)에는 전문을 그대로
- * 넘기므로 읽어주는 내용과 채점 계약은 바뀌지 않는다.
- */
-const SPOKEN_ONLY_PROMPTS: Record<string, string> = {
-  memory_registration_first: "지금부터 외우셔야 하는 문장을 하나 들려드릴게요. 끝까지 잘 듣고 따라 해 보세요.",
-  memory_registration_second: "같은 문장을 다시 한번 들려드릴게요. 이번에도 잘 듣고 따라 해 보세요.",
-  attention_digit_span_4: "제가 불러드리는 숫자를 그대로 따라 해 주세요.",
-  attention_digit_span_5: "제가 불러드리는 숫자를 그대로 따라 해 주세요.",
-  attention_word_reverse: "제가 불러 드리는 말을 끝에서부터 거꾸로 따라 해 주세요.",
-};
-
-/**
  * 답변 인식 결과를 화면에 남기면 안 되는 문항.
  *
  * 기억 등록 문항은 들은 문장을 그대로 따라 말하므로 인식 결과가 곧 외워야 할
@@ -79,16 +62,16 @@ function isAnswerHiddenQuestion(question: QuestionResponse): boolean {
   return !!question.question_code && ANSWER_HIDDEN_QUESTION_CODES.has(question.question_code);
 }
 
-/** 제시 내용을 음성으로만 전달해야 하는 문항인지 확인한다. */
-function isSpokenOnlyQuestion(question: QuestionResponse): boolean {
-  return !!question.question_code && question.question_code in SPOKEN_ONLY_PROMPTS;
-}
-
-/** 화면에 표시할 문항 문구. 제시 내용을 가려야 하는 문항은 코드별 고정 안내 문구를 쓴다. */
+/**
+ * 화면에 표시할 문항 문구.
+ *
+ * 외워야 할 문장이나 숫자 같은 제시 내용이 있는 문항은 서버가 `content`(음성 전용,
+ * 전문)와 별도로 `display_content`(화면 표시용 안내문)를 내려준다. 음성
+ * (`useSpeechPlayback`)에는 항상 `content` 전문을 그대로 넘기므로 읽어주는
+ * 내용과 채점 계약은 바뀌지 않는다.
+ */
 function displayContentOf(question: QuestionResponse): string {
-  const code = question.question_code;
-  if (code && code in SPOKEN_ONLY_PROMPTS) return SPOKEN_ONLY_PROMPTS[code];
-  return question.content;
+  return question.display_content ?? question.content;
 }
 
 export default function ElderCistScreen() {

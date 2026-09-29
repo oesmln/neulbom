@@ -52,6 +52,17 @@ function removeFile(file: File | null) {
   }
 }
 
+/**
+ * expo-audio reports a failed decode/playback (e.g. the browser's
+ * `MEDIA_ERR_DECODE`) asynchronously through the player's `status.error`,
+ * not as a thrown exception from `replace()`/`play()`, so `play()`'s own
+ * `try/catch` never sees it. Elderly users would otherwise see the raw
+ * native message (e.g. "Playback error (code 3)") with no way to recover
+ * beyond a long press, so a failed attempt is retried once automatically
+ * before falling back to a Korean message.
+ */
+const PLAYBACK_RETRY_ERROR = "음성 안내를 재생하지 못했어요. 다시 듣기 버튼을 눌러 주세요.";
+
 /** Plays one character line through the authenticated Google TTS endpoint. */
 export function useSpeechPlayback(line: string | null) {
   const player = useAudioPlayer(null, { updateInterval: 100 });
@@ -59,21 +70,27 @@ export function useSpeechPlayback(line: string | null) {
   const [enabled, setEnabled] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [playbackFailed, setPlaybackFailed] = React.useState(false);
   const requestSequence = React.useRef(0);
   const temporaryFile = React.useRef<File | null>(null);
+  const attempt = React.useRef<{ text: string; retried: boolean } | null>(null);
 
   const stop = React.useCallback(() => {
     requestSequence.current += 1;
+    attempt.current = null;
     pauseQuietly(player);
     void player.seekTo(0).catch(() => undefined);
     setLoading(false);
+    setPlaybackFailed(false);
   }, [player]);
 
-  const play = React.useCallback(async (text: string) => {
+  const play = React.useCallback(async (text: string, isRetry = false) => {
     const sequence = ++requestSequence.current;
+    if (!isRetry) attempt.current = { text, retried: false };
     pauseQuietly(player);
     setLoading(true);
     setError(null);
+    setPlaybackFailed(false);
     try {
       const response = await speech.synthesize({ text });
       if (sequence !== requestSequence.current) return;
@@ -92,6 +109,18 @@ export function useSpeechPlayback(line: string | null) {
     }
   }, [player]);
 
+  // Native playback failures surface here, after `play()` has already
+  // resolved successfully — see the comment on PLAYBACK_RETRY_ERROR.
+  React.useEffect(() => {
+    if (!status.error || !attempt.current) return;
+    if (attempt.current.retried) {
+      setPlaybackFailed(true);
+      return;
+    }
+    attempt.current.retried = true;
+    void play(attempt.current.text, true);
+  }, [status.error, play]);
+
   React.useEffect(() => {
     if (!enabled || !line?.trim()) {
       stop();
@@ -102,6 +131,7 @@ export function useSpeechPlayback(line: string | null) {
 
   React.useEffect(() => () => {
     requestSequence.current += 1;
+    attempt.current = null;
     pauseQuietly(player);
     removeFile(temporaryFile.current);
   }, [player]);
@@ -114,7 +144,7 @@ export function useSpeechPlayback(line: string | null) {
     enabled,
     loading,
     speaking: enabled && status.playing,
-    error: status.error ?? error,
+    error: playbackFailed ? PLAYBACK_RETRY_ERROR : error,
     toggle,
     replay: () => {
       if (line?.trim()) void play(line.trim());
