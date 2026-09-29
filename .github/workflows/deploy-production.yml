@@ -9,9 +9,10 @@ on:
       - backend/**
       - ai-server/**
       - frontend/**
-      - deploy/**
+      - deploy/compose.prod.yml
+      - deploy/nginx/**
+      - deploy/scripts/deploy.sh
       - .dockerignore
-      - .github/workflows/deploy-production.yml
 
 concurrency:
   group: production-server
@@ -25,8 +26,13 @@ jobs:
   deploy:
     name: Deploy to GCE
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.ref == 'refs/heads/develop'
     environment: production
     steps:
+      - name: Check out deployment source
+        uses: actions/checkout@v7
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3
         with:
@@ -36,18 +42,180 @@ jobs:
       - name: Set up Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Rebuild services on the VM
+      - name: Package tracked source files
+        run: git archive --format=tar.gz --output="${RUNNER_TEMP}/neulbom-${GITHUB_SHA}.tar.gz" "${GITHUB_SHA}"
+
+      - name: Deploy through IAP with an ephemeral SSH key
         env:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GCP_ZONE: ${{ vars.GCP_ZONE }}
           GCP_VM_NAME: ${{ vars.GCP_VM_NAME }}
         run: |
-          gcloud compute ssh "${GCP_VM_NAME}" \
+          set -Eeuo pipefail
+
+          ssh_user=gha-deploy
+          ssh_key="${RUNNER_TEMP}/neulbom-deploy-key"
+          ssh_metadata="${RUNNER_TEMP}/neulbom-ssh-metadata"
+          instance_json="${RUNNER_TEMP}/neulbom-instance.json"
+          cleanup_json="${RUNNER_TEMP}/neulbom-instance-cleanup.json"
+          cleanup_metadata="${RUNNER_TEMP}/neulbom-ssh-cleanup"
+          tunnel_log="${RUNNER_TEMP}/neulbom-iap-tunnel.log"
+          tunnel_pid=
+          metadata_added=false
+
+          gcloud compute instances describe "${GCP_VM_NAME}" \
             --project "${GCP_PROJECT_ID}" \
             --zone "${GCP_ZONE}" \
-            --command 'set -Eeuo pipefail
-              cd /opt/neulbom/app
-              git fetch origin develop
-              git switch develop
-              git merge --ff-only origin/develop
-              ./deploy/scripts/deploy.sh'
+            --format=json > "${instance_json}"
+          previous_ssh_keys="$(jq -r '.metadata.items[]? | select(.key == "ssh-keys") | .value' "${instance_json}")"
+
+          ssh-keygen -q -t ed25519 -N '' -C "github-actions-${GITHUB_RUN_ID}" -f "${ssh_key}"
+          ssh_public_key="$(awk '{ print $1 " " $2 }' "${ssh_key}.pub")"
+          expires_at="$(date -u -d '+60 minutes' '+%Y-%m-%dT%H:%M:%SZ')"
+          printf '%s:%s google-ssh {"userName":"%s","expireOn":"%s"}\n' \
+            "${ssh_user}" "${ssh_public_key}" "${ssh_user}" "${expires_at}" > "${ssh_metadata}"
+          if [[ -n "${previous_ssh_keys}" ]]; then
+            printf '%s\n' "${previous_ssh_keys}" >> "${ssh_metadata}"
+          fi
+          gcloud compute instances add-metadata "${GCP_VM_NAME}" \
+            --project "${GCP_PROJECT_ID}" \
+            --zone "${GCP_ZONE}" \
+            --metadata-from-file="ssh-keys=${ssh_metadata}" \
+            --quiet
+          metadata_added=true
+
+          cleanup() {
+            local exit_status=$?
+            local cleanup_failed=0
+            trap - EXIT
+
+            if [[ "${metadata_added}" == true ]]; then
+              if gcloud compute instances describe "${GCP_VM_NAME}" \
+                --project "${GCP_PROJECT_ID}" \
+                --zone "${GCP_ZONE}" \
+                --format=json > "${cleanup_json}"; then
+                local current_ssh_keys
+                local remaining_ssh_keys
+                current_ssh_keys="$(jq -r '.metadata.items[]? | select(.key == "ssh-keys") | .value' "${cleanup_json}")"
+                remaining_ssh_keys="$(printf '%s\n' "${current_ssh_keys}" | awk -v key="${ssh_public_key}" 'index($0, key) == 0')"
+                if [[ -n "${remaining_ssh_keys//[[:space:]]/}" ]]; then
+                  printf '%s\n' "${remaining_ssh_keys}" > "${cleanup_metadata}"
+                  gcloud compute instances add-metadata "${GCP_VM_NAME}" \
+                    --project "${GCP_PROJECT_ID}" \
+                    --zone "${GCP_ZONE}" \
+                    --metadata-from-file="ssh-keys=${cleanup_metadata}" \
+                    --quiet || cleanup_failed=1
+                else
+                  gcloud compute instances remove-metadata "${GCP_VM_NAME}" \
+                    --project "${GCP_PROJECT_ID}" \
+                    --zone "${GCP_ZONE}" \
+                    --keys=ssh-keys \
+                    --quiet || cleanup_failed=1
+                fi
+              else
+                cleanup_failed=1
+              fi
+            fi
+
+            if [[ -n "${tunnel_pid}" ]]; then
+              kill "${tunnel_pid}" 2>/dev/null || true
+              wait "${tunnel_pid}" 2>/dev/null || true
+            fi
+
+            if [[ "${exit_status}" -eq 0 && "${cleanup_failed}" -ne 0 ]]; then
+              echo "::error::Could not remove the temporary SSH key from VM metadata. It will expire automatically."
+              exit 1
+            fi
+            exit "${exit_status}"
+          }
+          trap cleanup EXIT
+
+          gcloud compute start-iap-tunnel "${GCP_VM_NAME}" 22 \
+            --project "${GCP_PROJECT_ID}" \
+            --zone "${GCP_ZONE}" \
+            --local-host-port=127.0.0.1:8022 > "${tunnel_log}" 2>&1 &
+          tunnel_pid=$!
+
+          ssh_options=(-p 8022 -i "${ssh_key}" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5)
+          scp_options=(-P 8022 -i "${ssh_key}" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+          ssh_ready=false
+          for attempt in {1..30}; do
+            if ! kill -0 "${tunnel_pid}" 2>/dev/null; then
+              cat "${tunnel_log}"
+              exit 1
+            fi
+            if ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" 'sudo -n true' >/dev/null 2>&1; then
+              ssh_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [[ "${ssh_ready}" != true ]]; then
+            cat "${tunnel_log}"
+            ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" 'sudo -n true'
+            exit 1
+          fi
+
+          scp "${scp_options[@]}" \
+            "${RUNNER_TEMP}/neulbom-${GITHUB_SHA}.tar.gz" \
+            "${ssh_user}@127.0.0.1:/tmp/neulbom-${GITHUB_SHA}.tar.gz"
+          ssh "${ssh_options[@]}" "${ssh_user}@127.0.0.1" "sudo -n bash -s -- '${GITHUB_SHA}'" <<'REMOTE'
+          set -Eeuo pipefail
+
+          # Compose can read stdin, so parse the full remote block before running it.
+          {
+          revision="$1"
+          archive="/tmp/neulbom-${revision}.tar.gz"
+          app_dir=/opt/neulbom/app
+          release_dir="/opt/neulbom/releases/${revision}"
+          env_file="${app_dir}/deploy/.env"
+          trap 'rm -f "${archive}"' EXIT
+
+          test -f "${env_file}"
+          mkdir -p "${release_dir}"
+          tar -xzf "${archive}" -C "${release_dir}" --no-same-owner
+          cd "${release_dir}"
+          DEPLOY_ENV_FILE="${env_file}" IMAGE_TAG="${revision}" ./deploy/scripts/deploy.sh
+
+          compose=(docker compose --env-file "${env_file}" -f "${release_dir}/deploy/compose.prod.yml")
+          expected_services=(nginx backend ai-server postgres)
+          healthy=0
+          for attempt in {1..60}; do
+            healthy=1
+            for service in "${expected_services[@]}"; do
+              container="$("${compose[@]}" ps -q "${service}")"
+              if [[ -z "${container}" ]]; then
+                healthy=0
+                break
+              fi
+              status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container}")"
+              if [[ "${status}" != healthy ]]; then
+                healthy=0
+                break
+              fi
+            done
+            if [[ "${healthy}" -eq 1 ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${healthy}" -ne 1 ]]; then
+            "${compose[@]}" ps
+            exit 1
+          fi
+
+          "${compose[@]}" exec -T backend curl --fail --silent --show-error \
+            http://127.0.0.1:8080/actuator/health/readiness > /dev/null
+          "${compose[@]}" exec -T backend ffmpeg -version > /dev/null
+          "${compose[@]}" exec -T ai-server python -c \
+            'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health/ready", timeout=5)'
+
+          if grep -q '^IMAGE_TAG=' "${env_file}"; then
+            sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${revision}/" "${env_file}"
+          else
+            printf 'IMAGE_TAG=%s\n' "${revision}" >> "${env_file}"
+          fi
+          chmod 600 "${env_file}"
+          printf '%s\n' "${revision}" > "${app_dir}/.deploy-revision"
+          } </dev/null
+          REMOTE

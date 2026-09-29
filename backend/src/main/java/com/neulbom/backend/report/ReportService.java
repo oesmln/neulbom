@@ -29,6 +29,10 @@ import com.neulbom.backend.analysis.CognitiveAnalysisEntity;
 import com.neulbom.backend.analysis.CognitiveAnalysisRepository;
 import com.neulbom.backend.analysis.CistAiAnalysisEntity;
 import com.neulbom.backend.analysis.CistAiAnalysisRepository;
+import com.neulbom.backend.analysis.CognitiveFeatureSnapshotEntity;
+import com.neulbom.backend.analysis.CognitiveFeatureSnapshotRepository;
+import com.neulbom.backend.analysis.DailyCognitiveEstimateEntity;
+import com.neulbom.backend.analysis.DailyCognitiveEstimateService;
 import com.neulbom.backend.analysis.DailySummaryEntity;
 import com.neulbom.backend.analysis.DailySummaryRepository;
 import com.neulbom.backend.analysis.ScreeningResultEntity;
@@ -82,6 +86,8 @@ public class ReportService {
     private final SessionRepository sessionRepository;
     private final CognitiveAnalysisRepository cognitiveAnalysisRepository;
     private final CistAiAnalysisRepository cistAiAnalysisRepository;
+    private final CognitiveFeatureSnapshotRepository cognitiveFeatureSnapshotRepository;
+    private final DailyCognitiveEstimateService dailyCognitiveEstimateService;
     private final ScreeningResultRepository screeningResultRepository;
     private final SessionSummaryRepository sessionSummaryRepository;
     private final DailySummaryRepository dailySummaryRepository;
@@ -102,6 +108,8 @@ public class ReportService {
             SessionRepository sessionRepository,
             CognitiveAnalysisRepository cognitiveAnalysisRepository,
             CistAiAnalysisRepository cistAiAnalysisRepository,
+            CognitiveFeatureSnapshotRepository cognitiveFeatureSnapshotRepository,
+            DailyCognitiveEstimateService dailyCognitiveEstimateService,
             ScreeningResultRepository screeningResultRepository,
             SessionSummaryRepository sessionSummaryRepository,
             DailySummaryRepository dailySummaryRepository,
@@ -121,6 +129,8 @@ public class ReportService {
         this.sessionRepository = sessionRepository;
         this.cognitiveAnalysisRepository = cognitiveAnalysisRepository;
         this.cistAiAnalysisRepository = cistAiAnalysisRepository;
+        this.cognitiveFeatureSnapshotRepository = cognitiveFeatureSnapshotRepository;
+        this.dailyCognitiveEstimateService = dailyCognitiveEstimateService;
         this.screeningResultRepository = screeningResultRepository;
         this.sessionSummaryRepository = sessionSummaryRepository;
         this.dailySummaryRepository = dailySummaryRepository;
@@ -182,7 +192,10 @@ public class ReportService {
             CognitiveAnalysisEntity previous = index + 1 < grouped.size() ? grouped.get(index + 1) : null;
             records.add(toHistoryRecord(current, previous, average30d, guardian));
         }
-        return new HistoryResponse(records, grouped.size(), normalizedAggregation, analyses.size() >= 2);
+        List<GuardianReportResponse.AiRiskTrendPoint> riskPoints = guardian
+                ? aiRiskTrendPoints(userId, sessionRepository.findAllByUserIdOrderByStartedAtDesc(userId), fromDate, toDate)
+                : List.of();
+        return new HistoryResponse(records, grouped.size(), normalizedAggregation, analyses.size() >= 2, riskPoints);
     }
 
     @Transactional(readOnly = true)
@@ -316,7 +329,7 @@ public class ReportService {
         Instant now = clock.instant();
         Instant sevenDaysAgo = now.minus(Duration.ofDays(7));
         List<SessionEntity> sessions = sessionRepository.findAllByUserIdOrderByStartedAtDesc(elderId);
-        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints = aiRiskTrendPoints(sessions, fromDate, toDate);
+        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints = aiRiskTrendPoints(elderId, sessions, fromDate, toDate);
         long sessionCount = sessions.stream().filter(session -> session.getStartedAt().isAfter(sevenDaysAgo)).count();
         long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(elderId, sevenDaysAgo, now);
         List<GuardianReportResponse.Alert> alerts = notificationRepository.findAllByRecipientUserIdAndCreatedAtAfterOrderByCreatedAtDesc(elderId, sevenDaysAgo).stream()
@@ -487,20 +500,38 @@ public class ReportService {
     }
 
     private List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints(
-            List<SessionEntity> sessions, LocalDate fromDate, LocalDate toDate) {
+            UUID userId, List<SessionEntity> sessions, LocalDate fromDate, LocalDate toDate) {
         Map<UUID, SessionEntity> cistSessions = sessions.stream()
-                .filter(session -> Set.of("cist", "baseline", "onboarding", "emotional_qa")
-                        .contains(session.getSessionType()))
-                .filter(session -> inDateRange(session.getStartedAt(), fromDate, toDate))
+                .filter(session -> Set.of("cist", "baseline", "onboarding").contains(session.getSessionType()))
                 .collect(Collectors.toMap(SessionEntity::getId, Function.identity()));
-        if (cistSessions.isEmpty()) return List.of();
-        return cistAiAnalysisRepository.findAllBySessionIdIn(cistSessions.keySet()).stream()
+        Map<UUID, CognitiveFeatureSnapshotEntity> baselineByAnalysis = cognitiveFeatureSnapshotRepository
+                .findAllByUserId(userId).stream()
+                .collect(Collectors.toMap(CognitiveFeatureSnapshotEntity::getSourceAnalysisId, Function.identity()));
+        Map<UUID, CognitiveFeatureSnapshotEntity> baselineById = baselineByAnalysis.values().stream()
+                .collect(Collectors.toMap(CognitiveFeatureSnapshotEntity::getSnapshotId, Function.identity()));
+        List<GuardianReportResponse.AiRiskTrendPoint> points = new ArrayList<>();
+        points.addAll(cistAiAnalysisRepository.findAllBySessionIdIn(cistSessions.keySet()).stream()
                 .filter(analysis -> "completed".equals(analysis.getStatus()) && analysis.getModelScore() != null)
-                .sorted(Comparator.comparing(analysis -> cistSessions.get(analysis.getSessionId()).getStartedAt()))
+                .filter(analysis -> inDateRange(analysis.getUpdatedAt(), fromDate, toDate))
                 .map(analysis -> new GuardianReportResponse.AiRiskTrendPoint(
-                        cistSessions.get(analysis.getSessionId()).getStartedAt().atZone(BUSINESS_ZONE).toLocalDate(),
-                        analysis.getModelScore(), analysis.getRiskLevel()))
-                .toList();
+                        analysis.getUpdatedAt().atZone(BUSINESS_ZONE).toLocalDate(),
+                        analysis.getModelScore(), analysis.getRiskLevel(), "full_cist", false,
+                        analysis.getUpdatedAt(), analysis.getSessionId(), analysis.getSessionId(),
+                        baselineByAnalysis.containsKey(analysis.getAnalysisId())
+                                ? baselineByAnalysis.get(analysis.getAnalysisId()).getSnapshotId() : null))
+                .toList());
+        for (DailyCognitiveEstimateEntity estimate : dailyCognitiveEstimateService.findDailyEstimates(userId, fromDate, toDate)) {
+            CognitiveFeatureSnapshotEntity baseline = baselineById.get(estimate.getBaselineSnapshotId());
+            if (baseline == null) continue;
+            points.add(new GuardianReportResponse.AiRiskTrendPoint(
+                    estimate.getAnalyzedAt().atZone(BUSINESS_ZONE).toLocalDate(),
+                    estimate.getEstimatedModelScore(), estimate.getRiskLevel(), "daily_partial_estimate", true,
+                    estimate.getAnalyzedAt(), estimate.getSessionId(), baseline.getSourceSessionId(),
+                    baseline.getSnapshotId()));
+        }
+        points.sort(Comparator.comparing(GuardianReportResponse.AiRiskTrendPoint::analyzedAt)
+                .thenComparing(GuardianReportResponse.AiRiskTrendPoint::sessionId));
+        return points;
     }
 
     private DashboardResponse.ScreeningSummary latestScreeningSummary(UUID sessionId, boolean guardian) {

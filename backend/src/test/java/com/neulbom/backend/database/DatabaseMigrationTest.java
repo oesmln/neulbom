@@ -74,7 +74,8 @@ class DatabaseMigrationTest {
                               'campaign_participations', 'notifications', 'audit_logs',
                               'password_reset_tokens', 'oauth_accounts', 'daily_summaries',
                               'diary_generation_jobs', 'report_exports', 'counseling_centers',
-                              'cist_recognition_plans', 'cist_ai_analyses', 'ai_server_operations'
+                              'cist_recognition_plans', 'cist_ai_analyses', 'ai_server_operations',
+                              'session_question_slots', 'cognitive_feature_snapshots', 'daily_cognitive_estimates'
                           )
                         """,
                 Integer.class);
@@ -85,7 +86,7 @@ class DatabaseMigrationTest {
         assertThat(featureSnapshotColumnCount).isEqualTo(1);
         assertThat(baselineAnalysisLinkColumnCount).isEqualTo(1);
         assertThat(operationTypeConstraint).contains("daily_analysis_create", "daily_analysis_retry");
-        assertThat(coreTableCount).isEqualTo(37);
+        assertThat(coreTableCount).isEqualTo(40);
     }
 
     @Test

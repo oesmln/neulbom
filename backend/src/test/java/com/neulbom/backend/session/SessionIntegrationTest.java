@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -69,6 +70,9 @@ class SessionIntegrationTest {
 
     @Autowired
     private UuidGenerator uuidGenerator;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void elderCanResumeSessionSaveIdempotentAnswersAndEndOnce() throws Exception {
@@ -337,7 +341,7 @@ class SessionIntegrationTest {
     }
 
     @Test
-    void emotionalQaSessionUsesSevenQuestions() throws Exception {
+    void emotionalQaSessionUsesOneOrientationAndOneAttentionQuestion() throws Exception {
         UserEntity elder = saveUser("emotional-qa-five", "elder");
         Instant now = Instant.now();
         consentRepository.save(new ConsentEntity(
@@ -359,27 +363,45 @@ class SessionIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(slots).hasSize(7);
         org.assertj.core.api.Assertions.assertThat(slots.get(0).getQuestionSource()).isEqualTo("gemini");
         org.assertj.core.api.Assertions.assertThat(slots.stream()
-                        .filter(slot -> "gemini".equals(slot.getQuestionSource())))
-                .hasSize(5);
-        org.assertj.core.api.Assertions.assertThat(slots.stream()
-                        .filter(slot -> "cist_bank".equals(slot.getQuestionSource())))
-                .hasSize(2);
-        var cistQuestionCodes = slots.stream()
+                .filter(slot -> "gemini".equals(slot.getQuestionSource()))).hasSize(5);
+        var cistTypes = slots.stream()
                 .filter(slot -> "cist_bank".equals(slot.getQuestionSource()))
-                .map(slot -> questionRepository.findById(slot.getSourceQuestionId()).orElseThrow().getQuestionCode())
+                .map(slot -> questionRepository.findById(slot.getSourceQuestionId()).orElseThrow().getQuestionType())
                 .toList();
-        org.assertj.core.api.Assertions.assertThat(cistQuestionCodes.stream()
-                        .filter(code -> code.startsWith("orientation_")))
-                .hasSize(1);
-        org.assertj.core.api.Assertions.assertThat(cistQuestionCodes.stream()
-                        .filter(code -> code.startsWith("attention_")))
-                .hasSize(1);
+        org.assertj.core.api.Assertions.assertThat(cistTypes).containsExactlyInAnyOrder("orientation", "attention");
+        org.assertj.core.api.Assertions.assertThat(
+                sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(sessionId).stream()
+                        .map(SessionQuestionSlotEntity::getSourceQuestionId).toList())
+                .containsExactlyElementsOf(slots.stream().map(SessionQuestionSlotEntity::getSourceQuestionId).toList());
 
         mockMvc.perform(patch("/api/v1/sessions/{sessionId}/end", sessionId)
                         .with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.xp_earned").value(20))
                 .andExpect(jsonPath("$.character_level").value(1));
+    }
+
+    @Test
+    void emotionalQaStartFailsWithCommonErrorWhenAttentionQuestionsAreUnavailable() throws Exception {
+        UserEntity elder = saveUser("emotional-qa-no-attention", "elder");
+        Instant now = Instant.now();
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "analysis", true, now, "test-v1", now));
+        consentRepository.save(new ConsentEntity(
+                uuidGenerator.generate(), elder.getId(), "voice_collection", true, now, "test-v1", now));
+        String codes = "('attention_digit_span_4', 'attention_digit_span_5', 'attention_word_reverse')";
+        jdbcTemplate.update("UPDATE questions SET active = FALSE WHERE question_code IN " + codes);
+        try {
+            mockMvc.perform(post("/api/v1/sessions")
+                            .with(jwtFor(elder))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"user_id\":\"" + elder.getId() + "\",\"session_type\":\"emotional_qa\"}"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value(500))
+                    .andExpect(jsonPath("$.detail").value("시행 가능한 CIST 문항을 확인하세요."));
+        } finally {
+            jdbcTemplate.update("UPDATE questions SET active = TRUE WHERE question_code IN " + codes);
+        }
     }
 
     @Test

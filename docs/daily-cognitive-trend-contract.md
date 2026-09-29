@@ -44,4 +44,4 @@ score_delta_from_previous = estimated_model_score - input_model_score
 
 ## 표시 및 통합 범위
 
-기존 보호자 `ai_risk_trend_points[]`는 현재 완료된 전체 CIST 분석만 반환한다. 일상 추정치를 보호자 그래프에 포함하는 조회·저장·표시 계약은 별도 백엔드/프론트엔드 연동 작업이다. 이를 붙일 때 전체 CIST **기준점**과 일상 **추정점**을 구분하고, 계보·기준 점수·변화량을 보존해야 한다. 기존 0~30 인지 점수 `trend_points[]`와 AI 위험 점수(0~1)를 같은 축에 섞지 않는다.
+보호자 `ai_risk_trend_points[]`의 백엔드 응답은 완료된 전체 CIST 결과와 `daily_cognitive_estimates`에 저장된 일상 추정치를 구분해 반환한다. 각 점의 `point_type`은 `full_cist` 또는 `daily_partial_estimate`이며 `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`도 포함한다. 다만 현재 AI 서버의 완료 응답을 새 `cognitive_feature_snapshots`·`daily_cognitive_estimates` 저장 서비스에 연결하는 작업은 남아 있어, 일반 사용 흐름에서 일상 추정점이 자동으로 생성·표시된다고 보장할 수 없다. 프론트엔드 차트도 아직 두 점의 유형을 시각적으로 구분하지 않는다. 기존 0~30 인지 점수 `trend_points[]`와 AI 위험 점수(0~1)를 같은 축에 섞지 않는다.
