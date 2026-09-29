@@ -163,6 +163,7 @@ export default function GuardianConnectionsScreen() {
           value={relation}
           onChangeText={setRelation}
           placeholder="예: 딸, 아들, 사회복지사"
+          placeholderTextColor={colors.mutedForeground}
           maxLength={100}
           accessibilityLabel="어르신과의 관계"
           style={styles.input}
@@ -414,6 +415,7 @@ function ConnectionCard({
             value={relation}
             onChangeText={setRelation}
             placeholder="관계를 바꾸려면 새 관계 입력"
+            placeholderTextColor={colors.mutedForeground}
             maxLength={100}
             accessibilityLabel={`${elder.elder_name} 어르신과의 새 관계`}
             style={styles.input}
@@ -473,7 +475,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.inputBackground,
+    backgroundColor: colors.white,
     paddingHorizontal: spacing.lg,
     fontSize: fontSize.body,
     color: colors.foreground,
