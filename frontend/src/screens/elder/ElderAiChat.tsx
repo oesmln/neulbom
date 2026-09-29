@@ -240,7 +240,7 @@ export default function ElderAiChatScreen() {
         ) : (
           <>
             <View style={styles.aiBubble}>
-              <Text style={styles.aiText}>{question.content}</Text>
+              <Text style={styles.aiText}>{question.display_content ?? question.content}</Text>
             </View>
 
             {answered ? (
