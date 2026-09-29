@@ -19,4 +19,7 @@ public interface CistAiAnalysisRepository extends JpaRepository<CistAiAnalysisEn
     Optional<CistAiAnalysisEntity> findBySessionIdForUpdate(@Param("sessionId") UUID sessionId);
 
     List<CistAiAnalysisEntity> findAllBySessionIdIn(Collection<UUID> sessionIds);
+
+    List<CistAiAnalysisEntity> findTop100ByBaselineAnalysisIdIsNotNullAndStatusInOrderByUpdatedAtAsc(
+            Collection<String> statuses);
 }

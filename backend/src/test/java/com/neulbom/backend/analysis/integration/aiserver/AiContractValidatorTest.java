@@ -10,6 +10,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,7 +67,8 @@ class AiContractValidatorTest {
         assertThatCode(() -> validator.validateDailyAnalysisStatus(
                 statusResponse,
                 ANALYSIS_ID,
-                ASSESSMENT_ID))
+                ASSESSMENT_ID,
+                Set.of("orientation_year", "attention_digit_span_4")))
                 .doesNotThrowAnyException();
     }
 
@@ -91,9 +93,25 @@ class AiContractValidatorTest {
         assertThatThrownBy(() -> validator.validateDailyAnalysisStatus(
                 response,
                 ANALYSIS_ID,
-                ASSESSMENT_ID))
+                ASSESSMENT_ID,
+                Set.of("orientation_year", "attention_digit_span_4")))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("기준 점수 대비 변화량이 일치하지 않습니다.");
+    }
+
+    @Test
+    void rejectsDailyResultForDifferentRequestedQuestions() {
+        var response = dailyCompletedResponse(
+                new BigDecimal("0.2"),
+                new BigDecimal("0.1"));
+
+        assertThatThrownBy(() -> validator.validateDailyAnalysisStatus(
+                response,
+                ANALYSIS_ID,
+                ASSESSMENT_ID,
+                Set.of("orientation_month", "attention_digit_span_5")))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("요청한 일상 CIST 문항과 일치하지 않습니다.");
     }
 
     private AnalysisStatusResponse completedResponse(

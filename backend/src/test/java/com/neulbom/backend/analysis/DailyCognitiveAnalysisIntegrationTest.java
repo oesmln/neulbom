@@ -3,6 +3,7 @@ package com.neulbom.backend.analysis;
 import static com.neulbom.backend.analysis.integration.aiserver.AiServerContractFixtures.featureSnapshot;
 import static com.neulbom.backend.analysis.integration.aiserver.AiServerContractFixtures.fullQuestionResults;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,6 +42,8 @@ import com.neulbom.backend.session.SessionQuestionSlotRepository;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
+import com.neulbom.backend.user.ConsentEntity;
+import com.neulbom.backend.user.ConsentRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +64,7 @@ class DailyCognitiveAnalysisIntegrationTest {
     @Autowired private CistAiAnalysisService analysisService;
     @Autowired private CistAiAnalysisRepository analysisRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private ConsentRepository consentRepository;
     @Autowired private SessionRepository sessionRepository;
     @Autowired private SessionQuestionSlotRepository slotRepository;
     @Autowired private QuestionRepository questionRepository;
@@ -85,6 +89,7 @@ class DailyCognitiveAnalysisIntegrationTest {
                 UUID.randomUUID(), "daily-analysis-" + UUID.randomUUID() + "@example.com", null,
                 "일상 분석 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
                 true, baselineStartedAt, baselineStartedAt));
+        saveDailyAnalysisConsents(elder.getId(), baselineStartedAt);
 
         SessionEntity baselineSession = endedSession(elder.getId(), "cist", 17, baselineStartedAt, baselineEndedAt);
         SessionEntity previousDailySession = endedSession(
@@ -258,6 +263,31 @@ class DailyCognitiveAnalysisIntegrationTest {
 
         analysisService.createDailyAnalysis(elder.getId(), currentDailySession.getId());
         verify(aiServerClient, times(1)).createDailyCognitiveAnalysis(anyString(), any(DailyAnalysisCreateRequest.class));
+    }
+
+    @Test
+    void rejectsDailyAnalysisWhenLatestConsentIsNotAgreed() {
+        Instant now = Instant.parse("2026-09-29T00:00:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "daily-consent-" + UUID.randomUUID() + "@example.com", null,
+                "일상 분석 동의 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
+                true, now, now));
+        SessionEntity session = endedSession(elder.getId(), "emotional_qa", 7, now, now.plusSeconds(60));
+        sessionRepository.save(session);
+        consentRepository.save(new ConsentEntity(
+                UUID.randomUUID(), elder.getId(), "analysis", false, null, "v2", now.plusSeconds(30)));
+        consentRepository.save(new ConsentEntity(
+                UUID.randomUUID(), elder.getId(), "voice_collection", true, now, "v1", now));
+
+        assertThatThrownBy(() -> analysisService.createDailyAnalysis(elder.getId(), session.getId()))
+                .hasMessageContaining("인지 활동 분석 동의가 필요합니다.");
+    }
+
+    private void saveDailyAnalysisConsents(UUID userId, Instant now) {
+        consentRepository.save(new ConsentEntity(
+                UUID.randomUUID(), userId, "analysis", true, now, "v1", now));
+        consentRepository.save(new ConsentEntity(
+                UUID.randomUUID(), userId, "voice_collection", true, now, "v1", now));
     }
 
     private SessionEntity endedSession(

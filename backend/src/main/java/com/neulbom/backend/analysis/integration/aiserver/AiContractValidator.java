@@ -144,8 +144,12 @@ public class AiContractValidator {
     public void validateDailyAnalysisStatus(
             DailyAnalysisStatusResponse response,
             java.util.UUID analysisId,
-            java.util.UUID sessionId
+            java.util.UUID sessionId,
+            Set<String> requestedQuestionCodes
     ) {
+        require(requestedQuestionCodes != null && requestedQuestionCodes.size() == 2,
+                "요청한 일상 분석 문항은 정확히 2개여야 합니다.");
+        validateDailyQuestionCodes(requestedQuestionCodes);
         require(response != null && analysisId.equals(response.analysisId()), "analysis_id가 일치하지 않습니다.");
         require(sessionId.equals(response.sessionId()), "session_id가 세션과 일치하지 않습니다.");
         require(ANALYSIS_STATUSES.contains(response.status()), "일상 분석 상태가 올바르지 않습니다.");
@@ -158,6 +162,8 @@ public class AiContractValidator {
             require(response.retryItems() == null || response.retryItems().isEmpty(),
                     "completed 상태에는 retry_items가 없어야 합니다.");
             validateDailyResult(response.result());
+            require(new HashSet<>(response.result().updatedQuestionCodes()).equals(requestedQuestionCodes),
+                    "AI 서버가 갱신한 문항이 요청한 일상 CIST 문항과 일치하지 않습니다.");
         } else {
             require(response.result() == null, "completed 이외 상태에는 최종 result가 없어야 합니다.");
         }

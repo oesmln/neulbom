@@ -55,6 +55,8 @@ import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionQuestionSlotEntity;
 import com.neulbom.backend.session.SessionQuestionSlotRepository;
 import com.neulbom.backend.session.SessionRepository;
+import com.neulbom.backend.user.ConsentEntity;
+import com.neulbom.backend.user.ConsentRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -67,6 +69,7 @@ public class CistAiAnalysisService {
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(AiServerContracts.TIMEZONE);
 
     private final SessionRepository sessionRepository;
+    private final ConsentRepository consentRepository;
     private final SessionQuestionSlotRepository sessionQuestionSlotRepository;
     private final QuestionRepository questionRepository;
     private final AnswerRepository answerRepository;
@@ -85,6 +88,7 @@ public class CistAiAnalysisService {
 
     public CistAiAnalysisService(
             SessionRepository sessionRepository,
+            ConsentRepository consentRepository,
             SessionQuestionSlotRepository sessionQuestionSlotRepository,
             QuestionRepository questionRepository,
             AnswerRepository answerRepository,
@@ -102,6 +106,7 @@ public class CistAiAnalysisService {
             Clock clock
     ) {
         this.sessionRepository = sessionRepository;
+        this.consentRepository = consentRepository;
         this.sessionQuestionSlotRepository = sessionQuestionSlotRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
@@ -335,6 +340,7 @@ public class CistAiAnalysisService {
         if (existing != null) {
             return toResponse(existing);
         }
+        requireDailyAnalysisConsent(userId);
         if (!SessionEntity.ENDED.equals(session.getStatus())) {
             throw validation("종료된 일상 문답 세션만 인지 추이 분석을 요청할 수 있습니다.");
         }
@@ -403,7 +409,9 @@ public class CistAiAnalysisService {
         }
 
         DailyAnalysisStatusResponse result = aiServerClient.getDailyCognitiveAnalysis(entity.getAnalysisId());
-        validator.validateDailyAnalysisStatus(result, entity.getAnalysisId(), sessionId);
+        Set<String> requestedQuestionCodes = readMap(entity.getSubmittedResponses()).keySet();
+        validator.validateDailyAnalysisStatus(
+                result, entity.getAnalysisId(), sessionId, requestedQuestionCodes);
         DailyAnalysisResult finalResult = result.result();
         if (finalResult != null && !Objects.equals(entity.getBaselineAnalysisId(), finalResult.baselineAnalysisId())) {
             throw validation("일상 분석 결과의 기준 분석 ID가 요청과 일치하지 않습니다.");
@@ -430,6 +438,7 @@ public class CistAiAnalysisService {
     @Transactional
     public CistAiAnalysisResponse retryDailyAnalysis(UUID userId, UUID sessionId) {
         ownedDailySession(userId, sessionId);
+        requireDailyAnalysisConsent(userId);
         CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
         if (!"needs_retry".equals(entity.getStatus()) || !entity.isRetryable()) {
@@ -511,6 +520,21 @@ public class CistAiAnalysisService {
             throw validation("일상 문답 세션만 부분 갱신 분석을 요청할 수 있습니다.");
         }
         return session;
+    }
+
+    private void requireDailyAnalysisConsent(UUID userId) {
+        requireAgreedConsent(userId, "analysis", "인지 활동 분석 동의가 필요합니다.");
+        requireAgreedConsent(userId, "voice_collection", "음성 수집 동의가 필요합니다.");
+    }
+
+    private void requireAgreedConsent(UUID userId, String consentType, String detail) {
+        boolean agreed = consentRepository
+                .findFirstByUserIdAndConsentTypeOrderByCreatedAtDesc(userId, consentType)
+                .map(ConsentEntity::isAgreed)
+                .orElse(false);
+        if (!agreed) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "필수 동의가 필요합니다.", detail);
+        }
     }
 
     private CistAiAnalysisEntity latestBaselineAnalysis(UUID userId, java.time.Instant before) {
