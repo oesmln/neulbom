@@ -1657,7 +1657,7 @@ Q11(`memory_delayed_free_recall`) 답변의 녹음·STT 결과로 recognition pl
 
 AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed` 중 하나다. `completed`에서만 `result`가 존재하며 `model_score`, `model_version`, `decision_threshold`, `review_threshold`, `threshold_version`, `risk_flag`, `risk_level`을 변형하지 않고 별도 컬럼과 원본 JSON에 함께 저장한다. `risk_level`은 `stable`, `monitoring_needed`, `review_needed` 중 하나이며 화면의 세부 단계를 표시할 때 사용한다. `risk_flag`는 하위 호환 필드로 `model_score >= decision_threshold`일 때 true이고, 현재 `decision_threshold`는 `0.38592870327757767`이다. 이 필드는 중간 단계와 상위 단계를 구분하지 않는다.
 
-결과 화면의 조회와 별도로 서버가 `pending`·`processing` 상태인 전체 CIST 분석을 주기적으로 조회한다. 기본 간격은 이전 실행 종료 후 10초(`APP_CIST_ANALYSIS_SYNC_DELAY_MS`)이며 한 번에 오래된 분석부터 최대 100건을 처리한다. 일상 부분 갱신 분석은 별도 동기화 작업이 맡는다. 전체 CIST가 `completed`로 전환되면 같은 처리에서 기준 특징 스냅샷을 저장한다. 개별 동기화 실패는 `analysis_id`, `session_id`, 예외 유형만 기록하고 다음 분석을 계속 처리한다. `APP_CIST_ANALYSIS_SYNC_ENABLED`로 이 작업을 제어하며 공통 `APP_SCHEDULER_ENABLED` 설정도 적용된다.
+결과 화면의 조회와 별도로 서버가 `pending`·`processing` 상태인 전체 CIST 분석을 주기적으로 조회한다. 기본 간격은 이전 실행 종료 후 10초(`APP_CIST_ANALYSIS_SYNC_DELAY_MS`)이며 한 번에 오래된 분석부터 최대 100건을 처리한다. 일상 부분 갱신 분석은 별도 동기화 작업이 맡는다. 전체 CIST가 `completed`로 전환되면 같은 처리에서 기준 특징 스냅샷을 저장한다. 단, 스냅샷 계약 도입 전에 저장된 완료 결과는 `feature_snapshot=null`일 수 있다. 이 경우 검증된 기존 `model_score`와 위험 단계는 동기화해 보호자 추이에 표시하되 기준 스냅샷을 생성하지 않으며, 해당 CIST를 기준으로 한 일상 부분 갱신은 새 스냅샷이 있는 검사 전까지 생성하지 않는다. 개별 동기화 실패는 `analysis_id`, `session_id`, 예외 유형만 기록하고 다음 분석을 계속 처리한다. `APP_CIST_ANALYSIS_SYNC_ENABLED`로 이 작업을 제어하며 공통 `APP_SCHEDULER_ENABLED` 설정도 적용된다.
 
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 
