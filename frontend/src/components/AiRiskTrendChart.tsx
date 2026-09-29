@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Line, Text as SvgText } from "react-native-svg";
 
 import type { GuardianAiRiskTrendPoint } from "@/api/types";
+import { sharesCistBaseline } from "@/utils/aiRiskTrend";
 import { colors, fontSize, guardian } from "@/theme";
 import { useDisplaySettings } from "@/store/DisplaySettingsContext";
 
@@ -32,6 +33,19 @@ export default function AiRiskTrendChart({
   const ordered = [...points].sort((a, b) =>
     a.analyzed_at.localeCompare(b.analyzed_at) || a.session_id.localeCompare(b.session_id));
   const hasDailyEstimates = ordered.some((point) => point.is_estimated);
+  const cistPositions = ordered.flatMap((point, index) => point.point_type === "full_cist" ? [index] : []);
+
+  // Daily estimates belong only to their own CIST baseline. A retest starts a
+  // new line, while the solid CIST line compares the two actual examinations.
+  const dailySegments = ordered.flatMap((point, index) => {
+    if (point.point_type !== "daily_partial_estimate") return [];
+    let previousIndex = index - 1;
+    while (previousIndex >= 0 && !sharesCistBaseline(ordered[previousIndex], point)) {
+      if (ordered[previousIndex].point_type === "full_cist") return [];
+      previousIndex -= 1;
+    }
+    return previousIndex < 0 ? [] : [{ from: previousIndex, to: index }];
+  });
 
   return (
     <View>
@@ -44,27 +58,27 @@ export default function AiRiskTrendChart({
             </SvgText>
           </React.Fragment>
         ))}
-        {ordered.slice(1).map((point, index) => {
-          const previous = ordered[index];
-          const estimated = point.is_estimated || previous.is_estimated;
-          return (
-            <Line
-              key={`${previous.session_id}-${point.session_id}`}
-              x1={x(index)} y1={y(previous.risk_score)}
-              x2={x(index + 1)} y2={y(point.risk_score)}
-              stroke={guardian.blue} strokeWidth={2.5}
-              strokeDasharray={estimated ? "4 4" : undefined}
-            />
-          );
+        {cistPositions.slice(1).map((position, index) => {
+          const previousPosition = cistPositions[index];
+          return <Line key={`cist-${position}`} x1={x(previousPosition)} y1={y(ordered[previousPosition].risk_score)}
+            x2={x(position)} y2={y(ordered[position].risk_score)} stroke={guardian.blue} strokeWidth={2.5} />;
         })}
+        {dailySegments.map(({ from, to }) => (
+          <Line key={`daily-${to}`} x1={x(from)} y1={y(ordered[from].risk_score)}
+            x2={x(to)} y2={y(ordered[to].risk_score)} stroke={colors.accent}
+            strokeWidth={2.5} strokeDasharray="4 4" />
+        ))}
         {ordered.map((point, index) => (
-          <Circle
-            key={point.session_id}
-            cx={x(index)} cy={y(point.risk_score)} r={5}
-            fill={point.is_estimated ? colors.card : guardian.blue}
-            stroke={point.is_estimated ? colors.accent : guardian.blue}
-            strokeWidth={point.is_estimated ? 2.5 : 1}
-          />
+          <React.Fragment key={point.session_id}>
+            {point.point_type === "full_cist" && cistPositions[0] !== index ? (
+              <Circle cx={x(index)} cy={y(point.risk_score)} r={9}
+                fill="none" stroke={guardian.blue} strokeWidth={1.5} />
+            ) : null}
+            <Circle cx={x(index)} cy={y(point.risk_score)} r={5}
+              fill={point.is_estimated ? colors.card : guardian.blue}
+              stroke={point.is_estimated ? colors.accent : guardian.blue}
+              strokeWidth={point.is_estimated ? 2.5 : 1} />
+          </React.Fragment>
         ))}
         <SvgText x={left} y={height - 5} fontSize={10} fill={colors.mutedForeground}>
           {ordered[0].date.slice(5)}

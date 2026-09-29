@@ -7,7 +7,8 @@ import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { guardianAccessErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
-import type { HistoryRecordResponse } from "@/api/types";
+import { sharesCistBaseline } from "@/utils/aiRiskTrend";
+import type { GuardianAiRiskTrendPoint, HistoryRecordResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
@@ -67,6 +68,15 @@ function decliningRun(points: TrendPoint[]): number {
     else break;
   }
   return run;
+}
+
+function riskIndex(point: GuardianAiRiskTrendPoint): number {
+  return Math.round(point.risk_score * 100);
+}
+
+function riskChange(first: GuardianAiRiskTrendPoint, last: GuardianAiRiskTrendPoint): string {
+  const difference = riskIndex(last) - riskIndex(first);
+  return difference === 0 ? "변화 없음" : `${Math.abs(difference)} ${difference > 0 ? "상승" : "하락"}`;
 }
 
 export default function GuardianChartScreen() {
@@ -155,6 +165,15 @@ export default function GuardianChartScreen() {
   const visibleAiRiskPoints = viewMode === "cist"
     ? aiRiskPoints.filter((point) => point.point_type === "full_cist")
     : aiRiskPoints;
+  const cistPoints = aiRiskPoints.filter((point) => point.point_type === "full_cist")
+    .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at));
+  const recentCist = cistPoints.at(-1);
+  const previousCist = cistPoints.at(-2);
+  const recentDaily = recentCist && aiRiskPoints
+    .filter((point) => point.point_type === "daily_partial_estimate"
+      && sharesCistBaseline(point, recentCist)
+      && point.analyzed_at > recentCist.analyzed_at)
+    .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1);
 
   return (
     <Screen header={header}>
@@ -212,6 +231,26 @@ export default function GuardianChartScreen() {
         {visibleAiRiskPoints.length > 0 ? (
           <>
             <AiRiskTrendChart points={visibleAiRiskPoints} />
+            {previousCist && recentCist ? (
+              <View style={styles.retestNotice}>
+                <Body style={{ fontWeight: fontWeight.semibold, color: guardian.blue }}>CIST 재검사 · 새 기준점</Body>
+                <Caption>{recentCist.date} · 위험 신호 지수 {riskIndex(recentCist)}</Caption>
+              </View>
+            ) : null}
+            <View style={styles.changeSection}>
+              <Body style={{ fontWeight: fontWeight.semibold }}>이전 CIST → 최근 CIST</Body>
+              <Caption>{previousCist && recentCist
+                ? `${previousCist.date} ${riskIndex(previousCist)} → ${recentCist.date} ${riskIndex(recentCist)} · ${riskChange(previousCist, recentCist)}`
+                : "조회 기간에 비교할 CIST 검사가 2회 이상 필요해요."}</Caption>
+              {viewMode === "all" ? (
+                <>
+                  <Body style={{ fontWeight: fontWeight.semibold, marginTop: spacing.md }}>최근 CIST 기준점 → 최근 일상 문답 추정</Body>
+                  <Caption>{recentCist && recentDaily
+                    ? `${recentCist.date} ${riskIndex(recentCist)} → ${recentDaily.date} ${riskIndex(recentDaily)} · ${riskChange(recentCist, recentDaily)}`
+                    : "최근 CIST 이후 일상 문답 추정 결과가 없어요."}</Caption>
+                </>
+              ) : null}
+            </View>
             <Caption>AI 위험 신호 지수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.{viewMode === "all" ? " 일상 문답 추정점은 일부 문항만 갱신한 결과예요." : ""}</Caption>
             {visibleAiRiskPoints.length < 2 ? (
               <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
@@ -299,6 +338,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   periodLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+  retestNotice: {
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: guardian.blue,
+  },
+  changeSection: {
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
 
   chartHead: {
     flexDirection: "row",

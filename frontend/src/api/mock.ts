@@ -1015,9 +1015,15 @@ export function mockGuardianReport(): GuardianReportResponse {
         baseline_snapshot_id: fixedId("99999999", 1),
       },
       {
-        date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable",
-        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(0).toISOString(),
+        date: isoDate(daysAgo(7)), risk_score: 0.35, risk_level: "stable",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(7).toISOString(),
         session_id: fixedId("33333333", 3), baseline_session_id: fixedId("33333333", 3),
+        baseline_snapshot_id: fixedId("99999999", 3),
+      },
+      {
+        date: isoDate(daysAgo(0)), risk_score: 0.32, risk_level: "stable",
+        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(0).toISOString(),
+        session_id: fixedId("33333333", 4), baseline_session_id: fixedId("33333333", 3),
         baseline_snapshot_id: fixedId("99999999", 3),
       },
     ],
