@@ -9,20 +9,16 @@ import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
-import type { GuardianReportResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
-import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import {
   Screen,
   ScreenHeader,
   Card,
-  Badge,
   Button,
   Body,
   Caption,
-  ProgressBar,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -33,41 +29,13 @@ import {
  * Guardian dashboard: `GET /guardian/{guardian_id}/elders` picks the elder, then
  * `GET /guardian/{guardian_id}/report` fills the cards.
  *
- * Scores appear here and only here — the guardian audience is the one the spec
- * allows them for. A link that is not consented to yet comes back as a 403, and
- * the spec asks for an explanation instead of an empty dashboard.
+ * A link that is not consented to yet comes back as a 403, and the spec asks
+ * for an explanation instead of an empty dashboard.
  *
  * Card order is the design's: 피보호자 현황 → 경보 → 지표 → 추이 → 최근 일기.
  */
 const WEEKLY_TARGET_SESSIONS = 7;
-const DEFAULT_SCORE_MAX = 30;
 const RECENT_DIARY_LIMIT = 3;
-/** 점수 카드 하단 안내 — threshold 기반 판정이 참고용임을 밝힌다 (톤: GuardianChart 참고용 캡션). */
-const SCORE_REFERENCE_NOTICE = "이 점수는 참고용 스크리닝 결과이며, 정확한 진단은 전문의와 확인해 주세요.";
-
-const RISK_BADGE: Record<string, { label: string; color: string; background: string }> = {
-  low: { label: "정상 범위", color: guardian.blueDark, background: guardian.blueLight },
-  caution: { label: "관찰 필요", color: colors.warning, background: colors.warningLight },
-  warning: { label: "주의 필요", color: colors.destructive, background: colors.destructiveLight },
-};
-
-function riskBadge(level: string | null) {
-  return RISK_BADGE[level ?? "low"] ?? RISK_BADGE.low;
-}
-
-/** `trend_points` is already ordered by the server; only scored days can be drawn. */
-function chartPoints(report: GuardianReportResponse): TrendPoint[] {
-  return report.trend_points.flatMap((p) => {
-    if (p.display_score === null) return [];
-    return [{ label: monthDayLabel(p.date), score: p.display_score }];
-  });
-}
-
-function averageScore(points: TrendPoint[]): string {
-  if (points.length === 0) return "—";
-  const mean = points.reduce((sum, p) => sum + p.score, 0) / points.length;
-  return mean.toFixed(1);
-}
 
 function Indicator({ label, value, unit, color }: { label: string; value: string; unit?: string; color: string }) {
   return (
@@ -174,22 +142,13 @@ export default function GuardianDashboardScreen() {
 
   const data = report.data;
   const elderItems = elders.data?.elders ?? [];
-  const badge = riskBadge(data.latest_risk_level);
-  const scoreMax = data.latest_score_max ?? DEFAULT_SCORE_MAX;
-  const score = data.latest_display_score;
-  const hasScreening = score !== null;
-  const scoreColor = !hasScreening
-    ? colors.mutedForeground
-    : data.latest_risk_level === "low"
-      ? guardian.blue
-      : colors.destructive;
-  const points = chartPoints(data);
+  const aiRiskPoints = data.ai_risk_trend_points ?? [];
+  const latestAiRisk = [...aiRiskPoints].sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1);
   const alert = data.recent_alerts[0] ?? null;
 
   // A missing `activity_summary7d` means the week has not been aggregated, not
   // that participation was zero — so the count is left unknown rather than 0.
   const sessions7d = data.activity_summary7d?.session_count ?? null;
-  const scoreDelta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
 
   return (
     <Screen header={header}>
@@ -221,42 +180,12 @@ export default function GuardianDashboardScreen() {
       {/* ② 피보호자 현황 */}
       <Card>
         <Caption style={styles.eyebrow}>피보호자 현황</Caption>
-        <View style={styles.rowBetween}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.elderName}>{data.elder_name} 어르신</Text>
-            <Caption style={{ marginTop: 2 }}>
-              {data.last_session_at
-                ? `마지막 검사 · ${monthDayLabel(data.last_session_at)}`
-                : "아직 검사 기록이 없어요"}
-            </Caption>
-          </View>
-          <View style={{ alignItems: "flex-end", gap: 4 }}>
-            <Text style={[styles.score, { color: scoreColor }]}>
-              {score !== null ? `${score}점` : "—"}
-            </Text>
-            {hasScreening ? (
-              <Badge label={badge.label} color={badge.color} background={badge.background} />
-            ) : (
-              <Badge label="분석 없음" color={colors.mutedForeground} background={colors.muted} />
-            )}
-          </View>
-        </View>
-        {score !== null ? (
-          <>
-            <ProgressBar
-              value={Math.round((score / scoreMax) * 100)}
-              color={scoreColor}
-              height={8}
-            />
-            <View style={styles.rowBetween}>
-              <Caption>0점</Caption>
-              <Caption>{scoreMax}점</Caption>
-            </View>
-            {/* 자문의견서: threshold 판정은 참고용임을 점수 바로 아래에서 안내한다.
-                상담 권유 등 행동 유도는 아래 ③ 경보 카드가 맡으므로 여기서는 반복하지 않는다 (#136). */}
-            <Caption style={{ marginTop: spacing.sm }}>{SCORE_REFERENCE_NOTICE}</Caption>
-          </>
-        ) : null}
+        <Text style={styles.elderName}>{data.elder_name} 어르신</Text>
+        <Caption style={{ marginTop: 2 }}>
+          {data.last_session_at
+            ? `마지막 대화 · ${monthDayLabel(data.last_session_at)}`
+            : "아직 대화 기록이 없어요"}
+        </Caption>
       </Card>
 
       {/* ③ 경보 — only when the server actually raised one */}
@@ -280,9 +209,9 @@ export default function GuardianDashboardScreen() {
         </View>
       ) : null}
 
-      {/* ④ 이번 주 핵심 지표 */}
+      {/* ④ 주요 지표 */}
       <Card style={{ marginTop: spacing.lg }}>
-        <Caption style={styles.eyebrow}>이번 주 핵심 지표</Caption>
+        <Caption style={styles.eyebrow}>주요 지표</Caption>
         <View style={styles.indicatorRow}>
           <Indicator
             label="대화 완료"
@@ -290,96 +219,34 @@ export default function GuardianDashboardScreen() {
             unit={sessions7d === null ? undefined : "일"}
             color={guardian.blue}
           />
-          <Indicator label="평균 점수" value={averageScore(points)} unit="점" color={colors.accent} />
           <Indicator
-            label="위험 지표"
-            value={hasScreening ? badge.label : "—"}
-            color={hasScreening ? badge.color : colors.mutedForeground}
+            label="최근 AI 위험 신호 지수"
+            value={latestAiRisk ? String(Math.round(latestAiRisk.risk_score * 100)) : "—"}
+            unit={latestAiRisk ? "0~100 눈금" : undefined}
+            color={latestAiRisk ? guardian.blue : colors.mutedForeground}
           />
         </View>
       </Card>
 
-      {/* ⑤ 인지 점수 추이 */}
+      {/* ⑤ AI 인지 위험 신호 추이 */}
       <Card style={{ marginTop: spacing.lg }}>
         <View style={styles.rowBetween}>
-          <Body style={{ fontWeight: fontWeight.semibold }}>인지 점수 추이</Body>
+          <Body style={{ fontWeight: fontWeight.semibold }}>AI 인지 위험 신호 추이</Body>
           <Pressable
             onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianChart" })}
             accessibilityRole="button"
-            accessibilityLabel="인지 점수 추이 상세 보기"
-            hitSlop={8}
-            style={styles.linkRow}
+            accessibilityLabel="AI 인지 위험 신호 추이 상세 보기"
           >
             <Text style={styles.link}>상세 보기</Text>
-            <Ionicons name="chevron-forward" size={14} color={guardian.blue} />
           </Pressable>
         </View>
-
-        {points.length === 0 ? (
-          <Body style={{ marginTop: spacing.md }}>기존 인지 점수 기록이 없어요.</Body>
+        {aiRiskPoints.length > 0 ? (
+          <AiRiskTrendChart points={aiRiskPoints} compact />
         ) : (
-          <>
-            <View style={styles.trendMeta}>
-              <Caption>최근 {points.length}회</Caption>
-              {scoreDelta !== null ? (
-                <View
-                  style={[
-                    styles.deltaPill,
-                    {
-                      backgroundColor:
-                        scoreDelta < 0 ? colors.destructiveLight : guardian.blueLight,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={scoreDelta < 0 ? "trending-down" : "trending-up"}
-                    size={12}
-                    color={scoreDelta < 0 ? colors.destructive : guardian.blue}
-                  />
-                  <Text
-                    style={[
-                      styles.deltaLabel,
-                      { color: scoreDelta < 0 ? colors.destructive : guardian.blue },
-                    ]}
-                  >
-                    {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta}점
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <ScoreTrendChart points={points} variant="compact" />
-
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: guardian.blue }]} />
-                <Caption>정상 범위 ≥ 24</Caption>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-                <Caption>정상 하한 24</Caption>
-              </View>
-            </View>
-          </>
+          <Body style={{ marginTop: spacing.md }}>아직 분석된 인지 위험 신호가 없어요.</Body>
         )}
+        <Caption>AI 위험 신호 지수는 0~100 눈금이며 진단 결과가 아닙니다. 일상 문답 값은 CIST 기준점에서 추정합니다.</Caption>
       </Card>
-
-      {(report.data?.ai_risk_trend_points?.length ?? 0) > 0 ? (
-        <Card style={{ marginTop: spacing.lg }}>
-          <View style={styles.rowBetween}>
-            <Body style={{ fontWeight: fontWeight.semibold }}>AI 인지 위험 신호 추이</Body>
-            <Pressable
-              onPress={() => navigation.navigate("GuardianTabs", { screen: "GuardianChart" })}
-              accessibilityRole="button"
-              accessibilityLabel="AI 인지 위험 신호 추이 상세 보기"
-            >
-              <Text style={styles.link}>상세 보기</Text>
-            </Pressable>
-          </View>
-          <AiRiskTrendChart points={report.data?.ai_risk_trend_points ?? []} compact />
-          <Caption>AI 위험 점수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호예요. 일상 문답 추정점은 일부 문항만 갱신한 참고값이며 진단 결과는 아닙니다.</Caption>
-        </Card>
-      ) : null}
 
       {/* ⑥ 최근 일기 */}
       <Card style={{ marginTop: spacing.lg }}>
@@ -448,7 +315,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   elderName: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.bold, color: colors.foreground },
-  score: { fontSize: 32, fontWeight: fontWeight.bold, lineHeight: 34 },
 
   alertCard: {
     marginTop: spacing.lg,
@@ -489,28 +355,6 @@ const styles = StyleSheet.create({
 
   linkRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   link: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: guardian.blue },
-
-  trendMeta: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginVertical: spacing.md },
-  deltaPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  deltaLabel: { fontSize: fontSize.micro, fontWeight: fontWeight.semibold },
-
-  legendRow: {
-    flexDirection: "row",
-    gap: spacing.lg,
-    marginTop: spacing.sm,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
 
   diaryRow: {
     flexDirection: "row",

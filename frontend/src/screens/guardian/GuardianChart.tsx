@@ -6,11 +6,9 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { guardianAccessErrorMessage } from "@/api/errors";
-import { monthDayLabel } from "@/utils/format";
 import { sharesCistBaseline } from "@/utils/aiRiskTrend";
-import type { GuardianAiRiskTrendPoint, HistoryRecordResponse } from "@/api/types";
+import type { GuardianAiRiskTrendPoint } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
-import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
 import {
   Screen,
@@ -52,25 +50,6 @@ function dateRangeInSeoul(months: number) {
     fromDate: from.toISOString().slice(0, 10),
     toDate: today.toISOString().slice(0, 10),
   };
-}
-
-function scoreOf(record: HistoryRecordResponse): number | null {
-  return record.display_score ?? record.screening_reference_score ?? null;
-}
-
-/**
- * How many of the most recent readings fell in a row.
- *
- * The design labels this in days, but the endpoint aggregates by period — so it
- * is reported in readings (회), which is what the data actually supports.
- */
-function decliningRun(points: TrendPoint[]): number {
-  let run = 0;
-  for (let i = points.length - 1; i > 0; i -= 1) {
-    if (points[i].score < points[i - 1].score) run += 1;
-    else break;
-  }
-  return run;
 }
 
 function riskIndex(point: GuardianAiRiskTrendPoint): number {
@@ -150,20 +129,6 @@ export default function GuardianChartScreen() {
     );
   }
 
-  // Oldest first so the line reads left to right. Records without a score are
-  // dropped rather than plotted at zero — a zero point reads as "very low",
-  // which is the opposite of "not measured".
-  const points: TrendPoint[] = [...history.data.records]
-    .sort((a, b) => (a.analyzed_at ?? "").localeCompare(b.analyzed_at ?? ""))
-    .flatMap((record) => {
-      const score = scoreOf(record);
-      if (score === null) return [];
-      return [{ label: record.analyzed_at ? monthDayLabel(record.analyzed_at) : "", score }];
-    });
-
-  const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
-  const run = decliningRun(points);
-  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
   const aiRiskPoints = history.data.ai_risk_trend_points ?? [];
   const visibleAiRiskPoints = viewMode === "cist"
     ? aiRiskPoints.filter((point) => point.point_type === "full_cist")
@@ -290,58 +255,6 @@ export default function GuardianChartScreen() {
         )}
       </Card>
 
-      {points.length === 0 ? null : (
-        <>
-          <Card style={{ marginTop: spacing.lg }}>
-            <View style={styles.chartHead}>
-              <Body style={{ fontWeight: fontWeight.semibold }}>CIST 인지 점수</Body>
-              <View style={styles.legendRow}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendRule, { backgroundColor: colors.accent }]} />
-                  <Caption style={styles.legendLabel}>정상 하한 24</Caption>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendRule, { backgroundColor: colors.destructive }]} />
-                  <Caption style={styles.legendLabel}>경도 치매 18</Caption>
-                </View>
-              </View>
-            </View>
-
-            <ScoreTrendChart points={points} variant="full" />
-          </Card>
-
-          <View style={styles.summaryRow}>
-            <Card style={{ flex: 1 }}>
-              <Caption style={styles.eyebrow}>{periodLabel} 변화</Caption>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  { color: delta !== null && delta < 0 ? colors.destructive : guardian.blue },
-                ]}
-              >
-                {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta}점`}
-              </Text>
-            </Card>
-            <Card style={{ flex: 1 }}>
-              <Caption style={styles.eyebrow}>연속 하락</Caption>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  { color: run > 0 ? colors.accent : colors.mutedForeground },
-                ]}
-              >
-                {run > 0 ? `${run}회` : "없음"}
-              </Text>
-            </Card>
-          </View>
-
-          {history.data.sample_sufficient ? null : (
-            <Caption style={{ marginTop: spacing.md }}>
-              표본이 아직 적어 추세는 참고용이에요.
-            </Caption>
-          )}
-        </>
-      )}
     </Screen>
   );
 }
@@ -390,18 +303,4 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
 
-  chartHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
-  legendRow: { flexDirection: "row", gap: spacing.md },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  legendRule: { width: 12, height: 2, borderRadius: 1 },
-  legendLabel: { fontSize: fontSize.badge },
-
-  summaryRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
-  eyebrow: { letterSpacing: 0.5, marginBottom: spacing.sm },
-  summaryValue: { fontSize: 22, fontWeight: fontWeight.bold },
 });
