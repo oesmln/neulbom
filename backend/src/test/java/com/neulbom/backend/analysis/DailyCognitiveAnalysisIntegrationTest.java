@@ -28,6 +28,7 @@ import com.neulbom.backend.analysis.integration.aiserver.AiAudioUrlSigner;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerClient;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisCreateRequest;
+import com.neulbom.backend.common.exception.ApiException;
 import com.neulbom.backend.recording.RecordingEntity;
 import com.neulbom.backend.recording.RecordingRepository;
 import com.neulbom.backend.recording.TranscriptEntity;
@@ -520,6 +521,43 @@ class DailyCognitiveAnalysisIntegrationTest {
                 false, null, List.of(), finalResult));
         assertThat(analysisService.refreshAnalysis(userId, session.getId()).status()).isEqualTo("completed");
         return analysisRepository.findById(analysisId).orElseThrow();
+    }
+
+    @Test
+    void doesNotUseOlderSnapshotAfterLegacyCistWithoutSnapshot() throws Exception {
+        Instant start = Instant.parse("2026-09-20T00:00:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "legacy-baseline-" + UUID.randomUUID() + "@example.com", null,
+                "기준 검사 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
+                true, start, start));
+        saveDailyAnalysisConsents(elder.getId(), start);
+        SessionEntity previousCist = endedSession(elder.getId(), "cist", 17,
+                start, start.plusSeconds(600));
+        SessionEntity legacyCist = endedSession(elder.getId(), "cist", 17,
+                start.plusSeconds(3600), start.plusSeconds(4200));
+        SessionEntity daily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(7200), start.plusSeconds(7800));
+        sessionRepository.saveAll(List.of(previousCist, legacyCist, daily));
+
+        var previousSnapshot = featureSnapshot(fullQuestionResults(), new BigDecimal("0.41"),
+                features("0.10", "0.20", "0.30", "0.40"));
+        CistAiAnalysisEntity previousAnalysis = completedAnalysis(
+                previousCist.getId(), null, "0.41", previousSnapshot, previousCist.getEndedAt());
+        analysisRepository.save(previousAnalysis);
+        baselineSnapshotService.saveBaselineSnapshot(
+                elder.getId(), previousCist.getId(), previousAnalysis.getAnalysisId(),
+                AiServerContracts.QUESTION_SET_VERSION, AiServerContracts.FUSION_MODEL_VERSION,
+                AiServerContracts.THRESHOLD_VERSION, new BigDecimal("0.41"),
+                objectMapper.writeValueAsString(previousSnapshot));
+        CistAiAnalysisEntity legacyAnalysis = completedAnalysis(
+                legacyCist.getId(), null, "0.42", null, legacyCist.getEndedAt());
+        legacyAnalysis.updateFeatureSnapshot(null);
+        analysisRepository.save(legacyAnalysis);
+
+        assertThatThrownBy(() -> analysisService.createDailyAnalysis(elder.getId(), daily.getId()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("완료된 CIST 기준 분석과 특징 스냅샷이 필요합니다.");
+        assertThat(dailyEstimateRepository.findBySessionId(daily.getId())).isEmpty();
     }
 
     @Test
