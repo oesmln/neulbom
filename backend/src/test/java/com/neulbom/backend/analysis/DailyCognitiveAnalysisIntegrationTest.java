@@ -393,6 +393,136 @@ class DailyCognitiveAnalysisIntegrationTest {
     }
 
     @Test
+    void completedCistAndDailyAnalysesAccumulateWithinEachBaselineLineage() throws Exception {
+        Instant start = Instant.parse("2026-09-20T00:00:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "cognitive-flow-" + UUID.randomUUID() + "@example.com", null,
+                "인지 추이 통합 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
+                true, start, start));
+        saveDailyAnalysisConsents(elder.getId(), start);
+
+        SessionEntity firstCist = endedSession(elder.getId(), "cist", 17, start, start.plusSeconds(600));
+        SessionEntity firstDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(3600), start.plusSeconds(4200));
+        SessionEntity secondDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(7200), start.plusSeconds(7800));
+        SessionEntity repeatCist = endedSession(elder.getId(), "cist", 17,
+                start.plusSeconds(10800), start.plusSeconds(11400));
+        SessionEntity thirdDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(14400), start.plusSeconds(15000));
+        sessionRepository.saveAll(List.of(firstCist, firstDaily, secondDaily, repeatCist, thirdDaily));
+        prepareDailyResponses(elder, firstDaily, firstDaily.getEndedAt());
+        prepareDailyResponses(elder, secondDaily, secondDaily.getEndedAt());
+        prepareDailyResponses(elder, thirdDaily, thirdDaily.getEndedAt());
+        when(audioUrlSigner.issue(any(RecordingEntity.class))).thenAnswer(invocation -> {
+            RecordingEntity recording = invocation.getArgument(0);
+            return new AiServerContracts.AudioResource(
+                    URI.create("https://audio.test/" + recording.getId()),
+                    Instant.parse("2099-01-01T00:00:00Z"), "audio/wav", recording.getFileSizeBytes(), null);
+        });
+        when(aiServerClient.createDailyCognitiveAnalysis(anyString(), any(DailyAnalysisCreateRequest.class)))
+                .thenAnswer(invocation -> {
+                    DailyAnalysisCreateRequest request = invocation.getArgument(1);
+                    return new AiServerContracts.DailyAnalysisAcceptedResponse(
+                            request.analysisId(), request.sessionId(), "pending", start);
+                });
+
+        CistAiAnalysisEntity firstAnalysis = completeFullCist(
+                elder.getId(), firstCist, "0.41", start.plusSeconds(600));
+        CognitiveFeatureSnapshotEntity firstBaseline = baselineSnapshotRepository
+                .findBySourceAnalysisId(firstAnalysis.getAnalysisId()).orElseThrow();
+        assertThat(firstBaseline.getBaselineModelScore()).isEqualByComparingTo("0.41");
+
+        DailyAnalysisCreateRequest firstRequest = createAndCaptureDailyRequest(
+                elder.getId(), firstDaily.getId(), 1);
+        assertThat(firstRequest.baselineAnalysisId()).isEqualTo(firstAnalysis.getAnalysisId());
+        assertThat(firstRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.41");
+        completeDailyRequest(elder.getId(), firstRequest, "0.45", firstDaily.getEndedAt());
+        DailyCognitiveEstimateEntity firstEstimate = dailyEstimateRepository
+                .findBySessionId(firstDaily.getId()).orElseThrow();
+        assertThat(firstEstimate.getBaselineSnapshotId()).isEqualTo(firstBaseline.getSnapshotId());
+        assertThat(firstEstimate.getParentEstimateId()).isNull();
+
+        DailyAnalysisCreateRequest secondRequest = createAndCaptureDailyRequest(
+                elder.getId(), secondDaily.getId(), 2);
+        assertThat(secondRequest.baselineAnalysisId()).isEqualTo(firstAnalysis.getAnalysisId());
+        assertThat(secondRequest.baselineModelScore()).isEqualByComparingTo("0.41");
+        assertThat(secondRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.45");
+        completeDailyRequest(elder.getId(), secondRequest, "0.48", secondDaily.getEndedAt());
+        DailyCognitiveEstimateEntity secondEstimate = dailyEstimateRepository
+                .findBySessionId(secondDaily.getId()).orElseThrow();
+        assertThat(secondEstimate.getBaselineSnapshotId()).isEqualTo(firstBaseline.getSnapshotId());
+        assertThat(secondEstimate.getParentEstimateId()).isEqualTo(firstEstimate.getEstimateId());
+        assertThat(secondEstimate.getScoreDelta()).isEqualByComparingTo("0.07");
+
+        CistAiAnalysisEntity repeatAnalysis = completeFullCist(
+                elder.getId(), repeatCist, "0.36", start.plusSeconds(11400));
+        CognitiveFeatureSnapshotEntity newBaseline = baselineSnapshotRepository
+                .findBySourceAnalysisId(repeatAnalysis.getAnalysisId()).orElseThrow();
+        assertThat(newBaseline.getSnapshotId()).isNotEqualTo(firstBaseline.getSnapshotId());
+
+        DailyAnalysisCreateRequest thirdRequest = createAndCaptureDailyRequest(
+                elder.getId(), thirdDaily.getId(), 3);
+        assertThat(thirdRequest.baselineAnalysisId()).isEqualTo(repeatAnalysis.getAnalysisId());
+        assertThat(thirdRequest.baselineModelScore()).isEqualByComparingTo("0.36");
+        assertThat(thirdRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.36");
+        completeDailyRequest(elder.getId(), thirdRequest, "0.40", thirdDaily.getEndedAt());
+        DailyCognitiveEstimateEntity thirdEstimate = dailyEstimateRepository
+                .findBySessionId(thirdDaily.getId()).orElseThrow();
+        assertThat(thirdEstimate.getBaselineSnapshotId()).isEqualTo(newBaseline.getSnapshotId());
+        assertThat(thirdEstimate.getParentEstimateId()).isNull();
+        assertThat(thirdEstimate.getScoreDelta()).isEqualByComparingTo("0.04");
+
+        assertThat(baselineSnapshotRepository.findAllByUserId(elder.getId())).hasSize(2);
+        assertThat(baselineSnapshotRepository.findBySourceAnalysisId(firstAnalysis.getAnalysisId())
+                .orElseThrow().getFeatureSnapshot()).contains("\"model_score\":0.41");
+        assertThat(dailyEstimateRepository.findBySessionId(secondDaily.getId())
+                .orElseThrow().getOutputFeatureSnapshot()).contains("\"model_score\":0.48");
+        assertThat(dailyEstimateService.findLatestCurrentSnapshot(elder.getId(), firstBaseline.getSnapshotId())
+                .parentEstimateId()).isEqualTo(secondEstimate.getEstimateId());
+        assertThat(dailyEstimateService.findLatestCurrentSnapshot(elder.getId(), newBaseline.getSnapshotId())
+                .parentEstimateId()).isEqualTo(thirdEstimate.getEstimateId());
+        assertThat(dailyEstimateService.findDailyEstimates(elder.getId(), null, null))
+                .extracting(DailyCognitiveEstimateEntity::getSessionId)
+                .containsExactlyInAnyOrder(firstDaily.getId(), secondDaily.getId(), thirdDaily.getId());
+
+        assertThat(analysisService.refreshAnalysis(elder.getId(), repeatCist.getId()).status())
+                .isEqualTo("completed");
+        assertThat(analysisService.refreshDailyAnalysis(elder.getId(), thirdDaily.getId()).status())
+                .isEqualTo("completed");
+        assertThat(baselineSnapshotRepository.findAllByUserId(elder.getId())).hasSize(2);
+        assertThat(dailyEstimateRepository.findBySessionId(thirdDaily.getId()).orElseThrow().getEstimateId())
+                .isEqualTo(thirdEstimate.getEstimateId());
+    }
+
+    private CistAiAnalysisEntity completeFullCist(
+            UUID userId, SessionEntity session, String score, Instant completedAt
+    ) {
+        UUID analysisId = UUID.randomUUID();
+        CistAiAnalysisEntity analysis = new CistAiAnalysisEntity(
+                analysisId, session.getId(), "pending", "flow-create-" + analysisId,
+                "0".repeat(64), "{}", session.getEndedAt(), session.getEndedAt());
+        analysisRepository.save(analysis);
+        BigDecimal modelScore = new BigDecimal(score);
+        var features = features("0.10", "0.20", "0.30", "0.40");
+        var questionResults = fullQuestionResults();
+        var finalResult = new AiServerContracts.FinalAnalysisResult(
+                AiServerContracts.QUESTION_SET_VERSION, AiServerContracts.WRONG_EVENT_RULE_VERSION,
+                AiServerContracts.FUSION_MODEL_VERSION, modelScore,
+                new BigDecimal("0.38592870327757767"), new BigDecimal("0.8061380697921943"),
+                AiServerContracts.THRESHOLD_VERSION,
+                modelScore.compareTo(new BigDecimal("0.38592870327757767")) >= 0,
+                modelScore.compareTo(new BigDecimal("0.38592870327757767")) < 0
+                        ? "stable" : "monitoring_needed",
+                features, featureSnapshot(questionResults, modelScore, features), questionResults);
+        when(aiServerClient.getAnalysis(analysisId)).thenReturn(new AiServerContracts.AnalysisStatusResponse(
+                analysisId, session.getId(), "completed", session.getEndedAt(), completedAt,
+                false, null, List.of(), finalResult));
+        assertThat(analysisService.refreshAnalysis(userId, session.getId()).status()).isEqualTo("completed");
+        return analysisRepository.findById(analysisId).orElseThrow();
+    }
+
+    @Test
     void rejectsDailyAnalysisWhenLatestConsentIsNotAgreed() {
         Instant now = Instant.parse("2026-09-29T00:00:00Z");
         UserEntity elder = userRepository.save(new UserEntity(
