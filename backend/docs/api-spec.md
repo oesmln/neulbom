@@ -1657,6 +1657,8 @@ Q11(`memory_delayed_free_recall`) 답변의 녹음·STT 결과로 recognition pl
 
 AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed` 중 하나다. `completed`에서만 `result`가 존재하며 `model_score`, `model_version`, `decision_threshold`, `review_threshold`, `threshold_version`, `risk_flag`, `risk_level`을 변형하지 않고 별도 컬럼과 원본 JSON에 함께 저장한다. `risk_level`은 `stable`, `monitoring_needed`, `review_needed` 중 하나이며 화면의 세부 단계를 표시할 때 사용한다. `risk_flag`는 하위 호환 필드로 `model_score >= decision_threshold`일 때 true이고, 현재 `decision_threshold`는 `0.38592870327757767`이다. 이 필드는 중간 단계와 상위 단계를 구분하지 않는다.
 
+결과 화면의 조회와 별도로 서버가 `pending`·`processing` 상태인 전체 CIST 분석을 주기적으로 조회한다. 기본 간격은 이전 실행 종료 후 10초(`APP_CIST_ANALYSIS_SYNC_DELAY_MS`)이며 한 번에 오래된 분석부터 최대 100건을 처리한다. 일상 부분 갱신 분석은 별도 동기화 작업이 맡는다. 전체 CIST가 `completed`로 전환되면 같은 처리에서 기준 특징 스냅샷을 저장한다. 개별 동기화 실패는 `analysis_id`, `session_id`, 예외 유형만 기록하고 다음 분석을 계속 처리한다. `APP_CIST_ANALYSIS_SYNC_ENABLED`로 이 작업을 제어하며 공통 `APP_SCHEDULER_ENABLED` 설정도 적용된다.
+
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 
 저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
@@ -1716,8 +1718,9 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `score_delta` | float/null | 직전 동일 집계 결과 대비 `display_score` 차이. 첫 기록은 `null` |
 | `analyzed_at` | string | 분석 일시 |
 | `ai_risk_trend_points[]` | array | 권한 있는 보호자에게 제공하는 완료된 전체 CIST 및 일상 추정 인지 위험 점수. 아래 10.1의 점 필드 사용. 고령자 본인에게는 빈 배열 |
+| `prior_cist_baseline` | object/null | `from_date` 이전의 가장 최근 완료 전체 CIST 점. 아래 10.1과 동일한 점 필드 사용. 조회 기간 밖의 점은 `ai_risk_trend_points[]`에 넣지 않으며, 고령자 본인에게는 `null` |
 
-`aggregation=day`를 사용하면 하루에 여러 번 진행한 세션을 `local_date`별로 합산한다. 고령자 본인 요청에서는 수치·상세 영역 필드를 제외하고 정성 결과 필드만 반환한다.
+`from_date`, `to_date`는 `Asia/Seoul` 기준 날짜이며 양 끝 날짜를 포함한다. 두 날짜를 함께 전달할 때 `from_date`가 `to_date`보다 늦으면 `400`을 반환한다. `aggregation=day`를 사용하면 하루에 여러 번 진행한 세션을 `local_date`별로 합산한다. 고령자 본인 요청에서는 수치·상세 영역 필드를 제외하고 정성 결과 필드만 반환한다.
 
 ### 7.6.1 `GET /analysis/cognitive/{user_id}/benchmark` - 지역 기준선 비교
 
@@ -2237,8 +2240,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | --- | --- | --- | --- |
 | `elder_id` | string | Y | 연결된 고령자 ID |
 | `date` | string | 조건부 | 특정 일일 리포트 기준일, `YYYY-MM-DD`; `from_date`, `to_date`와 함께 사용할 수 없음 |
-| `from_date` | string | N | 추이 시작일 |
-| `to_date` | string | N | 추이 종료일 |
+| `from_date` | string | N | 추이 시작일, `YYYY-MM-DD`; `Asia/Seoul` 기준 해당 날짜 포함 |
+| `to_date` | string | N | 추이 종료일, `YYYY-MM-DD`; `Asia/Seoul` 기준 해당 날짜 포함. `from_date`보다 빠르면 `400` |
 | `timezone` | string | N | 일일 집계 시간대. 기본 `Asia/Seoul` |
 
 #### Response `200`
@@ -2261,6 +2264,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 | `activity_summary_7d` | object | 최근 7일 활동 지표 |
 | `trend_points[]` | array | 차트용 날짜별 추이 |
 | `ai_risk_trend_points[]` | array | 완료된 전체 CIST와 일상 부분 갱신 추정치의 별도 위험 신호 추이 |
+| `prior_cist_baseline` | object/null | `from_date` 이전의 가장 최근 완료 전체 CIST 점. 조회 시작일이 없거나 이전 완료 CIST가 없으면 `null` |
 | `recent_alerts[]` | array | 보호자 알림 목록 |
 | `daily_summary` | object/null | `date`를 요청한 경우 해당 날짜의 다회 대화 집계 |
 
@@ -2294,6 +2298,8 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 ```
 
 `ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 전체 CIST AI 분석과 저장된 일상 부분 갱신 추정치를 분석 완료 시각순으로 포함한다. 각 점은 `date`(`Asia/Seoul`), 저장된 `risk_score`(0~1), `risk_level`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`를 제공한다. 기준 스냅샷 저장 전의 기존 전체 CIST 점은 `baseline_snapshot_id`가 `null`일 수 있다. 같은 날짜의 여러 점을 평균 내지 않는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다.
+
+`from_date`·`to_date`를 지정하면 `ai_risk_trend_points[]`에는 서울 시간 기준 조회 기간 안의 점만 포함한다. `prior_cist_baseline`은 `from_date` 이전에 완료된 전체 CIST 중 가장 최근 점을 동일한 필드 구조로 별도 반환한다. 기간 안에 CIST 검사가 없어도 이전 검사가 있으면 이 필드를 반환하며, 기간 밖 점을 추이 배열에 추가하지 않는다. 재검사 뒤 일상 추정 점의 `baseline_snapshot_id`와 `baseline_session_id`는 새 전체 CIST 기준점을 가리킨다. `risk_score`는 모델 점수이며 발병 확률을 뜻하지 않는다.
 
 > 보호자 화면의 “위험 추이 차트”는 반복 검사 결과를 시각화하는 기능이다. 단일 점수로 확정적인 진단 문구를 만들지 않는다.
 
