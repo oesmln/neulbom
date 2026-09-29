@@ -77,6 +77,7 @@ public class CistAiAnalysisService {
     private final TranscriptRepository transcriptRepository;
     private final CistRecognitionPlanRepository recognitionPlanRepository;
     private final CistAiAnalysisRepository analysisRepository;
+    private final CognitiveFeatureSnapshotService featureSnapshotService;
     private final AiServerOperationRepository operationRepository;
     private final AiServerClient aiServerClient;
     private final AiAudioUrlSigner audioUrlSigner;
@@ -96,6 +97,7 @@ public class CistAiAnalysisService {
             TranscriptRepository transcriptRepository,
             CistRecognitionPlanRepository recognitionPlanRepository,
             CistAiAnalysisRepository analysisRepository,
+            CognitiveFeatureSnapshotService featureSnapshotService,
             AiServerOperationRepository operationRepository,
             AiServerClient aiServerClient,
             AiAudioUrlSigner audioUrlSigner,
@@ -114,6 +116,7 @@ public class CistAiAnalysisService {
         this.transcriptRepository = transcriptRepository;
         this.recognitionPlanRepository = recognitionPlanRepository;
         this.analysisRepository = analysisRepository;
+        this.featureSnapshotService = featureSnapshotService;
         this.operationRepository = operationRepository;
         this.aiServerClient = aiServerClient;
         this.audioUrlSigner = audioUrlSigner;
@@ -262,6 +265,17 @@ public class CistAiAnalysisService {
                 result.updatedAt());
         entity.updateFeatureSnapshot(finalResult == null ? null : json(finalResult.featureSnapshot()));
         analysisRepository.save(entity);
+        if ("completed".equals(result.status())) {
+            featureSnapshotService.saveBaselineSnapshot(
+                    userId,
+                    sessionId,
+                    entity.getAnalysisId(),
+                    finalResult.questionSetVersion(),
+                    finalResult.modelVersion(),
+                    finalResult.thresholdVersion(),
+                    finalResult.modelScore(),
+                    entity.getFeatureSnapshot());
+        }
         return toResponse(entity);
     }
 

@@ -1,6 +1,7 @@
 package com.neulbom.backend.analysis;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.util.Optional;
 import java.util.Set;
@@ -61,7 +62,8 @@ public class CognitiveFeatureSnapshotService {
         requireVersion(modelVersion);
         requireVersion(thresholdVersion);
         requireScore(baselineModelScore);
-        if (analysis.getModelScore().compareTo(baselineModelScore) != 0) {
+        BigDecimal storedScore = databaseScore(baselineModelScore);
+        if (databaseScore(analysis.getModelScore()).compareTo(storedScore) != 0) {
             throw invalid("기준 점수와 완료된 분석 점수가 다릅니다.");
         }
         requireJsonObject(featureSnapshot);
@@ -73,7 +75,7 @@ public class CognitiveFeatureSnapshotService {
                     || !saved.getQuestionSetVersion().equals(questionSetVersion)
                     || !saved.getModelVersion().equals(modelVersion)
                     || !saved.getThresholdVersion().equals(thresholdVersion)
-                    || saved.getBaselineModelScore().compareTo(baselineModelScore) != 0
+                    || saved.getBaselineModelScore().compareTo(storedScore) != 0
                     || !sameJson(saved.getFeatureSnapshot(), featureSnapshot)) {
                 throw new ApiException(HttpStatus.CONFLICT, "기준 스냅샷이 이미 존재합니다.",
                         "동일 분석의 기준 스냅샷은 덮어쓸 수 없습니다.");
@@ -82,7 +84,7 @@ public class CognitiveFeatureSnapshotService {
         }
         return snapshots.save(new CognitiveFeatureSnapshotEntity(ids.generate(), userId, sourceSessionId,
                 sourceAnalysisId, questionSetVersion, modelVersion, thresholdVersion,
-                baselineModelScore, featureSnapshot, analysis.getUpdatedAt(), clock.instant()));
+                storedScore, featureSnapshot, analysis.getUpdatedAt(), clock.instant()));
     }
 
     @Transactional(readOnly = true)
@@ -94,6 +96,10 @@ public class CognitiveFeatureSnapshotService {
         if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(BigDecimal.ONE) > 0) {
             throw invalid("모델 점수는 0~1이어야 합니다.");
         }
+    }
+
+    private static BigDecimal databaseScore(BigDecimal score) {
+        return score.setScale(10, RoundingMode.HALF_UP);
     }
 
     static void requireVersion(String version) {
