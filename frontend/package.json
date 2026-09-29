@@ -8,7 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "eas:build:android:preview": "npx eas-cli build --platform android --profile preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/guardianTrend.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

@@ -753,6 +753,9 @@
 - [x] cist-v1 17문항과 Q12~Q16 조건부 시행 정책을 백엔드 질문 데이터에 반영한다. (#127)
 - [x] Fusion `fusion-threshold-v2`의 `review_threshold`와 `risk_level`을 저장·응답하고 세 구간 일관성을 검증한다. (#131)
 - [x] `REPLACE_RESPONSE` 대상 문항은 종료된 세션에서도 새 녹음·답변을 저장하고 완료 문항 수를 유지한다. (#133)
+- [x] 결과 화면 조회 없이 `pending`·`processing` 전체 CIST 분석 상태를 서버에서 주기적으로 동기화하고, 완료 시 기준 스냅샷을 저장한다. (#227)
+- [x] 전체 CIST와 일상 분석의 동기화 대상을 분리하고, 개별 실패 로그에 분석·세션 ID와 예외 유형만 남긴 뒤 다음 분석을 처리한다. (#227)
+- [ ] 운영에서 기존 `processing` 전체 CIST 분석이 `completed` 또는 `failed`로 정리되는지 확인한다. (#227)
 - [ ] 실제 AI 서버 Docker 실행본으로 pending → processing → completed 흐름을 확인한다. (#127)
 - [ ] 배포 환경의 HTTPS object storage 또는 공개 backend origin으로 signed URL 다운로드를 확인한다. (#127)
 - [x] AI 음성 다운로드 호스트 allowlist와 공개 IP DNS 검증으로 SSRF를 차단한다. (#135)
@@ -896,6 +899,7 @@
 - [x] 직전 결과 대비 `score_delta`의 기준을 동일한 집계 단위로 고정한다.
 - [x] 동일 날짜에 여러 결과가 있을 때 집계 규칙을 정한다.
 - [x] 표본 부족 여부를 `sample_sufficient`로 별도 반환한다.
+- [x] 보호자 인지 이력의 AI 위험 점을 서울 시간 기준 조회 기간으로 제한하고, 시작일 이전의 가장 최근 완료 CIST를 `prior_cist_baseline`으로 별도 반환한다. 고령자 본인에게는 `null`을 반환한다. (#227)
 - [x] `GET /analysis/cognitive/{user_id}/benchmark`를 구현한다.
 - [x] 시·도·시군구별 기준선 출처명·갱신 시각 필드를 기록한다.
 - [x] 최소 표본 수 미달 시 지역값을 억제하고 `suppressed=true`로 반환한다.
@@ -922,6 +926,8 @@
 - [x] 일상 분석의 비동기 생성·상태 동기화·재시도를 AI 서버 계약에 연결한다. (#198)
 - [x] 전체 CIST 기준 스냅샷과 일상 결과의 계보·출력 특징 스냅샷을 별도 저장한다. (#200)
 - [x] 보호자 인지 이력·리포트에 전체 CIST와 일상 부분 갱신 추정 점을 구분해 반환한다. (#200)
+- [x] `from_date`·`to_date`의 서울 시간 기준 양 끝 날짜를 포함하고, 역전된 보호자 리포트 기간을 거부한다. 기간 밖의 가장 최근 완료 CIST는 추이 배열과 분리된 `prior_cist_baseline`으로 반환한다. (#227)
+- [x] 재검사 뒤 일상 추정값이 새 `baseline_snapshot_id`·`baseline_session_id`를 가리키는지 통합 테스트로 검증한다. (#227)
 - [ ] 전체 CIST·일상 AI 서버 응답을 새 저장 서비스에 연결한다. (#198)
 - [x] 하루에 여러 번 진행한 세션의 개별 결과와 일일 집계 결과를 함께 반환한다.
 - [x] `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`를 일일 리포트에 포함한다.

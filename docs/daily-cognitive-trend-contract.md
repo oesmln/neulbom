@@ -44,4 +44,18 @@ score_delta_from_previous = estimated_model_score - input_model_score
 
 ## 표시 및 통합 범위
 
-보호자 `ai_risk_trend_points[]`의 백엔드 응답은 완료된 전체 CIST 결과와 `daily_cognitive_estimates`에 저장된 일상 추정치를 구분해 반환한다. 각 점의 `point_type`은 `full_cist` 또는 `daily_partial_estimate`이며 `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`도 포함한다. 다만 현재 AI 서버의 완료 응답을 새 `cognitive_feature_snapshots`·`daily_cognitive_estimates` 저장 서비스에 연결하는 작업은 남아 있어, 일반 사용 흐름에서 일상 추정점이 자동으로 생성·표시된다고 보장할 수 없다. 프론트엔드 차트도 아직 두 점의 유형을 시각적으로 구분하지 않는다. 기존 0~30 인지 점수 `trend_points[]`와 AI 위험 점수(0~1)를 같은 축에 섞지 않는다.
+백엔드는 완료된 전체 CIST 분석을 `cognitive_feature_snapshots`에 기준 스냅샷으로 저장하고, 종료된 일상 문답 세션의 부분 갱신 결과를 `daily_cognitive_estimates`에 저장한다. 진행 중인 분석 상태는 서버에서 동기화한다. 일상 분석은 동의, 녹음·STT, 완료된 CIST 기준 스냅샷 등 앞 절의 조건을 충족해야 생성되므로, 모든 일상 문답에서 추정점이 생기는 것은 아니다.
+
+보호자 `GET /analysis/cognitive/{user_id}/history`와 `GET /guardian/{guardian_id}/report`는 완료된 전체 CIST 결과와 저장된 일상 추정치를 `ai_risk_trend_points[]`에 반환한다. 각 점에는 서울 시간 기준 `date`, 0~1의 `risk_score`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`가 있다. 기존 전체 CIST 중 스냅샷 저장 이전에 생성된 점의 `baseline_snapshot_id`는 `null`일 수 있다. 프론트엔드는 `risk_score × 100`을 반올림한 **0~100 위험 신호 지수**로 표시하며 발병 확률이나 공식 CIST 30점 점수로 표현하지 않는다.
+
+### 조회 기간과 이전 기준점
+
+- 보호자 상세 화면은 `1개월`, `3개월`, `6개월`, `1년`, `전체` 기간과 `전체 추이`·`CIST 검사만` 보기를 제공한다. 기간의 양 끝 날짜는 `Asia/Seoul` 달력 날짜로 포함하며, `전체`는 시작일 없이 오늘까지 조회한다.
+- `ai_risk_trend_points[]`와 그래프에는 선택 기간 안의 점만 둔다. 백엔드는 `from_date` 이전의 가장 최근 완료 CIST를 동일한 점 구조의 `prior_cist_baseline`으로 별도 반환한다. 이 점은 그래프에 추가하지 않고 날짜·지수를 **조회 기간 이전 기준점** 카드로 보여준다. 기간 안에 CIST가 없으면 현재 적용 중인 기준점, 새 CIST가 있으면 조회 시작 시 기준점으로 설명한다.
+- `CIST 검사만` 보기는 일상 추정점을 숨긴다. 기간 안에 CIST가 없으면 “이 기간의 CIST 검사는 없어요”와 마지막 검사 기준점 카드를 보여준다. 이전 검사가 있으면 `기간 넓혀 보기`가 그 검사를 포함하는 가장 짧은 상위 기간을 선택하고, 1년에도 포함되지 않으면 `전체`로 이동한다. 완료된 CIST 자체가 없으면 마지막 검사 카드와 버튼을 표시하지 않는다.
+
+### 재검사와 변화 설명
+
+- 전체 CIST 점은 진한 점과 실선, 일상 추정점은 테두리 점과 점선으로 구분한다. CIST 재검사는 `새 기준점`으로 표시한다. 이전 기준에 속한 일상 점선은 새 CIST 점으로 이어 붙이지 않으며, 이후 일상 점은 새 `baseline_snapshot_id`(기존 기록은 `baseline_session_id`) 계보에서 시작한다.
+- 변화 설명은 **이전 CIST → 최근 CIST**와 **최근 CIST 기준점 → 최근 일상 문답 추정**을 분리한다. 조회 기간 이전 기준점도 최근 CIST와의 검사 간 비교에는 사용할 수 있지만 그래프 점에는 넣지 않는다. 일상 변화는 최근 CIST 계보의 추정점이 있을 때만 계산한다. `CIST 검사만` 보기에서는 일상 변화 설명을 숨긴다.
+- 보호자 대시보드와 상세 화면은 `cognitive_analyses` 기반 0~30점 인지 점수 추이, 평균 점수, 정상 하한선을 표시하지 않는다. 이 API의 기존 `trend_points[]`와 인지 점수 필드는 남아 있지만 보호자 AI 위험 신호 그래프의 데이터가 아니다. 대시보드는 일상 문답 값이 CIST 기준점에서 추정된다고 안내하고, 상세 화면은 일부 문항만 갱신한 결과라고 설명한다. 두 화면 모두 AI 위험 신호가 진단 결과가 아님을 밝힌다.

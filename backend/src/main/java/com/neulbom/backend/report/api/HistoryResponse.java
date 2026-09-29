@@ -11,6 +11,7 @@ public record HistoryResponse(
         int total,
         String aggregation,
         boolean sampleSufficient,
-        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints
+        List<GuardianReportResponse.AiRiskTrendPoint> aiRiskTrendPoints,
+        GuardianReportResponse.AiRiskTrendPoint priorCistBaseline
 ) {
 }

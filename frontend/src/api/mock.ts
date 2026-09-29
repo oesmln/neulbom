@@ -1003,24 +1003,31 @@ export function mockGuardianReport(): GuardianReportResponse {
     })),
     ai_risk_trend_points: [
       {
-        date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed",
-        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(30).toISOString(),
+        date: isoDate(daysAgo(75)), risk_score: 0.42, risk_level: "monitoring_needed",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(75).toISOString(),
         session_id: fixedId("33333333", 1), baseline_session_id: fixedId("33333333", 1),
         baseline_snapshot_id: fixedId("99999999", 1),
       },
       {
-        date: isoDate(daysAgo(15)), risk_score: 0.38, risk_level: "stable",
-        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(15).toISOString(),
+        date: isoDate(daysAgo(60)), risk_score: 0.38, risk_level: "stable",
+        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(60).toISOString(),
         session_id: fixedId("33333333", 2), baseline_session_id: fixedId("33333333", 1),
         baseline_snapshot_id: fixedId("99999999", 1),
       },
       {
-        date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable",
-        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(0).toISOString(),
+        date: isoDate(daysAgo(40)), risk_score: 0.35, risk_level: "stable",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(40).toISOString(),
         session_id: fixedId("33333333", 3), baseline_session_id: fixedId("33333333", 3),
         baseline_snapshot_id: fixedId("99999999", 3),
       },
+      {
+        date: isoDate(daysAgo(0)), risk_score: 0.32, risk_level: "stable",
+        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(0).toISOString(),
+        session_id: fixedId("33333333", 4), baseline_session_id: fixedId("33333333", 3),
+        baseline_snapshot_id: fixedId("99999999", 3),
+      },
     ],
+    prior_cist_baseline: null,
     recent_alerts: guardianNotifications.slice(0, 2).map((n) => ({
       notification_id: n.notification_id,
       title: n.title,
@@ -1124,26 +1131,34 @@ export function mockNearbyCenters(
   return { centers, total: centers.length, provider_status: "ok" };
 }
 
-export function mockHistory(): HistoryResponse {
+export function mockHistory(params: { fromDate?: string; toDate?: string } = {}): HistoryResponse {
   const weekly = [22, 23, 21, 24, 24, 25];
+  const riskPoints = mockGuardianReport().ai_risk_trend_points;
+  const inRange = (date: string) =>
+    (!params.fromDate || date >= params.fromDate) && (!params.toDate || date <= params.toDate);
+  const records = weekly.map((score, i) => ({
+    analysis_id: fixedId("88888888", i + 1),
+    session_id: MOCK_SESSION_ID,
+    screening_reference_score: score,
+    display_score: score,
+    score_max: 30,
+    score_rate: score / 30,
+    label: "stable",
+    risk_level: "low",
+    domain_scores: { memory: 4, attention: -2, language: 1, visuospatial: 3 },
+    trend: "improving",
+    score_delta: i === 0 ? undefined : score - weekly[i - 1],
+    analyzed_at: daysAgo((weekly.length - 1 - i) * 7).toISOString(),
+  })).filter((record) => inRange(record.analyzed_at.slice(0, 10)));
   return {
-    records: weekly.map((score, i) => ({
-      analysis_id: fixedId("88888888", i + 1),
-      session_id: MOCK_SESSION_ID,
-      screening_reference_score: score,
-      display_score: score,
-      score_max: 30,
-      score_rate: score / 30,
-      label: "stable",
-      risk_level: "low",
-      domain_scores: { memory: 4, attention: -2, language: 1, visuospatial: 3 },
-      trend: "improving",
-      score_delta: i === 0 ? undefined : score - weekly[i - 1],
-      analyzed_at: daysAgo((weekly.length - 1 - i) * 7).toISOString(),
-    })),
-    total: weekly.length,
+    records,
+    total: records.length,
     aggregation: "weekly",
-    sample_sufficient: true,
-      ai_risk_trend_points: mockGuardianReport().ai_risk_trend_points,
+    sample_sufficient: records.length >= 2,
+    ai_risk_trend_points: riskPoints.filter((point) => inRange(point.date)),
+    prior_cist_baseline: params.fromDate
+      ? riskPoints.filter((point) => point.point_type === "full_cist" && point.date < params.fromDate!)
+        .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1) ?? null
+      : null,
   };
 }

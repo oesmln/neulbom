@@ -6,10 +6,10 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { guardianAccessErrorMessage } from "@/api/errors";
-import { isoDateOf, monthDayLabel } from "@/utils/format";
-import type { HistoryRecordResponse } from "@/api/types";
+import { PERIODS, dateRangeInSeoul, nextPeriodContainingBaseline, trendView } from "@/utils/aiRiskTrend";
+import type { PeriodKey, ViewMode } from "@/utils/aiRiskTrend";
+import type { GuardianAiRiskTrendPoint } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
-import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
 import {
   Screen,
@@ -17,6 +17,7 @@ import {
   Card,
   Body,
   Caption,
+  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -24,51 +25,26 @@ import {
 } from "@/components/ui";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
-/**
- * Score trend from `GET /analysis/cognitive/{user_id}/history`.
- *
- * The backend supports `day` aggregation rather than a synthetic monthly
- * value, so the period toggle sends a date range and asks for daily points.
- */
-const PERIODS = [
-  { key: "3m", label: "3개월", months: 3 },
-  { key: "6m", label: "6개월", months: 6 },
-  { key: "1y", label: "1년", months: 12 },
-] as const;
-
-type PeriodKey = (typeof PERIODS)[number]["key"];
-
 const HISTORY_LIMIT = 100;
 
-function scoreOf(record: HistoryRecordResponse): number | null {
-  return record.display_score ?? record.screening_reference_score ?? null;
+function riskIndex(point: GuardianAiRiskTrendPoint): number {
+  return Math.round(point.risk_score * 100);
 }
 
-/**
- * How many of the most recent readings fell in a row.
- *
- * The design labels this in days, but the endpoint aggregates by period — so it
- * is reported in readings (회), which is what the data actually supports.
- */
-function decliningRun(points: TrendPoint[]): number {
-  let run = 0;
-  for (let i = points.length - 1; i > 0; i -= 1) {
-    if (points[i].score < points[i - 1].score) run += 1;
-    else break;
-  }
-  return run;
+function riskChange(first: GuardianAiRiskTrendPoint, last: GuardianAiRiskTrendPoint): string {
+  const difference = riskIndex(last) - riskIndex(first);
+  return difference === 0 ? "변화 없음" : `${Math.abs(difference)} ${difference > 0 ? "상승" : "하락"}`;
 }
 
 export default function GuardianChartScreen() {
   const isFocused = useIsFocused();
   const { userId, selectedElderId } = useApp();
   const [period, setPeriod] = React.useState<PeriodKey>("6m");
+  const [viewMode, setViewMode] = React.useState<ViewMode>("all");
 
   const dateRange = React.useMemo(() => {
     const months = PERIODS.find((item) => item.key === period)?.months ?? 6;
-    const to = new Date();
-    const from = new Date(to.getFullYear(), to.getMonth() - months, to.getDate());
-    return { fromDate: isoDateOf(from), toDate: isoDateOf(to) };
+    return dateRangeInSeoul(months);
   }, [period]);
 
   const report = useApi(
@@ -91,7 +67,7 @@ export default function GuardianChartScreen() {
   const header = (
     <ScreenHeader
       color={guardian.blue}
-      title="인지 저하 추이"
+      title="인지 위험 신호 추이"
       subtitle={
         report.data ? `${report.data.elder_name} · 보호자 모니터링` : "보호자 모니터링"
       }
@@ -128,147 +104,164 @@ export default function GuardianChartScreen() {
     );
   }
 
-  // Oldest first so the line reads left to right. Records without a score are
-  // dropped rather than plotted at zero — a zero point reads as "very low",
-  // which is the opposite of "not measured".
-  const points: TrendPoint[] = [...history.data.records]
-    .sort((a, b) => (a.analyzed_at ?? "").localeCompare(b.analyzed_at ?? ""))
-    .flatMap((record) => {
-      const score = scoreOf(record);
-      if (score === null) return [];
-      return [{ label: record.analyzed_at ? monthDayLabel(record.analyzed_at) : "", score }];
-    });
-
-  const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
-  const run = decliningRun(points);
-  const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
-  const aiRiskPoints = history.data.ai_risk_trend_points ?? [];
+  const {
+    visibleAiRiskPoints, cistPoints, priorCistBaseline, recentCist, previousCist, recentDaily, isEmpty,
+  } = trendView(history.data, viewMode, dateRange);
+  const expandPeriod = () => {
+    if (!priorCistBaseline) return;
+    setPeriod(nextPeriodContainingBaseline(period, priorCistBaseline.date));
+  };
 
   return (
     <Screen header={header}>
-      <View style={styles.periodRow}>
-        {PERIODS.map((p) => {
-          const on = p.key === period;
-          return (
-            <Pressable
-              key={p.key}
-              onPress={() => setPeriod(p.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`${p.label} 보기`}
-              style={[
-                styles.periodChip,
-                {
-                  // `colors.card`, not `colors.white`: white stays white in
-                  // dark mode and would wash out the unselected chip label.
-                  backgroundColor: on ? guardian.blue : colors.card,
-                  borderColor: on ? guardian.blue : colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.periodLabel, { color: on ? colors.white : colors.mutedForeground }]}
+      <Card>
+        <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
+          AI 인지 위험 신호 추이
+        </Body>
+        <View style={styles.modeRow}>
+          {([
+            { key: "all", label: "전체 추이" },
+            { key: "cist", label: "CIST 검사만" },
+          ] as const).map((mode) => {
+            const selected = viewMode === mode.key;
+            return (
+              <Pressable
+                key={mode.key}
+                onPress={() => setViewMode(mode.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={mode.label}
+                style={[styles.modeChip, { backgroundColor: selected ? guardian.blue : colors.card }]}
               >
-                {p.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {aiRiskPoints.length > 0 ? (
-        <Card style={{ marginTop: spacing.lg }}>
-          <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
-            AI 인지 위험 신호 추이
-          </Body>
-          <AiRiskTrendChart points={aiRiskPoints} />
-          <Caption>AI 위험 점수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다. 일상 문답 추정점은 일부 문항만 갱신한 결과예요.</Caption>
-          {aiRiskPoints.length < 2 ? (
-            <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {points.length === 0 ? (
-        aiRiskPoints.length === 0 ? <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" /> : null
-      ) : (
-        <>
-          <Card style={{ marginTop: spacing.lg }}>
-            <View style={styles.chartHead}>
-              <Body style={{ fontWeight: fontWeight.semibold }}>CIST 인지 점수</Body>
-              <View style={styles.legendRow}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendRule, { backgroundColor: colors.accent }]} />
-                  <Caption style={styles.legendLabel}>정상 하한 24</Caption>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendRule, { backgroundColor: colors.destructive }]} />
-                  <Caption style={styles.legendLabel}>경도 치매 18</Caption>
-                </View>
-              </View>
-            </View>
-
-            <ScoreTrendChart points={points} variant="full" />
-          </Card>
-
-          <View style={styles.summaryRow}>
-            <Card style={{ flex: 1 }}>
-              <Caption style={styles.eyebrow}>{periodLabel} 변화</Caption>
-              <Text
+                <Text style={[styles.periodLabel, { color: selected ? colors.white : colors.mutedForeground }]}>
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => {
+            const selected = p.key === period;
+            return (
+              <Pressable
+                key={p.key}
+                onPress={() => setPeriod(p.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${p.label} 보기`}
                 style={[
-                  styles.summaryValue,
-                  { color: delta !== null && delta < 0 ? colors.destructive : guardian.blue },
+                  styles.periodChip,
+                  {
+                    backgroundColor: selected ? guardian.blue : colors.card,
+                    borderColor: selected ? guardian.blue : colors.border,
+                  },
                 ]}
               >
-                {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta}점`}
-              </Text>
-            </Card>
-            <Card style={{ flex: 1 }}>
-              <Caption style={styles.eyebrow}>연속 하락</Caption>
-              <Text
-                style={[
-                  styles.summaryValue,
-                  { color: run > 0 ? colors.accent : colors.mutedForeground },
-                ]}
-              >
-                {run > 0 ? `${run}회` : "없음"}
-              </Text>
-            </Card>
+                <Text style={[styles.periodLabel, { color: selected ? colors.white : colors.mutedForeground }]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {priorCistBaseline ? (
+          <View style={styles.baselineCard}>
+            <Caption style={styles.baselineEyebrow}>조회 기간 이전 검사</Caption>
+            <Body style={{ fontWeight: fontWeight.semibold }}>
+              {cistPoints.length === 0 ? "현재 적용 중인 CIST 기준점" : "조회 시작 시 CIST 기준점"}
+            </Body>
+            <Caption>{priorCistBaseline.date} · 위험 신호 지수 {riskIndex(priorCistBaseline)}</Caption>
           </View>
+        ) : null}
+        {!isEmpty ? (
+          <>
+            <AiRiskTrendChart points={visibleAiRiskPoints} hasPriorCistBaseline={!!priorCistBaseline} />
+            {previousCist && recentCist ? (
+              <View style={styles.retestNotice}>
+                <Body style={{ fontWeight: fontWeight.semibold, color: guardian.blue }}>CIST 재검사 · 새 기준점</Body>
+                <Caption>{recentCist.date} · 위험 신호 지수 {riskIndex(recentCist)}</Caption>
+              </View>
+            ) : null}
+            <View style={styles.changeSection}>
+              <Body style={{ fontWeight: fontWeight.semibold }}>이전 CIST → 최근 CIST</Body>
+              <Caption>{previousCist && recentCist
+                ? `${previousCist.date} ${riskIndex(previousCist)} → ${recentCist.date} ${riskIndex(recentCist)} · ${riskChange(previousCist, recentCist)}`
+                : "조회 기간에 비교할 CIST 검사가 2회 이상 필요해요."}</Caption>
+              {viewMode === "all" ? (
+                <>
+                  <Body style={{ fontWeight: fontWeight.semibold, marginTop: spacing.md }}>최근 CIST 기준점 → 최근 일상 문답 추정</Body>
+                  <Caption>{recentCist && recentDaily
+                    ? `${recentCist.date} ${riskIndex(recentCist)} → ${recentDaily.date} ${riskIndex(recentDaily)} · ${riskChange(recentCist, recentDaily)}`
+                    : "최근 CIST 이후 일상 문답 추정 결과가 없어요."}</Caption>
+                </>
+              ) : null}
+            </View>
+            <Caption>AI 위험 신호 지수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.{viewMode === "all" ? " 일상 문답 추정점은 일부 문항만 갱신한 결과예요." : ""}</Caption>
+            {visibleAiRiskPoints.length < 2 ? (
+              <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.emptyTrend}>
+            <Body>{viewMode === "cist" ? "이 기간의 CIST 검사는 없어요." : "이 기간의 분석 결과가 없어요."}</Body>
+            {viewMode === "cist" && priorCistBaseline ? (
+              <Button label="기간 넓혀 보기" variant="outline" size="sm" onPress={expandPeriod}
+                style={{ marginTop: spacing.md }} />
+            ) : null}
+            {viewMode === "cist" && !priorCistBaseline && period === "all" ? (
+              <Caption style={{ marginTop: spacing.sm }}>완료된 CIST 검사가 아직 없어요.</Caption>
+            ) : null}
+          </View>
+        )}
+      </Card>
 
-          {history.data.sample_sufficient ? null : (
-            <Caption style={{ marginTop: spacing.md }}>
-              표본이 아직 적어 추세는 참고용이에요.
-            </Caption>
-          )}
-        </>
-      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  periodRow: { flexDirection: "row", gap: spacing.sm },
+  modeRow: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    overflow: "hidden",
+  },
+  modeChip: { flex: 1, alignItems: "center", paddingVertical: spacing.sm },
+  periodRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.md },
   periodChip: {
-    paddingHorizontal: spacing.lg,
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
     paddingVertical: 6,
     borderRadius: radius.sm,
     borderWidth: 1,
   },
   periodLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
-
-  chartHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  baselineCard: {
+    padding: spacing.md,
     marginBottom: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
-  legendRow: { flexDirection: "row", gap: spacing.md },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  legendRule: { width: 12, height: 2, borderRadius: 1 },
-  legendLabel: { fontSize: fontSize.badge },
+  baselineEyebrow: { marginBottom: spacing.xs },
+  emptyTrend: { marginTop: spacing.md },
+  retestNotice: {
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: guardian.blue,
+  },
+  changeSection: {
+    paddingVertical: spacing.md,
+    marginBottom: spacing.md,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.border,
+  },
 
-  summaryRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
-  eyebrow: { letterSpacing: 0.5, marginBottom: spacing.sm },
-  summaryValue: { fontSize: 22, fontWeight: fontWeight.bold },
 });

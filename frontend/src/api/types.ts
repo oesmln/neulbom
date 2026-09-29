@@ -674,6 +674,7 @@ export interface GuardianReportResponse {
   activity_summary7d: GuardianReportActivitySummary | null;
   trend_points: GuardianReportTrendPoint[];
   ai_risk_trend_points: GuardianAiRiskTrendPoint[];
+  prior_cist_baseline: GuardianAiRiskTrendPoint | null;
   recent_alerts: GuardianReportAlert[];
   daily_summary: GuardianReportDaily | null;
 }
@@ -700,6 +701,7 @@ export interface HistoryResponse {
   aggregation: string | null;
   sample_sufficient: boolean;
   ai_risk_trend_points: GuardianAiRiskTrendPoint[];
+  prior_cist_baseline: GuardianAiRiskTrendPoint | null;
 }
 
 export interface ReportExportResponse {

@@ -22,4 +22,7 @@ public interface CistAiAnalysisRepository extends JpaRepository<CistAiAnalysisEn
 
     List<CistAiAnalysisEntity> findTop100ByBaselineAnalysisIdIsNotNullAndStatusInOrderByUpdatedAtAsc(
             Collection<String> statuses);
+
+    List<CistAiAnalysisEntity> findTop100ByBaselineAnalysisIdIsNullAndStatusInOrderByUpdatedAtAsc(
+            Collection<String> statuses);
 }
