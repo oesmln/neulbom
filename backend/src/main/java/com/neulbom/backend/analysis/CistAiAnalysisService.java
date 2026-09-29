@@ -1,6 +1,7 @@
 package com.neulbom.backend.analysis;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -80,6 +81,7 @@ public class CistAiAnalysisService {
     private final CognitiveFeatureSnapshotService featureSnapshotService;
     private final CognitiveFeatureSnapshotRepository featureSnapshotRepository;
     private final DailyCognitiveEstimateService dailyEstimateService;
+    private final DailyCognitiveEstimateRepository dailyEstimateRepository;
     private final AiServerOperationRepository operationRepository;
     private final AiServerClient aiServerClient;
     private final AiAudioUrlSigner audioUrlSigner;
@@ -102,6 +104,7 @@ public class CistAiAnalysisService {
             CognitiveFeatureSnapshotService featureSnapshotService,
             CognitiveFeatureSnapshotRepository featureSnapshotRepository,
             DailyCognitiveEstimateService dailyEstimateService,
+            DailyCognitiveEstimateRepository dailyEstimateRepository,
             AiServerOperationRepository operationRepository,
             AiServerClient aiServerClient,
             AiAudioUrlSigner audioUrlSigner,
@@ -123,6 +126,7 @@ public class CistAiAnalysisService {
         this.featureSnapshotService = featureSnapshotService;
         this.featureSnapshotRepository = featureSnapshotRepository;
         this.dailyEstimateService = dailyEstimateService;
+        this.dailyEstimateRepository = dailyEstimateRepository;
         this.operationRepository = operationRepository;
         this.aiServerClient = aiServerClient;
         this.audioUrlSigner = audioUrlSigner;
@@ -436,6 +440,10 @@ public class CistAiAnalysisService {
         CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
         if (Set.of("completed", "failed").contains(entity.getStatus())) {
+            synchronizeDailyEstimate(userId, sessionId, entity, entity.getStatus(),
+                    "completed".equals(entity.getStatus())
+                            ? read(entity.getFinalResult(), DailyAnalysisResult.class) : null,
+                    entity.getUpdatedAt());
             return toResponse(entity);
         }
 
@@ -463,7 +471,42 @@ public class CistAiAnalysisService {
                 result.updatedAt());
         entity.updateFeatureSnapshot(finalResult == null ? null : json(finalResult.outputSnapshot()));
         analysisRepository.save(entity);
+        synchronizeDailyEstimate(userId, sessionId, entity, result.status(), finalResult, result.updatedAt());
         return toResponse(entity);
+    }
+
+    private void synchronizeDailyEstimate(UUID userId, UUID sessionId, CistAiAnalysisEntity analysis,
+            String status, DailyAnalysisResult result, java.time.Instant analyzedAt) {
+        DailyCognitiveEstimateEntity estimate = dailyEstimateRepository.findBySessionId(sessionId)
+                .orElseThrow(() -> validation("일상 인지 분석의 추정치 기록이 없습니다."));
+        CognitiveFeatureSnapshotEntity baseline = featureSnapshotRepository.findById(estimate.getBaselineSnapshotId())
+                .orElseThrow(() -> validation("일상 인지 분석의 기준 스냅샷이 없습니다."));
+        if (!userId.equals(estimate.getUserId()) || !userId.equals(baseline.getUserId())
+                || !baseline.getSourceAnalysisId().equals(analysis.getBaselineAnalysisId())) {
+            throw validation("일상 인지 분석의 기준 계보가 일치하지 않습니다.");
+        }
+        if ("completed".equals(status)) {
+            if (result == null || result.baselineModelScore() == null
+                    || estimate.getBaselineModelScore().compareTo(
+                            result.baselineModelScore().setScale(10, RoundingMode.HALF_UP)) != 0) {
+                throw validation("일상 인지 분석의 기준 점수가 일치하지 않습니다.");
+            }
+            AiServerContracts.CognitiveFeatureSnapshot input = read(
+                    dailyEstimateService.findInputSnapshot(estimate.getEstimateId()).featureSnapshot(),
+                    AiServerContracts.CognitiveFeatureSnapshot.class);
+            if (input == null || input.modelScore() == null || result.inputModelScore() == null
+                    || input.modelScore().compareTo(result.inputModelScore()) != 0) {
+                throw validation("일상 인지 분석의 입력 점수가 일치하지 않습니다.");
+            }
+            dailyEstimateService.completeDailyEstimate(estimate.getEstimateId(), new DailyEstimateCompletion(
+                    result.estimatedModelScore(), result.scoreDeltaFromBaseline(), result.modelVersion(),
+                    result.thresholdVersion(), result.riskLevel(), json(result), analyzedAt,
+                    json(result.outputSnapshot())));
+        } else if ("processing".equals(status) || "needs_retry".equals(status)) {
+            dailyEstimateService.markProcessing(estimate.getEstimateId());
+        } else if ("failed".equals(status)) {
+            dailyEstimateService.markFailed(estimate.getEstimateId());
+        }
     }
 
     @Transactional

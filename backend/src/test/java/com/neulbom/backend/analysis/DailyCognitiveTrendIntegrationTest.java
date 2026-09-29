@@ -53,12 +53,17 @@ class DailyCognitiveTrendIntegrationTest {
         assertThatThrownBy(() -> estimates.createDailyEstimate(userId, endedDailySession(userId)))
                 .hasMessageContaining("같은 기준 계보의 분석이 완료된 뒤");
 
-        DailyEstimateCompletion firstResult = completion("0.45", "{\"step\":1}");
+        DailyEstimateCompletion firstResult = new DailyEstimateCompletion(
+                new BigDecimal("0.450000000019"), new BigDecimal("0.030000000019"),
+                "test-model", "test-threshold", "stable", "{\"source\":\"ai\"}",
+                Instant.now().plusSeconds(1).truncatedTo(ChronoUnit.MICROS), "{\"step\":1}");
         estimates.markProcessing(first.getEstimateId());
         estimates.markFailed(first.getEstimateId());
         assertThat(estimates.createDailyEstimate(userId, firstSessionId).getEstimateId())
                 .isEqualTo(first.getEstimateId());
         estimates.completeDailyEstimate(first.getEstimateId(), firstResult);
+        assertThat(estimates.createDailyEstimate(userId, firstSessionId).getEstimatedModelScore())
+                .isEqualByComparingTo("0.45");
         assertThat(estimates.completeDailyEstimate(first.getEstimateId(), firstResult).getEstimateId())
                 .isEqualTo(first.getEstimateId());
         assertThatThrownBy(() -> estimates.completeDailyEstimate(first.getEstimateId(), completion("0.50", "{\"step\":99}")))

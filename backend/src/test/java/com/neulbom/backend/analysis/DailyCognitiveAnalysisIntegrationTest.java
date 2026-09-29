@@ -182,6 +182,15 @@ class DailyCognitiveAnalysisIntegrationTest {
 
         when(aiServerClient.getDailyCognitiveAnalysis(request.analysisId()))
                 .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
+                        request.analysisId(), currentDailySession.getId(), "processing", now, now.plusSeconds(5),
+                        false, null, List.of(), null));
+        assertThat(analysisService.refreshDailyAnalysis(elder.getId(), currentDailySession.getId()).status())
+                .isEqualTo("processing");
+        assertThat(dailyEstimateRepository.findById(currentEstimate.getEstimateId()).orElseThrow().getStatus())
+                .isEqualTo("processing");
+
+        when(aiServerClient.getDailyCognitiveAnalysis(request.analysisId()))
+                .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
                         request.analysisId(), currentDailySession.getId(), "needs_retry", now, now.plusSeconds(10),
                         true, "UNSCORABLE_STT",
                         List.of(new AiServerContracts.RetryItem(
@@ -189,6 +198,8 @@ class DailyCognitiveAnalysisIntegrationTest {
                         null));
         assertThat(analysisService.refreshDailyAnalysis(elder.getId(), currentDailySession.getId()).status())
                 .isEqualTo("needs_retry");
+        assertThat(dailyEstimateRepository.findById(currentEstimate.getEstimateId()).orElseThrow().getStatus())
+                .isEqualTo("processing");
 
         AdministeredFixture orientation = administered.get(0);
         QuestionEntity dailyQuestion = questionRepository.findByIdAndSessionIdAndActiveTrue(
@@ -268,7 +279,8 @@ class DailyCognitiveAnalysisIntegrationTest {
                 List.of("orientation_year", "attention_digit_span_4"), finalFeatures, outputSnapshot, questionResults);
         when(aiServerClient.getDailyCognitiveAnalysis(request.analysisId()))
                 .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
-                        request.analysisId(), currentDailySession.getId(), "completed", now, now.plusSeconds(30),
+                        request.analysisId(), currentDailySession.getId(), "completed", now,
+                        Instant.now().plusSeconds(30),
                         false, null, List.of(), dailyResult));
 
         var synchronizedResult = analysisService.refreshDailyAnalysis(elder.getId(), currentDailySession.getId());
@@ -278,6 +290,17 @@ class DailyCognitiveAnalysisIntegrationTest {
         CistAiAnalysisEntity stored = analysisRepository.findBySessionId(currentDailySession.getId()).orElseThrow();
         assertThat(stored.getBaselineAnalysisId()).isEqualTo(baselineAnalysis.getAnalysisId());
         assertThat(stored.getFeatureSnapshot()).contains("\"model_score\":0.55");
+        DailyCognitiveEstimateEntity completedEstimate = dailyEstimateRepository
+                .findBySessionId(currentDailySession.getId()).orElseThrow();
+        assertThat(completedEstimate.getStatus()).isEqualTo("completed");
+        assertThat(completedEstimate.getEstimatedModelScore()).isEqualByComparingTo("0.55");
+        assertThat(completedEstimate.getScoreDelta()).isEqualByComparingTo("0.14");
+        assertThat(completedEstimate.getResultJson()).contains("\"result_type\":\"daily_partial_estimate\"");
+        assertThat(completedEstimate.getOutputFeatureSnapshot()).contains("\"model_score\":0.55");
+        assertThat(analysisService.refreshDailyAnalysis(elder.getId(), currentDailySession.getId()).status())
+                .isEqualTo("completed");
+        assertThat(dailyEstimateRepository.findBySessionId(currentDailySession.getId()).orElseThrow().getEstimateId())
+                .isEqualTo(completedEstimate.getEstimateId());
 
         analysisService.createDailyAnalysis(elder.getId(), currentDailySession.getId());
         verify(aiServerClient, times(1)).createDailyCognitiveAnalysis(anyString(), any(DailyAnalysisCreateRequest.class));
@@ -359,6 +382,14 @@ class DailyCognitiveAnalysisIntegrationTest {
                 .contains("\"model_score\":0.45");
         assertThat(analysisRepository.findBySessionId(secondDaily.getId()).orElseThrow().getFeatureSnapshot())
                 .contains("\"model_score\":0.48");
+        when(aiServerClient.getDailyCognitiveAnalysis(thirdRequest.analysisId()))
+                .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
+                        thirdRequest.analysisId(), thirdDaily.getId(), "failed", start,
+                        Instant.now().plusSeconds(30), false, "MODEL_UNAVAILABLE", List.of(), null));
+        assertThat(analysisService.refreshDailyAnalysis(elder.getId(), thirdDaily.getId()).status())
+                .isEqualTo("failed");
+        assertThat(dailyEstimateRepository.findBySessionId(thirdDaily.getId()).orElseThrow().getStatus())
+                .isEqualTo("failed");
     }
 
     @Test
@@ -422,17 +453,14 @@ class DailyCognitiveAnalysisIntegrationTest {
                 AiServerContracts.THRESHOLD_VERSION, true, "monitoring_needed",
                 request.responses().stream().map(AiServerContracts.AdministeredQuestionResponse::questionCode).toList(),
                 features, outputSnapshot, questionResults);
+        Instant synchronizedAt = Instant.now().plusSeconds(30);
         when(aiServerClient.getDailyCognitiveAnalysis(request.analysisId()))
                 .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
                         request.analysisId(), request.sessionId(), "completed", completedAt.minusSeconds(30),
-                        completedAt, false, null, List.of(), result));
+                        synchronizedAt, false, null, List.of(), result));
         assertThat(analysisService.refreshDailyAnalysis(userId, request.sessionId()).status()).isEqualTo("completed");
-        DailyCognitiveEstimateEntity estimate = dailyEstimateRepository.findBySessionId(request.sessionId()).orElseThrow();
-        dailyEstimateService.completeDailyEstimate(estimate.getEstimateId(), new DailyEstimateCompletion(
-                estimatedScore, estimatedScore.subtract(request.baselineModelScore()),
-                AiServerContracts.FUSION_MODEL_VERSION, AiServerContracts.THRESHOLD_VERSION,
-                "monitoring_needed", objectMapper.writeValueAsString(result), Instant.now().plusSeconds(30),
-                objectMapper.writeValueAsString(outputSnapshot)));
+        assertThat(dailyEstimateRepository.findBySessionId(request.sessionId()).orElseThrow().getStatus())
+                .isEqualTo("completed");
     }
 
     private SessionEntity endedSession(

@@ -1,5 +1,7 @@
 package com.neulbom.backend.analysis;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -120,11 +122,15 @@ public class DailyCognitiveEstimateService {
     public DailyCognitiveEstimateEntity completeDailyEstimate(UUID estimateId, DailyEstimateCompletion completion) {
         if (completion == null) throw CognitiveFeatureSnapshotService.invalid("완료 분석 결과가 필요합니다.");
         CognitiveFeatureSnapshotService.requireScore(completion.estimatedModelScore());
+        DailyEstimateCompletion storedCompletion = new DailyEstimateCompletion(
+                databaseScore(completion.estimatedModelScore()), databaseScore(completion.scoreDelta()),
+                completion.modelVersion(), completion.thresholdVersion(), completion.riskLevel(),
+                completion.resultJson(), completion.analyzedAt(), completion.outputSnapshot());
         DailyCognitiveEstimateEntity estimate = estimates.findByIdForUpdate(estimateId)
                 .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
         if ("completed".equals(estimate.getStatus())) {
-            if (estimate.getEstimatedModelScore().compareTo(completion.estimatedModelScore()) == 0
-                    && sameDecimal(estimate.getScoreDelta(), completion.scoreDelta())
+            if (estimate.getEstimatedModelScore().compareTo(storedCompletion.estimatedModelScore()) == 0
+                    && sameDecimal(estimate.getScoreDelta(), storedCompletion.scoreDelta())
                     && Objects.equals(estimate.getModelVersion(), completion.modelVersion())
                     && Objects.equals(estimate.getThresholdVersion(), completion.thresholdVersion())
                     && Objects.equals(estimate.getRiskLevel(), completion.riskLevel())
@@ -145,7 +151,7 @@ public class DailyCognitiveEstimateService {
         if (completion.analyzedAt() == null || completion.analyzedAt().isBefore(estimate.getCreatedAt())) {
             throw CognitiveFeatureSnapshotService.invalid("분석 완료 시각이 올바르지 않습니다.");
         }
-        estimate.complete(completion, clock.instant());
+        estimate.complete(storedCompletion, clock.instant());
         return estimate;
     }
 
@@ -180,7 +186,11 @@ public class DailyCognitiveEstimateService {
                 .orElseThrow(() -> new ResourceNotFoundException("기준 특징 스냅샷을 찾을 수 없습니다."));
     }
 
-    private boolean sameDecimal(java.math.BigDecimal left, java.math.BigDecimal right) {
+    private boolean sameDecimal(BigDecimal left, BigDecimal right) {
         return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    private BigDecimal databaseScore(BigDecimal value) {
+        return value == null ? null : value.setScale(10, RoundingMode.HALF_UP);
     }
 }
