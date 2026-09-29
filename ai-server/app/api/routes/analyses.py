@@ -21,6 +21,9 @@ from app.api.schemas.analysis import (
     AnalysisCreateRequest,
     AnalysisRetryRequest,
     AnalysisStatusResponse,
+    DailyAnalysisAcceptedResponse,
+    DailyAnalysisCreateRequest,
+    DailyAnalysisStatusResponse,
 )
 from app.api.schemas.common import (
     IdempotencyKey,
@@ -37,6 +40,7 @@ from app.repositories.analysis import (
     AnalysisStatus,
     InvalidAnalysisStateError,
     SQLiteAnalysisRepository,
+    StoredAnalysis,
 )
 from app.repositories.idempotency import (
     SQLiteIdempotencyRepository,
@@ -48,6 +52,7 @@ from app.services.analysis_worker import (
 from app.services.analysis_retry import (
     AnalysisRetryService,
     AnalysisRetryValidationError,
+    DailyAnalysisRetryService,
 )
 from app.services.assessment_completeness import (
     AssessmentCompletenessError,
@@ -133,6 +138,22 @@ def get_analysis_retry_service(
     return (
         AnalysisRetryService
         .from_contract_bundle(contracts)
+    )
+
+
+def get_daily_analysis_retry_service(
+) -> DailyAnalysisRetryService:
+    return DailyAnalysisRetryService()
+
+
+def _is_daily_analysis(
+    analysis: StoredAnalysis,
+) -> bool:
+    return (
+        analysis.request_body.get(
+            "analysis_type",
+        )
+        == "daily_partial_update"
     )
 
 def get_analysis_idempotency_service(
@@ -332,6 +353,22 @@ async def retry_analysis(
                 },
             )
 
+        if _is_daily_analysis(stored):
+            raise APIError(
+                status_code=404,
+                code="ANALYSIS_NOT_FOUND",
+                message=(
+                    "The requested analysis "
+                    "does not exist."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                },
+            )
+
         if (
             stored.status
             != AnalysisStatus.NEEDS_RETRY
@@ -492,6 +529,22 @@ def get_analysis(
             },
         )
 
+    if _is_daily_analysis(stored):
+        raise APIError(
+            status_code=404,
+            code="ANALYSIS_NOT_FOUND",
+            message=(
+                "The requested analysis "
+                "does not exist."
+            ),
+            retryable=False,
+            details={
+                "analysis_id": str(
+                    analysis_id,
+                ),
+            },
+        )
+
     response = AnalysisStatusResponse(
         analysis_id=stored.analysis_id,
         assessment_id=stored.assessment_id,
@@ -506,6 +559,368 @@ def get_analysis(
         result=stored.result_body,
     )
 
+    headers: dict[str, str] = {}
+
+    if stored.status.value in {
+        "pending",
+        "processing",
+    }:
+        headers["Retry-After"] = "2"
+
+    return JSONResponse(
+        status_code=200,
+        content=response.model_dump(
+            mode="json",
+        ),
+        headers=headers,
+    )
+
+
+@router.post(
+    "/daily-cognitive-analyses",
+    response_model=(
+        DailyAnalysisAcceptedResponse
+    ),
+    status_code=202,
+    operation_id=(
+        "createDailyCognitiveAnalysis"
+    ),
+)
+async def create_daily_cognitive_analysis(
+    request_body: DailyAnalysisCreateRequest,
+    idempotency_key: Annotated[
+        IdempotencyKey,
+        Header(alias="Idempotency-Key"),
+    ],
+    repository: Annotated[
+        AnalysisRepository,
+        Depends(get_analysis_repository),
+    ],
+    worker: Annotated[
+        SingleAnalysisWorker,
+        Depends(get_analysis_worker),
+    ],
+    idempotency_service: Annotated[
+        IdempotencyService,
+        Depends(
+            get_analysis_idempotency_service,
+        ),
+    ],
+) -> JSONResponse:
+    async def operation() -> StoredHttpResponse:
+        try:
+            stored = repository.create_pending(
+                analysis_id=(
+                    request_body.analysis_id
+                ),
+                assessment_id=(
+                    request_body.session_id
+                ),
+                request_body=(
+                    request_body.model_dump(
+                        mode="json",
+                    )
+                ),
+            )
+        except AnalysisAlreadyExistsError as error:
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message=(
+                    "The analysis_id already exists."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        request_body.analysis_id,
+                    ),
+                },
+            ) from error
+
+        await worker.enqueue(
+            stored.analysis_id,
+        )
+        accepted = DailyAnalysisAcceptedResponse(
+            analysis_id=stored.analysis_id,
+            session_id=stored.assessment_id,
+            status="pending",
+            created_at=stored.created_at,
+        )
+
+        return StoredHttpResponse(
+            status_code=202,
+            body=accepted.model_dump(
+                mode="json",
+            ),
+            headers={
+                "Location": (
+                    "/v1/daily-cognitive-analyses/"
+                    f"{stored.analysis_id}"
+                ),
+                "Retry-After": "2",
+            },
+        )
+
+    execution = (
+        await idempotency_service.execute_async(
+            scope=(
+                "daily-cognitive-analysis-create:"
+                f"{request_body.analysis_id}"
+            ),
+            idempotency_key=idempotency_key,
+            request_body=request_body.model_dump(
+                mode="json",
+            ),
+            operation=operation,
+        )
+    )
+
+    return JSONResponse(
+        status_code=(
+            execution.response.status_code
+        ),
+        content=execution.response.body,
+        headers=execution.response.headers,
+    )
+
+
+@router.post(
+    "/daily-cognitive-analyses/"
+    "{analysis_id}/retry",
+    response_model=(
+        DailyAnalysisAcceptedResponse
+    ),
+    status_code=202,
+    operation_id=(
+        "retryDailyCognitiveAnalysis"
+    ),
+)
+async def retry_daily_cognitive_analysis(
+    analysis_id: UUID,
+    request_body: AnalysisRetryRequest,
+    idempotency_key: Annotated[
+        IdempotencyKey,
+        Header(alias="Idempotency-Key"),
+    ],
+    repository: Annotated[
+        AnalysisRepository,
+        Depends(get_analysis_repository),
+    ],
+    worker: Annotated[
+        SingleAnalysisWorker,
+        Depends(get_analysis_worker),
+    ],
+    retry_service: Annotated[
+        DailyAnalysisRetryService,
+        Depends(
+            get_daily_analysis_retry_service,
+        ),
+    ],
+    idempotency_service: Annotated[
+        IdempotencyService,
+        Depends(
+            get_analysis_idempotency_service,
+        ),
+    ],
+) -> JSONResponse:
+    async def operation() -> StoredHttpResponse:
+        stored = repository.get(
+            analysis_id,
+        )
+
+        if (
+            stored is None
+            or not _is_daily_analysis(stored)
+        ):
+            raise APIError(
+                status_code=404,
+                code="ANALYSIS_NOT_FOUND",
+                message=(
+                    "The requested daily analysis "
+                    "does not exist."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                },
+            )
+
+        if (
+            stored.status
+            != AnalysisStatus.NEEDS_RETRY
+            or not stored.retryable
+        ):
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message=(
+                    "Only a daily analysis in the "
+                    "needs_retry state can be resumed."
+                ),
+                retryable=False,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                    "status": (
+                        stored.status.value
+                    ),
+                },
+            )
+
+        try:
+            updated_request = (
+                retry_service.merge_request(
+                    analysis=stored,
+                    retry_request=request_body,
+                )
+            )
+        except (
+            AnalysisRetryValidationError
+        ) as error:
+            raise APIError(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message=(
+                    "The retry request does not "
+                    "match the required retry items."
+                ),
+                retryable=False,
+                details={
+                    "fields": [
+                        "reason_code",
+                        "items",
+                    ],
+                },
+            ) from error
+
+        try:
+            resumed = (
+                repository.resume_with_request(
+                    analysis_id=analysis_id,
+                    updated_request_body=(
+                        updated_request.model_dump(
+                            mode="json",
+                        )
+                    ),
+                )
+            )
+        except InvalidAnalysisStateError as error:
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message=(
+                    "The daily analysis state "
+                    "changed before retry."
+                ),
+                retryable=True,
+                details={
+                    "analysis_id": str(
+                        analysis_id,
+                    ),
+                },
+            ) from error
+
+        await worker.enqueue(
+            analysis_id,
+        )
+        accepted = DailyAnalysisAcceptedResponse(
+            analysis_id=resumed.analysis_id,
+            session_id=resumed.assessment_id,
+            status="pending",
+            created_at=resumed.created_at,
+        )
+
+        return StoredHttpResponse(
+            status_code=202,
+            body=accepted.model_dump(
+                mode="json",
+            ),
+            headers={
+                "Location": (
+                    "/v1/daily-cognitive-analyses/"
+                    f"{analysis_id}"
+                ),
+                "Retry-After": "2",
+            },
+        )
+
+    execution = (
+        await idempotency_service.execute_async(
+            scope=(
+                "daily-cognitive-analysis-retry:"
+                f"{analysis_id}"
+            ),
+            idempotency_key=idempotency_key,
+            request_body=(
+                request_body.model_dump(
+                    mode="json",
+                )
+            ),
+            operation=operation,
+        )
+    )
+
+    return JSONResponse(
+        status_code=(
+            execution.response.status_code
+        ),
+        content=execution.response.body,
+        headers=execution.response.headers,
+    )
+
+
+@router.get(
+    "/daily-cognitive-analyses/{analysis_id}",
+    response_model=DailyAnalysisStatusResponse,
+    status_code=200,
+    operation_id="getDailyCognitiveAnalysis",
+)
+def get_daily_cognitive_analysis(
+    analysis_id: UUID,
+    repository: Annotated[
+        AnalysisRepository,
+        Depends(get_analysis_repository),
+    ],
+) -> JSONResponse:
+    stored = repository.get(
+        analysis_id,
+    )
+
+    if (
+        stored is None
+        or not _is_daily_analysis(stored)
+    ):
+        raise APIError(
+            status_code=404,
+            code="ANALYSIS_NOT_FOUND",
+            message=(
+                "The requested daily analysis "
+                "does not exist."
+            ),
+            retryable=False,
+            details={
+                "analysis_id": str(
+                    analysis_id,
+                ),
+            },
+        )
+
+    response = DailyAnalysisStatusResponse(
+        analysis_id=stored.analysis_id,
+        session_id=stored.assessment_id,
+        status=stored.status.value,
+        created_at=stored.created_at,
+        updated_at=stored.updated_at,
+        retryable=stored.retryable,
+        reason_code=stored.reason_code,
+        retry_items=list(
+            stored.retry_items,
+        ),
+        result=stored.result_body,
+    )
     headers: dict[str, str] = {}
 
     if stored.status.value in {

@@ -3,6 +3,7 @@ package com.neulbom.backend.config;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
@@ -204,7 +205,7 @@ class ProductionSecurityValidatorTest {
     private StorageProperties persistentVolumeStorage() {
         return new StorageProperties(
                 "persistent-volume",
-                "/data/uploads",
+                Path.of("data", "uploads").toAbsolutePath().toString(),
                 "neulbom-production",
                 DataSize.ofMegabytes(25),
                 List.of("audio/wav"),

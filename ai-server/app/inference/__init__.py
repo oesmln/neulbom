@@ -14,6 +14,14 @@ from app.inference.fusion import (
     FusionInferenceResult,
     FusionInferenceService,
 )
+from app.inference.feature_snapshot import (
+    CategoryLogitAggregation,
+    FeatureAggregationError,
+    pool_category_logits_to_person,
+    pool_question_logits_by_category,
+    rebuild_person_logit_from_questions,
+    replace_question_features,
+)
 from app.inference.kcelectra import (
     KcElectraCategoryResult,
     KcElectraClipInput,
@@ -34,6 +42,8 @@ __all__ = [
     "AstInferenceService",
     "AstSeedRuntime",
     "FUSION_THRESHOLD_VERSION",
+    "CategoryLogitAggregation",
+    "FeatureAggregationError",
     "FusionFeatures",
     "FusionInferenceError",
     "FusionInferenceResult",
@@ -46,4 +56,8 @@ __all__ = [
     "KcElectraInferenceService",
     "KcElectraSeedRuntime",
     "build_kcelectra_input",
+    "pool_category_logits_to_person",
+    "pool_question_logits_by_category",
+    "rebuild_person_logit_from_questions",
+    "replace_question_features",
 ]

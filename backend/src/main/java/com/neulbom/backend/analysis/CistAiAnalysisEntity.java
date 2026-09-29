@@ -23,6 +23,9 @@ public class CistAiAnalysisEntity {
     @Column(name = "session_id", nullable = false, unique = true)
     private UUID sessionId;
 
+    @Column(name = "baseline_analysis_id")
+    private UUID baselineAnalysisId;
+
     @Column(nullable = false, length = 20)
     private String status;
 
@@ -52,6 +55,10 @@ public class CistAiAnalysisEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "final_result", columnDefinition = "jsonb")
     private String finalResult;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "feature_snapshot", columnDefinition = "jsonb")
+    private String featureSnapshot;
 
     @Column(name = "model_score", precision = 12, scale = 10)
     private BigDecimal modelScore;
@@ -140,8 +147,12 @@ public class CistAiAnalysisEntity {
     }
 
     public void recordRetry(String submittedResponses, Instant updatedAt) {
+        recordRetry(submittedResponses, "pending", updatedAt);
+    }
+
+    public void recordRetry(String submittedResponses, String status, Instant updatedAt) {
         this.retryCount++;
-        this.status = "pending";
+        this.status = status;
         this.retryable = false;
         this.reasonCode = null;
         this.retryItems = null;
@@ -149,8 +160,17 @@ public class CistAiAnalysisEntity {
         this.updatedAt = updatedAt;
     }
 
+    public void updateFeatureSnapshot(String featureSnapshot) {
+        this.featureSnapshot = featureSnapshot;
+    }
+
+    public void linkBaselineAnalysis(UUID baselineAnalysisId) {
+        this.baselineAnalysisId = baselineAnalysisId;
+    }
+
     public UUID getAnalysisId() { return analysisId; }
     public UUID getSessionId() { return sessionId; }
+    public UUID getBaselineAnalysisId() { return baselineAnalysisId; }
     public String getStatus() { return status; }
     public String getCreateIdempotencyKey() { return createIdempotencyKey; }
     public String getCreateRequestHash() { return createRequestHash; }
@@ -160,6 +180,7 @@ public class CistAiAnalysisEntity {
     public String getRetryItems() { return retryItems; }
     public String getSubmittedResponses() { return submittedResponses; }
     public String getFinalResult() { return finalResult; }
+    public String getFeatureSnapshot() { return featureSnapshot; }
     public BigDecimal getModelScore() { return modelScore; }
     public String getModelVersion() { return modelVersion; }
     public BigDecimal getDecisionThreshold() { return decisionThreshold; }

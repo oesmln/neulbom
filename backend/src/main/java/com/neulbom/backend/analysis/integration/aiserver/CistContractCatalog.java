@@ -32,7 +32,8 @@ public class CistContractCatalog {
                         question.path("question_code").asText(),
                         question.path("variant_id").asText(),
                         question.path("order").asInt(),
-                        question.path("administration_mode").asText());
+                        question.path("administration_mode").asText(),
+                        question.path("question_type").asText());
                 if (loaded.put(definition.questionCode(), definition) != null) {
                     throw new IllegalStateException("CIST 계약에 중복 question_code가 있습니다.");
                 }
@@ -95,7 +96,8 @@ public class CistContractCatalog {
             String questionCode,
             String variantId,
             int order,
-            String administrationMode
+            String administrationMode,
+            String questionType
     ) {
     }
 }

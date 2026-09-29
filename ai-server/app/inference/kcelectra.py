@@ -14,6 +14,10 @@ from app.inference.artifacts import (
     EXPECTED_SEEDS,
     ModelArtifactBundle,
 )
+from app.inference.feature_snapshot import (
+    pool_category_logits_to_person,
+    pool_question_logits_by_category,
+)
 
 
 class KcElectraInferenceError(RuntimeError):
@@ -248,6 +252,55 @@ class KcElectraInferenceService:
             ...,
         ],
     ) -> KcElectraInferenceResult:
+        clip_results = (
+            self.infer_question_features(
+                clips,
+            )
+        )
+
+        category_results = (
+            self._pool_categories(
+                clip_results,
+            )
+        )
+        final_logit = (
+            pool_category_logits_to_person(
+                category_results,
+                category_order=(
+                    self._core_categories
+                ),
+                method="equal_category_mean",
+            )
+        )
+
+        if not isfinite(final_logit):
+            raise KcElectraInferenceError(
+                "KcELECTRA 최종 logit이 "
+                "유효하지 않습니다.",
+            )
+
+        return KcElectraInferenceResult(
+            model_version=self._model_version,
+            seed_count=len(
+                self._seed_runtimes,
+            ),
+            dementia_logit=final_logit,
+            dementia_probability=(
+                _sigmoid(final_logit)
+            ),
+            category_results=category_results,
+            clip_results=clip_results,
+        )
+
+    def infer_question_features(
+        self,
+        clips: tuple[
+            KcElectraClipInput,
+            ...,
+        ],
+    ) -> tuple[KcElectraClipResult, ...]:
+        """Core4 완결성 집계 없이 문항별 앙상블 특징만 반환한다."""
+
         if not clips:
             raise ValueError(
                 "KcELECTRA 추론용 문항이 없습니다.",
@@ -333,39 +386,7 @@ class KcElectraInferenceService:
             )
         )
 
-        category_results = (
-            self._pool_categories(
-                clip_results,
-            )
-        )
-        final_logit = float(
-            np.mean(
-                [
-                    result.dementia_logit
-                    for result in category_results
-                ],
-                dtype=np.float64,
-            ),
-        )
-
-        if not isfinite(final_logit):
-            raise KcElectraInferenceError(
-                "KcELECTRA 최종 logit이 "
-                "유효하지 않습니다.",
-            )
-
-        return KcElectraInferenceResult(
-            model_version=self._model_version,
-            seed_count=len(
-                self._seed_runtimes,
-            ),
-            dementia_logit=final_logit,
-            dementia_probability=(
-                _sigmoid(final_logit)
-            ),
-            category_results=category_results,
-            clip_results=clip_results,
-        )
+        return clip_results
 
     def _predict_clip_logits(
         self,
@@ -458,59 +479,25 @@ class KcElectraInferenceService:
         KcElectraCategoryResult,
         ...,
     ]:
-        by_category: dict[
-            str,
-            list[KcElectraClipResult],
-        ] = {
-            category: []
-            for category in self._core_categories
-        }
-
-        for result in clip_results:
-            by_category[
-                result.category
-            ].append(result)
-
-        missing_categories = [
-            category
-            for category, results
-            in by_category.items()
-            if not results
-        ]
-
-        if missing_categories:
-            raise ValueError(
-                "KcELECTRA 핵심 범주가 "
-                f"누락되었습니다: {missing_categories}",
-            )
-
-        category_results: list[
-            KcElectraCategoryResult
-        ] = []
-
-        for category in self._core_categories:
-            results = by_category[category]
-            category_logit = float(
-                np.mean(
-                    [
-                        result.dementia_logit
-                        for result in results
-                    ],
-                    dtype=np.float64,
+        pooled = (
+            pool_question_logits_by_category(
+                clip_results,
+                category_order=(
+                    self._core_categories
                 ),
             )
+        )
 
-            category_results.append(
-                KcElectraCategoryResult(
-                    category=category,
-                    dementia_logit=(
-                        category_logit
-                    ),
-                    clip_count=len(results),
+        return tuple(
+            KcElectraCategoryResult(
+                category=result.category,
+                dementia_logit=(
+                    result.dementia_logit
                 ),
+                clip_count=result.clip_count,
             )
-
-        return tuple(category_results)
+            for result in pooled
+        )
 
 
 def build_kcelectra_input(

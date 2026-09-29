@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from app.api.schemas.analysis import (
+    DailyQuestionCode,
     RetryAction,
 )
 from app.api.schemas.common import (
@@ -93,6 +94,61 @@ EXPECTED_OPERATIONS = {
         response_schemas=frozenset(
             {
                 "AnalysisAcceptedResponse",
+            },
+        ),
+    ),
+    "/v1/daily-cognitive-analyses": (
+        OperationExpectation(
+            method="post",
+            operation_id=(
+                "createDailyCognitiveAnalysis"
+            ),
+            success_status="202",
+            request_schema=(
+                "DailyAnalysisCreateRequest"
+            ),
+            response_schemas=frozenset(
+                {
+                    (
+                        "DailyAnalysis"
+                        "AcceptedResponse"
+                    ),
+                },
+            ),
+        )
+    ),
+    (
+        "/v1/daily-cognitive-analyses/"
+        "{analysis_id}"
+    ): OperationExpectation(
+        method="get",
+        operation_id=(
+            "getDailyCognitiveAnalysis"
+        ),
+        success_status="200",
+        request_schema=None,
+        response_schemas=frozenset(
+            {
+                "DailyAnalysisStatusResponse",
+            },
+        ),
+    ),
+    (
+        "/v1/daily-cognitive-analyses/"
+        "{analysis_id}/retry"
+    ): OperationExpectation(
+        method="post",
+        operation_id=(
+            "retryDailyCognitiveAnalysis"
+        ),
+        success_status="202",
+        request_schema="AnalysisRetryRequest",
+        response_schemas=frozenset(
+            {
+                (
+                    "DailyAnalysis"
+                    "AcceptedResponse"
+                ),
             },
         ),
     ),
@@ -307,6 +363,27 @@ def test_required_api_parameters_are_present(
             )
         ]["post"],
     )
+    daily_create_parameters = (
+        _parameter_names(
+            runtime_openapi["paths"][
+                "/v1/daily-cognitive-analyses"
+            ]["post"],
+        )
+    )
+    daily_get_parameters = _parameter_names(
+        runtime_openapi["paths"][
+            "/v1/daily-cognitive-analyses/"
+            "{analysis_id}"
+        ]["get"],
+    )
+    daily_retry_parameters = (
+        _parameter_names(
+            runtime_openapi["paths"][
+                "/v1/daily-cognitive-analyses/"
+                "{analysis_id}/retry"
+            ]["post"],
+        )
+    )
 
     assert recognition_parameters == {
         "assessment_id",
@@ -319,6 +396,16 @@ def test_required_api_parameters_are_present(
         "analysis_id",
     }
     assert retry_parameters == {
+        "analysis_id",
+        "Idempotency-Key",
+    }
+    assert daily_create_parameters == {
+        "Idempotency-Key",
+    }
+    assert daily_get_parameters == {
+        "analysis_id",
+    }
+    assert daily_retry_parameters == {
         "analysis_id",
         "Idempotency-Key",
     }
@@ -362,6 +449,14 @@ def test_question_code_contracts_match(
             "ConditionalQuestionCode"
         ]["enum"],
     )
+    python_daily_codes = set(
+        get_args(DailyQuestionCode),
+    )
+    openapi_daily_codes = set(
+        reference_openapi["components"][
+            "schemas"
+        ]["DailyQuestionCode"]["enum"],
+    )
 
     assert len(contract_question_codes) == 17
     assert (
@@ -373,6 +468,20 @@ def test_question_code_contracts_match(
         python_conditional_codes
         == contract_conditional_codes
         == openapi_conditional_codes
+    )
+    assert (
+        python_daily_codes
+        == openapi_daily_codes
+        == {
+            "orientation_year",
+            "orientation_month",
+            "orientation_day",
+            "orientation_weekday",
+            "orientation_place",
+            "attention_digit_span_4",
+            "attention_digit_span_5",
+            "attention_word_reverse",
+        }
     )
 
 
@@ -454,6 +563,58 @@ def test_fixed_analysis_metadata_matches(
     assert runtime_result["properties"][
         "threshold_version"
     ]["const"] == "fusion-threshold-v2"
+
+    assert reference_result["properties"][
+        "feature_snapshot"
+    ]["$ref"] == (
+        "#/components/schemas/"
+        "CognitiveFeatureSnapshot"
+    )
+    assert runtime_result["properties"][
+        "feature_snapshot"
+    ]["$ref"] == (
+        "#/components/schemas/"
+        "CognitiveFeatureSnapshot"
+    )
+
+    reference_snapshot = (
+        reference_openapi["components"]
+        ["schemas"]
+        ["CognitiveFeatureSnapshot"]
+    )
+    runtime_snapshot = (
+        runtime_openapi["components"]
+        ["schemas"]
+        ["CognitiveFeatureSnapshot"]
+    )
+
+    for snapshot in (
+        reference_snapshot,
+        runtime_snapshot,
+    ):
+        assert snapshot["properties"][
+            "schema_version"
+        ]["const"] == (
+            "cognitive-feature-snapshot-v1"
+        )
+        assert snapshot["properties"][
+            "ast_model_version"
+        ]["const"] == (
+            "final_ast_core4_epoch6_"
+            "3seed_ensemble"
+        )
+        assert snapshot["properties"][
+            "kcelectra_model_version"
+        ]["const"] == (
+            "final_kcelectra_service_"
+            "352clips_seed_ensemble_v1"
+        )
+        assert snapshot["properties"][
+            "fusion_model_version"
+        ]["const"] == (
+            "final_fusion_lr_21subjects_"
+            "ast20_mean_logit_3seed_v2"
+        )
 
 
 def test_processing_timeout_matches_contract(

@@ -10,10 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@Transactional
 class DatabaseMigrationTest {
 
     private static final String MIGRATION_EMAIL = "migration-test@example.com";
@@ -32,12 +34,37 @@ class DatabaseMigrationTest {
         Integer questionCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM questions",
                 Integer.class);
+        Integer featureSnapshotColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'cist_ai_analyses'
+                          AND column_name = 'feature_snapshot'
+                        """,
+                Integer.class);
+        Integer baselineAnalysisLinkColumnCount = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'cist_ai_analyses'
+                          AND column_name = 'baseline_analysis_id'
+                        """,
+                Integer.class);
+        String operationTypeConstraint = jdbcTemplate.queryForObject(
+                """
+                        SELECT pg_get_constraintdef(oid)
+                        FROM pg_constraint
+                        WHERE conname = 'ck_ai_server_operation_type'
+                        """,
+                String.class);
         Integer coreTableCount = jdbcTemplate.queryForObject(
                 """
                         SELECT COUNT(*)
                         FROM information_schema.tables
-                        WHERE lower(table_schema) = 'public'
-                          AND lower(table_name) IN (
+                        WHERE table_schema = current_schema()
+                          AND table_name IN (
                               'users', 'voice_profiles', 'user_profiles', 'user_preferences', 'refresh_tokens', 'consents',
                               'guardian_links', 'guardian_link_scopes', 'guardian_invitations',
                               'guardian_invitation_scopes', 'questions', 'sessions', 'recordings',
@@ -56,6 +83,9 @@ class DatabaseMigrationTest {
         assertThat(migrationCount).isGreaterThanOrEqualTo(10);
         assertThat(voiceProfileCount).isEqualTo(2);
         assertThat(questionCount).isEqualTo(22);
+        assertThat(featureSnapshotColumnCount).isEqualTo(1);
+        assertThat(baselineAnalysisLinkColumnCount).isEqualTo(1);
+        assertThat(operationTypeConstraint).contains("daily_analysis_create", "daily_analysis_retry");
         assertThat(coreTableCount).isEqualTo(40);
     }
 

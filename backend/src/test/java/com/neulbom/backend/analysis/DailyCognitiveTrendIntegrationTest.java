@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -115,6 +116,6 @@ class DailyCognitiveTrendIntegrationTest {
     private DailyEstimateCompletion completion(String score, String snapshot) {
         return new DailyEstimateCompletion(new BigDecimal(score), new BigDecimal("0.03"),
                 "test-model", "test-threshold", "stable", "{\"source\":\"ai\"}",
-                Instant.now().plusSeconds(1), snapshot);
+                Instant.now().plusSeconds(1).truncatedTo(ChronoUnit.MICROS), snapshot);
     }
 }

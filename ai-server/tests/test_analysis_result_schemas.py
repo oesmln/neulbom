@@ -101,7 +101,129 @@ def question_results() -> list[dict]:
     return results
 
 
+def question_category(
+    question_code: str,
+) -> str:
+    if question_code.startswith(
+        "orientation_",
+    ):
+        return "orientation"
+
+    if question_code.startswith(
+        "memory_",
+    ):
+        return "memory"
+
+    if question_code.startswith(
+        "attention_",
+    ):
+        return "attention"
+
+    return "language"
+
+
+def feature_snapshot(
+    results: list[dict],
+    features: dict,
+) -> dict:
+    administered = [
+        result
+        for result in results
+        if (
+            result["administration_status"]
+            == "administered"
+        )
+    ]
+
+    return {
+        "schema_version": (
+            "cognitive-feature-snapshot-v1"
+        ),
+        "question_set_version": "cist-v1",
+        "wrong_event_rule_version": (
+            "wrong-event-v1"
+        ),
+        "ast_model_version": (
+            "final_ast_core4_epoch6_3seed_ensemble"
+        ),
+        "kcelectra_model_version": (
+            "final_kcelectra_service_"
+            "352clips_seed_ensemble_v1"
+        ),
+        "fusion_model_version": (
+            "final_fusion_lr_"
+            "21subjects_ast20_mean_logit_3seed_v2"
+        ),
+        "threshold_version": (
+            "fusion-threshold-v2"
+        ),
+        "model_score": 0.75,
+        "ast_question_features": [
+            {
+                "question_code": result[
+                    "question_code"
+                ],
+                "category": question_category(
+                    result["question_code"],
+                ),
+                "dementia_logit": -0.25,
+                "segment_count": 1,
+            }
+            for result in administered
+        ],
+        "kcelectra_question_features": [
+            {
+                "question_code": result[
+                    "question_code"
+                ],
+                "category": question_category(
+                    result["question_code"],
+                ),
+                "dementia_logit": 0.5,
+            }
+            for result in administered
+        ],
+        "wrong_event_observations": [
+            {
+                "question_code": result[
+                    "question_code"
+                ],
+                "wrong_event": result[
+                    "wrong_event"
+                ],
+            }
+            for result in results
+        ],
+        "response_delay_observations": [
+            {
+                "question_code": result[
+                    "question_code"
+                ],
+                "response_delay_ms": result[
+                    "response_delay_ms"
+                ],
+            }
+            for result in results
+        ],
+        "fusion_features": deepcopy(
+            features,
+        ),
+    }
+
+
 def final_result_payload() -> dict:
+    results = question_results()
+    features = {
+        "ast_logit": -0.25,
+        "kcelectra_logit": 0.5,
+        "category_balanced_wrong_event_score": (
+            0.375
+        ),
+        "category_balanced_median_delay": (
+            0.8
+        ),
+    }
+
     return {
         "question_set_version": "cist-v1",
         "wrong_event_rule_version": (
@@ -121,19 +243,12 @@ def final_result_payload() -> dict:
         ),
         "risk_flag": True,
         "risk_level": "monitoring_needed",
-        "features": {
-            "ast_logit": -0.25,
-            "kcelectra_logit": 0.5,
-            "category_balanced_wrong_event_score": (
-                0.375
-            ),
-            "category_balanced_median_delay": (
-                0.8
-            ),
-        },
-        "question_results": (
-            question_results()
+        "features": features,
+        "feature_snapshot": feature_snapshot(
+            results,
+            features,
         ),
+        "question_results": results,
     }
 
 
@@ -206,6 +321,71 @@ def test_rejects_non_finite_feature() -> None:
     with pytest.raises(
         ValidationError,
         match="유한",
+    ):
+        FinalAnalysisResult.model_validate(
+            payload,
+        )
+
+
+def test_rejects_duplicate_snapshot_feature() -> None:
+    payload = final_result_payload()
+    snapshot = payload["feature_snapshot"]
+    snapshot["ast_question_features"][-1] = (
+        deepcopy(
+            snapshot[
+                "ast_question_features"
+            ][0],
+        )
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="중복",
+    ):
+        FinalAnalysisResult.model_validate(
+            payload,
+        )
+
+
+def test_rejects_snapshot_category_mismatch() -> None:
+    payload = final_result_payload()
+    payload["feature_snapshot"][
+        "ast_question_features"
+    ][0]["category"] = "memory"
+
+    with pytest.raises(
+        ValidationError,
+        match="문항 범주",
+    ):
+        FinalAnalysisResult.model_validate(
+            payload,
+        )
+
+
+def test_rejects_snapshot_with_sensitive_data() -> None:
+    payload = final_result_payload()
+    payload["feature_snapshot"][
+        "raw_transcript"
+    ] = "민감한 전사문"
+
+    with pytest.raises(
+        ValidationError,
+        match="Extra inputs",
+    ):
+        FinalAnalysisResult.model_validate(
+            payload,
+        )
+
+
+def test_rejects_inconsistent_snapshot_result() -> None:
+    payload = final_result_payload()
+    payload["feature_snapshot"][
+        "model_score"
+    ] = 0.7
+
+    with pytest.raises(
+        ValidationError,
+        match="Fusion 결과",
     ):
         FinalAnalysisResult.model_validate(
             payload,

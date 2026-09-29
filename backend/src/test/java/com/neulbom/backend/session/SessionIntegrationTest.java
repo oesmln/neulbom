@@ -54,6 +54,12 @@ class SessionIntegrationTest {
     private GuardianLinkScopeRepository guardianLinkScopeRepository;
 
     @Autowired
+    private SessionQuestionSlotRepository sessionQuestionSlotRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
     private ConsentRepository consentRepository;
 
     @Autowired
@@ -64,12 +70,6 @@ class SessionIntegrationTest {
 
     @Autowired
     private UuidGenerator uuidGenerator;
-
-    @Autowired
-    private SessionQuestionSlotRepository sessionQuestionSlotRepository;
-
-    @Autowired
-    private QuestionRepository questionRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;

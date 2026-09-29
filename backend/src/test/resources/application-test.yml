@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:neulbom-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/neulbom_test}
+    username: ${TEST_DB_USERNAME:${DB_USERNAME:postgres}}
+    password: ${TEST_DB_PASSWORD:${DB_PASSWORD:}}
+    driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
     hibernate:
@@ -22,6 +22,8 @@ spring:
       password: test
 
 app:
+  scheduler:
+    enabled: false
   storage:
     local-root: build/test-uploads
   security:

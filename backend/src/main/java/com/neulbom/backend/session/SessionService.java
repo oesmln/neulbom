@@ -325,7 +325,8 @@ public class SessionService {
                     session.getCurrentQuestionOrder(),
                     existing.getSyncStatus());
         }
-        if ("emotional_qa".equals(session.getSessionType())
+        if (SessionEntity.ACTIVE.equals(session.getStatus())
+                && "emotional_qa".equals(session.getSessionType())
                 && question.getDisplayOrder() != session.getCurrentQuestionOrder()) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "현재 순서의 질문이 아닙니다.", "먼저 현재 질문에 답변하세요.");
         }
@@ -360,19 +361,39 @@ public class SessionService {
     }
 
     private boolean isAllowedAiRetryReplacement(SessionEntity session, QuestionEntity question) {
-        if (!Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())
-                || question.getQuestionCode() == null) {
+        String questionCode = aiQuestionCode(session, question);
+        if (questionCode == null) {
             return false;
         }
         return cistAiAnalysisRepository.findBySessionId(session.getId())
                 .filter(analysis -> "needs_retry".equals(analysis.getStatus()) && analysis.isRetryable())
-                .filter(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), question.getQuestionCode()))
+                .filter(analysis -> hasReplaceResponseItem(analysis.getRetryItems(), questionCode))
                 .map(analysis -> hasNotSubmittedReplacement(
                         session.getId(),
                         question.getId(),
-                        question.getQuestionCode(),
+                        questionCode,
                         analysis.getSubmittedResponses()))
                 .orElse(false);
+    }
+
+    private String aiQuestionCode(SessionEntity session, QuestionEntity question) {
+        if (Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())) {
+            return question.getQuestionCode();
+        }
+        if (!"emotional_qa".equals(session.getSessionType())
+                || !"cist_bank".equals(question.getQuestionSource())) {
+            return null;
+        }
+        return sessionQuestionSlotRepository.findAllBySessionIdOrderByQuestionOrderAsc(session.getId()).stream()
+                .filter(slot -> question.getId().equals(slot.getQuestionId()))
+                .map(SessionQuestionSlotEntity::getSourceQuestionId)
+                .filter(java.util.Objects::nonNull)
+                .map(questionRepository::findById)
+                .flatMap(java.util.Optional::stream)
+                .map(QuestionEntity::getQuestionCode)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean hasNotSubmittedReplacement(

@@ -4,6 +4,7 @@ from app.api.schemas.analysis import (
     AdministeredQuestionResponse,
     AnalysisCreateRequest,
     AnalysisRetryRequest,
+    DailyAnalysisCreateRequest,
     ReissueAudioUrlItem,
     ReplaceResponseItem,
     RetryItem,
@@ -71,64 +72,14 @@ class AnalysisRetryService:
             expected_items=expected_items,
         )
 
-        responses_by_code = {
-            response.question_code: response
-            for response
-            in original_request.responses
-        }
-
-        updated_responses = dict(
-            responses_by_code,
+        updated_responses = (
+            self._merge_response_items(
+                original_responses=(
+                    original_request.responses
+                ),
+                retry_request=retry_request,
+            )
         )
-
-        for retry_item in retry_request.items:
-            original_response = (
-                responses_by_code[
-                    retry_item.question_code
-                ]
-            )
-
-            if not isinstance(
-                original_response,
-                AdministeredQuestionResponse,
-            ):
-                raise AnalysisRetryValidationError(
-                    "미시행 문항은 재시도할 수 "
-                    "없습니다: "
-                    f"{retry_item.question_code}",
-                )
-
-            if isinstance(
-                retry_item,
-                ReissueAudioUrlItem,
-            ):
-                updated_responses[
-                    retry_item.question_code
-                ] = self._merge_reissued_audio(
-                    original_response=(
-                        original_response
-                    ),
-                    retry_item=retry_item,
-                )
-                continue
-
-            if isinstance(
-                retry_item,
-                ReplaceResponseItem,
-            ):
-                updated_responses[
-                    retry_item.question_code
-                ] = self._replace_response(
-                    original_response=(
-                        original_response
-                    ),
-                    retry_item=retry_item,
-                )
-                continue
-
-            raise AnalysisRetryValidationError(
-                "지원하지 않는 재시도 작업입니다.",
-            )
 
         updated_payload = (
             original_request.model_dump(
@@ -166,6 +117,72 @@ class AnalysisRetryService:
             ) from error
 
         return updated_request
+
+    @classmethod
+    def _merge_response_items(
+        cls,
+        *,
+        original_responses: list,
+        retry_request: AnalysisRetryRequest,
+    ) -> dict[str, AdministeredQuestionResponse]:
+        responses_by_code = {
+            response.question_code: response
+            for response in original_responses
+        }
+        updated_responses = dict(
+            responses_by_code,
+        )
+
+        for retry_item in retry_request.items:
+            original_response = (
+                responses_by_code[
+                    retry_item.question_code
+                ]
+            )
+
+            if not isinstance(
+                original_response,
+                AdministeredQuestionResponse,
+            ):
+                raise AnalysisRetryValidationError(
+                    "미시행 문항은 재시도할 수 "
+                    "없습니다: "
+                    f"{retry_item.question_code}",
+                )
+
+            if isinstance(
+                retry_item,
+                ReissueAudioUrlItem,
+            ):
+                updated_responses[
+                    retry_item.question_code
+                ] = cls._merge_reissued_audio(
+                    original_response=(
+                        original_response
+                    ),
+                    retry_item=retry_item,
+                )
+                continue
+
+            if isinstance(
+                retry_item,
+                ReplaceResponseItem,
+            ):
+                updated_responses[
+                    retry_item.question_code
+                ] = cls._replace_response(
+                    original_response=(
+                        original_response
+                    ),
+                    retry_item=retry_item,
+                )
+                continue
+
+            raise AnalysisRetryValidationError(
+                "지원하지 않는 재시도 작업입니다.",
+            )
+
+        return updated_responses
 
     @staticmethod
     def _validate_analysis_state(
@@ -409,3 +426,100 @@ class AnalysisRetryService:
             stt=retry_item.stt,
             timing=retry_item.timing,
         )
+
+
+class DailyAnalysisRetryService:
+    """일상 CIST 부분 갱신 분석의 재시도 요청을 병합한다."""
+
+    def merge_request(
+        self,
+        *,
+        analysis: StoredAnalysis,
+        retry_request: AnalysisRetryRequest,
+    ) -> DailyAnalysisCreateRequest:
+        AnalysisRetryService._validate_analysis_state(
+            analysis,
+        )
+        original_request = (
+            self._load_original_request(
+                analysis,
+            )
+        )
+        expected_items = (
+            AnalysisRetryService
+            ._load_expected_retry_items(
+                analysis,
+            )
+        )
+        AnalysisRetryService._validate_retry_request(
+            analysis=analysis,
+            retry_request=retry_request,
+            expected_items=expected_items,
+        )
+        updated_responses = (
+            AnalysisRetryService
+            ._merge_response_items(
+                original_responses=(
+                    original_request.responses
+                ),
+                retry_request=retry_request,
+            )
+        )
+        updated_payload = (
+            original_request.model_dump(
+                mode="json",
+            )
+        )
+        updated_payload["responses"] = [
+            updated_responses[
+                response.question_code
+            ].model_dump(
+                mode="json",
+            )
+            for response
+            in original_request.responses
+        ]
+
+        try:
+            return (
+                DailyAnalysisCreateRequest
+                .model_validate(
+                    updated_payload,
+                )
+            )
+        except ValidationError as error:
+            raise AnalysisRetryValidationError(
+                "재시도 요청을 병합한 결과가 "
+                "일상 CIST 분석 계약과 일치하지 "
+                "않습니다.",
+            ) from error
+
+    @staticmethod
+    def _load_original_request(
+        analysis: StoredAnalysis,
+    ) -> DailyAnalysisCreateRequest:
+        try:
+            request = (
+                DailyAnalysisCreateRequest
+                .model_validate(
+                    analysis.request_body,
+                )
+            )
+        except ValidationError as error:
+            raise AnalysisRetryValidationError(
+                "저장된 일상 분석 요청이 "
+                "올바르지 않습니다.",
+            ) from error
+
+        if (
+            request.analysis_id
+            != analysis.analysis_id
+            or request.session_id
+            != analysis.assessment_id
+        ):
+            raise AnalysisRetryValidationError(
+                "저장된 일상 분석 요청의 식별자가 "
+                "분석 작업과 일치하지 않습니다.",
+            )
+
+        return request

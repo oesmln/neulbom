@@ -10,6 +10,9 @@ import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.Analy
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisRetryRequest;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisStatusResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.ErrorResponse;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisAcceptedResponse;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisCreateRequest;
+import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.DailyAnalysisStatusResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.RecognitionPlanRequest;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.RecognitionPlanResponse;
 import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
@@ -80,6 +83,38 @@ public class AiServerClient {
                 idempotencyKey,
                 body,
                 AnalysisAcceptedResponse.class));
+    }
+
+    public DailyAnalysisAcceptedResponse createDailyCognitiveAnalysis(
+            String idempotencyKey,
+            DailyAnalysisCreateRequest body
+    ) {
+        return execute(() -> post(
+                "/v1/daily-cognitive-analyses",
+                idempotencyKey,
+                body,
+                DailyAnalysisAcceptedResponse.class));
+    }
+
+    public DailyAnalysisStatusResponse getDailyCognitiveAnalysis(UUID analysisId) {
+        return execute(() -> restClient.get()
+                .uri(uri("/v1/daily-cognitive-analyses/" + analysisId))
+                .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(DailyAnalysisStatusResponse.class));
+    }
+
+    public DailyAnalysisAcceptedResponse retryDailyCognitiveAnalysis(
+            UUID analysisId,
+            String idempotencyKey,
+            AnalysisRetryRequest body
+    ) {
+        return execute(() -> post(
+                "/v1/daily-cognitive-analyses/" + analysisId + "/retry",
+                idempotencyKey,
+                body,
+                DailyAnalysisAcceptedResponse.class));
     }
 
     private <T> T post(String path, String idempotencyKey, Object body, Class<T> responseType) {

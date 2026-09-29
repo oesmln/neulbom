@@ -1,3 +1,4 @@
+-- Apply after the AI analysis snapshot and operation migrations (V25-V27).
 CREATE TABLE cognitive_feature_snapshots (
     snapshot_id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -16,6 +17,21 @@ public final class AiServerContracts {
     public static final String QUESTION_SET_VERSION = "cist-v1";
     public static final String WRONG_EVENT_RULE_VERSION = "wrong-event-v1";
     public static final String TIMEZONE = "Asia/Seoul";
+    public static final String FEATURE_SNAPSHOT_SCHEMA_VERSION = "cognitive-feature-snapshot-v1";
+    public static final String AST_MODEL_VERSION = "final_ast_core4_epoch6_3seed_ensemble";
+    public static final String KCELECTRA_MODEL_VERSION = "final_kcelectra_service_352clips_seed_ensemble_v1";
+    public static final String FUSION_MODEL_VERSION = "final_fusion_lr_21subjects_ast20_mean_logit_3seed_v2";
+    public static final String THRESHOLD_VERSION = "fusion-threshold-v2";
+    public static final Set<String> DAILY_ORIENTATION_CODES = Set.of(
+            "orientation_year",
+            "orientation_month",
+            "orientation_day",
+            "orientation_weekday",
+            "orientation_place");
+    public static final Set<String> DAILY_ATTENTION_CODES = Set.of(
+            "attention_digit_span_4",
+            "attention_digit_span_5",
+            "attention_word_reverse");
 
     private AiServerContracts() {
     }
@@ -262,6 +278,55 @@ public final class AiServerContracts {
     }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AstQuestionFeatureSnapshot(
+            String questionCode,
+            String category,
+            BigDecimal dementiaLogit,
+            int segmentCount
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record KcElectraQuestionFeatureSnapshot(
+            String questionCode,
+            String category,
+            BigDecimal dementiaLogit
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record WrongEventFeatureObservation(
+            String questionCode,
+            Integer wrongEvent
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ResponseDelayFeatureObservation(
+            String questionCode,
+            Long responseDelayMs
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record CognitiveFeatureSnapshot(
+            String schemaVersion,
+            String questionSetVersion,
+            String wrongEventRuleVersion,
+            String astModelVersion,
+            String kcelectraModelVersion,
+            String fusionModelVersion,
+            String thresholdVersion,
+            BigDecimal modelScore,
+            List<AstQuestionFeatureSnapshot> astQuestionFeatures,
+            List<KcElectraQuestionFeatureSnapshot> kcelectraQuestionFeatures,
+            List<WrongEventFeatureObservation> wrongEventObservations,
+            List<ResponseDelayFeatureObservation> responseDelayObservations,
+            FusionFeatures fusionFeatures
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record FinalAnalysisResult(
             String questionSetVersion,
             String wrongEventRuleVersion,
@@ -273,6 +338,7 @@ public final class AiServerContracts {
             boolean riskFlag,
             String riskLevel,
             FusionFeatures features,
+            CognitiveFeatureSnapshot featureSnapshot,
             List<QuestionAnalysisResult> questionResults
     ) {
     }
@@ -288,6 +354,91 @@ public final class AiServerContracts {
             String reasonCode,
             List<RetryItem> retryItems,
             FinalAnalysisResult result
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record DailyAnalysisCreateRequest(
+            String analysisType,
+            UUID analysisId,
+            UUID sessionId,
+            UUID baselineAnalysisId,
+            String questionSetVersion,
+            String wrongEventRuleVersion,
+            LocalDate assessmentLocalDate,
+            String timezone,
+            SttConfig sttConfig,
+            BigDecimal baselineModelScore,
+            CognitiveFeatureSnapshot inputSnapshot,
+            List<AdministeredQuestionResponse> responses
+    ) {
+        public DailyAnalysisCreateRequest(
+                UUID analysisId,
+                UUID sessionId,
+                UUID baselineAnalysisId,
+                LocalDate assessmentLocalDate,
+                BigDecimal baselineModelScore,
+                CognitiveFeatureSnapshot inputSnapshot,
+                List<AdministeredQuestionResponse> responses
+        ) {
+            this(
+                    "daily_partial_update",
+                    analysisId,
+                    sessionId,
+                    baselineAnalysisId,
+                    QUESTION_SET_VERSION,
+                    WRONG_EVENT_RULE_VERSION,
+                    assessmentLocalDate,
+                    TIMEZONE,
+                    SttConfig.googleChirp3(),
+                    baselineModelScore,
+                    inputSnapshot,
+                    responses);
+        }
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record DailyAnalysisAcceptedResponse(
+            UUID analysisId,
+            UUID sessionId,
+            String status,
+            Instant createdAt
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record DailyAnalysisResult(
+            String resultType,
+            UUID baselineAnalysisId,
+            BigDecimal baselineModelScore,
+            BigDecimal inputModelScore,
+            BigDecimal estimatedModelScore,
+            BigDecimal scoreDeltaFromBaseline,
+            BigDecimal scoreDeltaFromPrevious,
+            String modelVersion,
+            BigDecimal decisionThreshold,
+            BigDecimal reviewThreshold,
+            String thresholdVersion,
+            boolean riskFlag,
+            String riskLevel,
+            List<String> updatedQuestionCodes,
+            FusionFeatures features,
+            CognitiveFeatureSnapshot outputSnapshot,
+            List<QuestionAnalysisResult> questionResults
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record DailyAnalysisStatusResponse(
+            UUID analysisId,
+            UUID sessionId,
+            String status,
+            Instant createdAt,
+            Instant updatedAt,
+            boolean retryable,
+            String reasonCode,
+            List<RetryItem> retryItems,
+            DailyAnalysisResult result
     ) {
     }
 

@@ -330,6 +330,37 @@ def test_rejects_missing_core_category(
         )
 
 
+def test_returns_partial_question_features_without_core4(
+    service: KcElectraInferenceService,
+) -> None:
+    results = service.infer_question_features(
+        (
+            KcElectraClipInput(
+                question_code="orientation_year",
+                raw_transcript="방향답변1",
+            ),
+            KcElectraClipInput(
+                question_code=(
+                    "attention_digit_span_4"
+                ),
+                raw_transcript="주의답변",
+            ),
+        ),
+    )
+
+    assert tuple(
+        result.question_code
+        for result in results
+    ) == (
+        "orientation_year",
+        "attention_digit_span_4",
+    )
+    assert tuple(
+        result.dementia_logit
+        for result in results
+    ) == pytest.approx((0.3, 0.6))
+
+
 def test_rejects_duplicate_question_code(
     service: KcElectraInferenceService,
 ) -> None:
