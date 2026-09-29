@@ -2,6 +2,7 @@ package com.neulbom.backend.notification;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -33,6 +34,35 @@ class NotificationIntegrationTest {
     @Autowired private UserRepository userRepository;
     @Autowired private UuidGenerator uuidGenerator;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private PushDeviceRepository pushDevices;
+
+    @Test
+    void guardianCanRegisterAndRemoveOnlyTheirOwnPushDevice() throws Exception {
+        UserEntity guardian = saveUser("device-guardian", "guardian");
+        UserEntity otherGuardian = saveUser("device-other", "guardian");
+        UserEntity elder = saveUser("device-elder", "elder");
+        String token = "ExponentPushToken[" + UUID.randomUUID() + "]";
+        String body = "{\"expo_push_token\":\"" + token + "\",\"platform\":\"android\"}";
+
+        mockMvc.perform(post("/api/v1/notifications/devices").with(jwtFor(elder))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/notifications/devices").with(jwtFor(guardian))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/v1/notifications/devices").with(jwtFor(guardian))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(pushDevices.findAllByUserId(guardian.getId())).hasSize(1);
+        mockMvc.perform(delete("/api/v1/notifications/devices").with(jwtFor(otherGuardian))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(pushDevices.findById(token)).isPresent();
+        mockMvc.perform(delete("/api/v1/notifications/devices").with(jwtFor(guardian))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(pushDevices.findById(token)).isEmpty();
+    }
 
     @Test
     void workerPushListFilterReadAndReadAllAreOwnerSafeAndIdempotent() throws Exception {
@@ -123,6 +153,10 @@ class NotificationIntegrationTest {
     }
 
     private UserEntity saveUser(String prefix) {
+        return saveUser(prefix, "elder");
+    }
+
+    private UserEntity saveUser(String prefix, String role) {
         UUID id = uuidGenerator.generate();
         Instant now = Instant.now();
         return userRepository.save(new UserEntity(
@@ -130,7 +164,7 @@ class NotificationIntegrationTest {
                 prefix + "-" + id + "@example.com",
                 null,
                 prefix,
-                "elder",
+                role,
                 LocalDate.of(1945, 1, 1),
                 "80s_plus",
                 "female",

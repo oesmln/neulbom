@@ -86,8 +86,8 @@ public class GeminiDailyDiaryWriter implements DailyDiaryWriter {
 
     private String prompt(LocalDate date, List<List<QaPair>> conversations) {
         StringBuilder builder = new StringBuilder();
-        builder.append("늘봄 사용자가 하루 동안 나눈 정서 대화를 바탕으로 개인 일기를 한국어로 작성하세요. ")
-                .append("아래에는 같은 날짜의 여러 대화가 시간 순서대로 들어 있습니다. 모든 대화의 중요한 사실과 사건을 함께 반영해 일기 한 편으로 자연스럽게 통합하세요. ")
+        builder.append("늘봄 사용자가 방금 마친 정서 대화를 바탕으로 개인 일기를 한국어로 작성하세요. ")
+                .append("아래 대화의 중요한 사실과 사건을 반영해 일기 한 편을 작성하세요. ")
                 .append("세션별 요약을 따로 나열하거나 같은 내용을 반복하지 마세요. ")
                 .append("답변에 명시된 사실만 사용하고, 장소·사람·행동·감정·원인·시간을 추측하거나 새로 만들지 마세요. 사용자가 직접 말하지 않은 하루의 기분이나 평가(예: 평온했다, 행복했다, 보람찼다)를 결론처럼 덧붙이지 마세요. ")
                 .append("짧거나 모호한 답변은 내용을 부풀리지 말고, 서로 다른 세션의 답변이 충돌하면 임의로 하나를 선택하지 마세요. ")

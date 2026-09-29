@@ -12,7 +12,7 @@
 
 - Figma Make v45에 노출된 모든 고령자·보호자 화면을 구현 범위로 확정한다. Figma에 현재 노출되지 않은 기존 계획 기능도 삭제하지 않고 후속 구현 범위로 유지한다.
 - 로그인 상태의 비밀번호 변경, 마이페이지 알림 설정, 캐릭터 성장 단계·월간 활동·연속 출석·경험치 내역, 회원탈퇴 계약을 명시한다.
-- AI 정서 문답 대화 내역 조회와 `Asia/Seoul` 기준 다음 날 0시 일기 생성 작업의 예약·처리·실패 상태를 명시한다.
+- AI 정서 문답 대화 내역 조회와 세션 종료 직후의 일기 생성·재시도 상태를 명시한다. (#219)
 - 기억력 게임 화면의 짝 맞춤 수, 시도 횟수, 경과 시간, 재시작 횟수와 중복 결과 방지를 명시한다.
 - 알림 유형·심각도·상태 배지와 화면 이동용 `target_route`, `reference_type`, `reference_id` payload를 고정한다.
 - 상담 기관 검색을 시·도/시·군·구 행정구역 코드와 병원·치매안심센터·보건소 유형으로 조회하고 네이버 지도·기관 사이트 링크를 제공하도록 구체화한다.
@@ -35,7 +35,7 @@
 - 결과 화면에 정규화 점수와 별도로 화면 표시 점수(`display_score`, `score_max`, `score_rate`)를 제공한다.
 - 캘린더 일기 활동의 감정(`mood`, `mood_level`), 보호자 반응의 `cry` 유형, 알림 전체 읽음 처리를 명세한다.
 - AI 정서 문답은 세션 종료 시 캐릭터가 고령자에게 정성적 결과와 격려 메시지를 안내하고, 정확한 점수·상세 분석은 보호자 화면에만 제공한다.
-- 하루 여러 번의 대화를 허용하고, 세션별 분석 결과를 `Asia/Seoul` 기준 하루 단위로 집계해 보호자 리포트와 일일 일기 생성에 사용한다.
+- 하루 여러 번의 대화를 허용하고, 각 세션을 별도 일기로 생성한다. `Asia/Seoul` 기준 하루 단위 집계는 보호자 리포트에 사용한다. (#219)
 - 상담 센터는 초기에는 지역별 목록과 지도·기관 사이트 외부 링크만 제공하고, 실시간 예약·일정 연동은 후속 확장 기능으로 분리한다.
 - AI 정서 문답과 게임 세션 완료 시 서버가 경험치를 자동 적립하고, 동일 이벤트의 중복 적립을 차단한다.
 - 사용자에게 노출되는 결과는 의료적 진단이 아니라 **인지기능 저하 의심 신호**, **추가 확인 권장**, **스크리닝 참고 점수**로 표현한다.
@@ -247,6 +247,8 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `GET` | `/guardian/{guardian_id}/report` | 선택한 고령자 종합 리포트 | 필요 | `guardian` | MVP |
 | `GET` | `/guardian/{guardian_id}/report/export` | 보호자 리포트 PDF·CSV 내보내기 | 필요 | `guardian` | MVP |
 | `POST` | `/notifications/push` | 서비스 알림 생성·발송 | 서버 전용 (`server:write`) | 서버 워커 | MVP |
+| `POST` | `/notifications/devices` | Expo 푸시 토큰 등록 | 필요 | `guardian` | MVP |
+| `DELETE` | `/notifications/devices` | 현재 보호자 기기의 푸시 토큰 해제 | 필요 | `guardian` | MVP |
 | `GET` | `/notifications/{user_id}` | 알림 목록 및 미읽음 수 | 필요 | 본인 | MVP |
 | `PATCH` | `/notifications/{id}/read` | 알림 읽음 처리 | 필요 | 수신자 | MVP |
 | `PATCH` | `/notifications/read-all` | 현재 사용자의 미읽음 알림 전체 읽음 처리 | 필요 | 수신자 | MVP |
@@ -1894,7 +1896,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 모든 외부 호출은 `EXTERNAL_API_CONNECT_TIMEOUT`, `EXTERNAL_API_READ_TIMEOUT`, `EXTERNAL_API_RETRY_COUNT`를 사용한다. `429`와 `5xx`는 제한된 횟수만 재시도하고, 최종 실패·timeout·응답 schema 오류는 `503`으로 반환한다. API key와 provider 응답 원문은 로그에 남기지 않는다.
 운영 배포는 `GEMINI_API_KEY`가 있어야 시작된다. 일상 문답의 첫 질문과 후속 질문, 세션 요약은 같은 모델을 사용한다. 저장된 세션 요약이 없는 일기는 Gemini 요약 요청 실패 시 자동 생성되지 않으며, 기존 요약이 있으면 다시 사용한다.
-스케줄러는 최근 7일의 활성 고령자 계정에서 종료된 정서 문답에서 일기 생성 작업이 없고 답변 텍스트 또는 전사문이 있는 날짜를 기동 후와 매시간 다시 처리한다. 기존 생성 작업은 재사용하고, 텍스트가 아직 없으면 다음 실행까지 기다린다.
+정서 문답 종료 이벤트가 커밋되면 해당 세션의 일기를 바로 작성한다. 최근 7일간 일기가 없는 종료 세션은 기동 후와 매시간 다시 처리한다. 답변 음성 전사가 아직 준비되지 않았으면 다음 실행에서 재시도한다. 같은 세션을 다시 처리해도 일기와 알림은 중복되지 않는다. (#219)
 
 로컬 기본값은 `EXTERNAL_API_ALLOW_FALLBACK=true`일 때 deterministic fallback으로 계약·화면 연동을 검증할 수 있다. `dev`·`prod` 프로필은 fallback을 끄며, provider 설정이 없으면 `503`을 반환한다. 실제 운영 연결 전에는 각 provider의 endpoint, 모델 버전, 보관·전송 정책을 환경별 secret manager에서 설정한다. Google Cloud STT의 `GOOGLE_APPLICATION_CREDENTIALS`는 서비스 계정 JSON 경로를 가리키거나 실행 환경의 ADC를 사용하며, JSON 원문은 저장소에 두지 않는다.
 
@@ -1950,9 +1952,11 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 `POST /diaries`와 동일한 일기 객체를 반환한다.
 
+정서 문답 종료 후 서버가 이 경로의 서비스 로직으로 세션별 일기를 자동 생성한다. 같은 날 여러 세션이 있으면 서로 다른 일기가 목록에 나타난다. 동일한 `session_id`의 재요청은 기존 일기를 반환한다. 생성 직후 고령자와 일기 scope가 유효한 연결 보호자에게 각각 `diary_generated` 인앱 알림을 저장한다. `data.reference_id`는 일기 ID이고 `data.elder_id`는 대상 고령자 ID다. (#219)
+
 ### 8.3 `POST /diaries/from-daily-summary` - 하루 집계 요약으로 일기 생성
 
-`Asia/Seoul` 기준 하루가 종료된 뒤 서버 스케줄러가 호출한다. 사용자가 직접 본문을 수정해야 하는 경우에도 동일한 endpoint를 본인 권한으로 호출할 수 있다.
+일일 집계 요약으로 일기를 별도 생성해야 하는 이전 계약을 유지하는 endpoint다. 기본 자정 스케줄러는 이 endpoint로 일기를 생성하지 않는다. (#219)
 
 #### Request Body
 
@@ -1973,18 +1977,18 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
   "user_id": "usr_elder_01J...",
   "target_date": "2026-08-05",
   "status": "processing",
-  "scheduled_at": "2026-08-06T00:00:00+09:00",
+  "scheduled_at": null,
   "available_at": null,
   "diary_id": null,
   "retryable": true
 }
 ```
 
-동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 세션이 없거나 요청의 `content`가 명시적으로 빈 문자열이면 `conversation_incomplete`로 종료한다. 자동 일기 작업은 일기용 문답 답변이 하나도 없을 때 빈 문자열을 보내 CIST 표본이나 일반 활동 요약으로 일기를 대신 만들지 않는다.
+동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 세션이 없거나 요청의 `content`가 명시적으로 빈 문자열이면 `conversation_incomplete`로 종료한다. 기본 자동 일기 경로는 세션 종료 직후 세션별 문답 답변을 사용하며, CIST 표본이나 일반 활동 요약으로 일기를 대신 만들지 않는다. (#219)
 
 ### 8.3.1 `GET /diaries/{user_id}/generation-status` - 날짜별 일기 생성 상태
 
-홈 일기 카드와 대화 완료 화면에서 다음 날 0시 생성 예정·처리·완료·미완료 상태를 표시하는 데 사용한다.
+해당 날짜의 일기 생성 상태를 조회한다. 세션별 일기가 있으면 가장 최근 일기를 `completed`로 반환하고, 없으면 `processing`과 안내 문구를 반환한다. 이전 방식의 일일 생성 작업이 있으면 해당 작업 상태를 반환한다. (#219)
 
 #### Query Parameters
 
@@ -2262,7 +2266,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 `daily_summary`에는 `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`, `conversation_results[]`를 포함한다. `conversation_results[]`에는 날짜 안에 종료된 각 세션의 `session_id`, `session_type`, `result_type`, `display_label`, `screening_reference_score`, `domain_scores`를 포함한다. `screening_reference_score`와 `domain_scores`는 보호자 리포트에서만 반환한다.
 
-서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 종료된 같은 날짜의 `emotional_qa` 세션을 모두 시작 시각 순서로 읽고, 각 세션의 Gemini 질문·답변과 음성 답변 전사문을 모아 Gemini가 하루 일기 한 편으로 통합한다. 세션별 요약은 분석 기록으로 각각 보관하며, 일기에는 CIST 문제은행 답변을 포함하지 않는다. 음성 답변 전사가 아직 준비되지 않은 경우 일부 답변만으로 일기를 확정하지 않고 다음 복구 실행에서 다시 시도한다. 일기는 확인된 답변 사실만 반영하고 모호한 내용을 추측하지 않는다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
+서버는 `emotional_qa` 세션 종료 직후 해당 세션의 Gemini 질문·답변과 음성 전사문으로 일기 한 편을 만든다. 같은 날짜에 여러 세션을 끝내면 일기도 여러 편 생성된다. 일기에는 CIST 문제은행 답변을 포함하지 않는다. 음성 전사가 아직 준비되지 않은 경우 일부 답변만으로 일기를 확정하지 않고 매시간 복구 작업에서 다시 시도한다. 일기는 확인된 답변 사실만 반영하고 모호한 내용을 추측하지 않는다. `Asia/Seoul` 기준 매일 00:05의 전날 집계는 보호자 리포트용 일일 요약만 생성하며 누락된 세션 일기를 재시도한다. `baseline`·`onboarding` 세션은 제외한다. (#219)
 
 `trend_points[]` 예시:
 
@@ -2320,6 +2324,12 @@ Figma의 리포트 내보내기 동작에 사용한다. 연결·동의·`screeni
 동일 사용자·대상자·기간·형식 요청은 진행 중 작업을 재사용한다. 다운로드와 재생성 접근도 audit log에 남기고, 원본 파일 보존 기간은 운영 정책으로 제한한다.
 
 ## 11. 알림 API
+
+### 11.0 보호자 기기 푸시 등록
+
+`POST /notifications/devices`와 `DELETE /notifications/devices`는 로그인한 보호자 JWT로 호출한다. 요청 본문은 `expo_push_token`(Expo 또는 Exponent push token)과 `platform`(`ios` 또는 `android`)이며 정상 처리 시 `204`를 반환한다. 등록은 같은 토큰에 대해 멱등이고, 같은 기기에서 다른 보호자로 로그인하면 소유자를 새 계정으로 갱신한다. 해제는 현재 계정 소유의 토큰만 삭제한다. 푸시 토큰은 응답이나 로그에 노출하지 않는다. (#219)
+
+일기 생성 시 고령자 인앱 알림과 일기 접근 scope가 유효한 보호자 인앱 알림을 저장한다. 보호자 기기가 등록되어 있고 푸시 설정이 켜져 있으면 DB 커밋 후 Expo Push Service에 OS 푸시를 요청한다. 알림에는 일기 원문을 넣지 않고 `reference_id`(일기 ID)와 `elder_id`만 화면 이동 데이터로 전달한다. 앱에서 푸시를 누르면 해당 보호자 일기를 연다. 실제 기기 수신에는 EAS 프로젝트 ID와 Android FCM v1 또는 iOS APNs 자격증명이 필요하다. (#219)
 
 ### 11.1 `POST /notifications/push` - 푸시 알림 생성
 
@@ -2520,7 +2530,7 @@ provider 실패는 `503`이 아니라 빈 `centers`와 `provider_status`로 응�
 | CIST 결과·일기 | `GET /screenings/{session_id}/result`, `GET /summary/session/{session_id}`, `POST /diaries/from-session` | 고령자 정성 결과, 보호자용 점수·영역별 결과, 요약, 일기 저장 |
 | AI 정서 문답 | `POST /sessions` with `session_type=emotional_qa`, `POST /sessions/{session_id}/questions/next`, `POST /sessions/{session_id}/answers`, `PATCH /sessions/{session_id}/end`, `GET /screenings/{session_id}/result` | Gemini 일상 질문·후속 질문 5개와 CIST 문제은행 문항 2개, 일기 요약, XP 적립 |
 | 대화 내역 | `GET /sessions`, `GET /sessions/{session_id}`, `GET /sessions/{session_id}/answers` | 세션 목록, 질문·답변·전사문, 중단 세션 복구 |
-| 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-daily-summary`, `GET /diaries/{user_id}/generation-status` | KST 기준 다회 대화 집계, 보호자 리포트, 0시 일기 생성 작업과 상태 |
+| 하루 대화 리포트·일기 | `POST /summary/daily`, `GET /summary/daily/{user_id}`, `GET /guardian/{guardian_id}/report?date=...`, `POST /diaries/from-session`, `GET /diaries/{user_id}/generation-status` | 세션 종료 직후 개별 일기, KST 기준 일일 집계와 보호자 리포트 |
 | 고령자 홈 | `GET /dashboard/{user_id}`, `GET /character/{user_id}`, `GET /notifications/{user_id}` | 캐릭터, 최근 검사, 오늘 할 일, 알림 |
 | 달력·일기 | `GET /calendar/{user_id}/activities`, `GET /diaries/{user_id}`, `GET /diaries/{diary_id}`, `POST /recordings` with `purpose=diary`, `POST /diaries` | 날짜별 일기·활동·감정, 음성 일기 녹음 |
 | 기억력 게임 | `POST /game/result`, `GET /game/{user_id}/history`, `GET /character/{user_id}` | 짝 맞춤 수, 시도·시간·재시작, XP와 성장 단계 |

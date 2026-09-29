@@ -13,9 +13,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Creates the previous day's summary and diary after the Asia/Seoul day closes.
- * The repository uniqueness constraints make retries safe when the process was
- * down at midnight; a later run simply receives the existing summary/job.
+ * Creates the previous day's report summary after the Asia/Seoul day closes.
+ * Missing session diaries are retried, but completed sessions normally create
+ * their diaries immediately when they end.
  */
 @Component
 @ConditionalOnProperty(name = "app.scheduler.enabled", havingValue = "true", matchIfMissing = true)
@@ -52,8 +52,7 @@ public class DailyReportScheduler {
 
     private void processUser(UserEntity user, LocalDate targetDate) {
         try {
-            // 전날 정서 문답을 Gemini 요약으로 묶어 일기 본문까지 만든다.
-            dailyDiaryGenerator.generate(user.getId(), targetDate);
+            dailyDiaryGenerator.summarizeDay(user.getId(), targetDate);
         } catch (RuntimeException exception) {
             // One user's provider or data failure must not prevent the rest of
             // the elder accounts from receiving their next report.

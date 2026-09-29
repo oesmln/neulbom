@@ -63,11 +63,14 @@
 | 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
 | 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
 | 일기 | 생성·목록·상세·생성 상태 | `/diaries/**` | [ ] |
+| 일기 | 같은 날 여러 문답의 개별 일기·고령자/보호자 목록 갱신 | `POST /sessions/{sessionId}/end`, `GET /diaries/{userId}` | [ ] (#219, 실기기 확인 필요) |
 | 일기 | 보호자 반응 조회·등록 | `GET/POST /diaries/{diaryId}/reactions` | [x] |
 | 캘린더 | 기간별 활동 조회 | `GET /calendar/{userId}/activities` | [ ] |
 | 게임 | 게임 결과 저장·기록 조회 | `POST /game/result`, `GET /game/{userId}/history` | [ ] |
 | 캐릭터 | 캐릭터·경험치 기록 조회 | `GET /character/{userId}`, `GET /character/{userId}/xp-history` | [ ] |
 | 알림 | 목록·개별 읽음·전체 읽음 | `/notifications/**` | [ ] |
+| 알림 | 일기 생성 시 보호자 인앱 알림·목록 갱신 | `GET /notifications/{guardianId}` | [ ] (#219, 실기기 확인 필요) |
+| 알림 | 보호자 Expo 토큰 등록·해제와 실기기 OS 푸시 | `POST/DELETE /notifications/devices` | [ ] (#219, EAS 자격증명·실기기 확인 필요) |
 | 보호자 | 초대 발급·확인·수락·고령자 목록·연결 관리 | `/guardian/**` | [x] |
 | 보호자 | 고령자 리포트 조회 | `GET /guardian/{guardianId}/report` | [x] |
 | 상담 | 지역·시설 유형별 센터 조회 | `GET /counseling/centers` | [ ] |

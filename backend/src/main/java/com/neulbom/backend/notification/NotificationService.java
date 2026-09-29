@@ -29,6 +29,7 @@ import com.neulbom.backend.user.UserPreferenceEntity;
 import com.neulbom.backend.user.UserPreferenceRepository;
 import com.neulbom.backend.user.UserRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,6 +78,7 @@ public class NotificationService {
     private final UuidGenerator uuidGenerator;
     private final Clock clock;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public NotificationService(
             NotificationRepository notificationRepository,
@@ -87,7 +89,8 @@ public class NotificationService {
             GuardianAccessService guardianAccessService,
             UuidGenerator uuidGenerator,
             Clock clock,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
@@ -98,6 +101,7 @@ public class NotificationService {
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -201,7 +205,9 @@ public class NotificationService {
                 serializeData(withEventId(data, normalizedEventKey)),
                 normalizedEventKey,
                 now);
-        return notificationRepository.save(notification);
+        NotificationEntity saved = notificationRepository.save(notification);
+        if (TYPE_DIARY_GENERATED.equals(type)) eventPublisher.publishEvent(new NotificationCreatedEvent(saved.getId()));
+        return saved;
     }
 
     public boolean isOsPushEnabled(UUID recipientUserId, String type) {
@@ -271,7 +277,7 @@ public class NotificationService {
         return createForUser(
                 elderId,
                 "오늘의 대화 집계 완료",
-                "오늘 활동을 바탕으로 일기를 만들 수 있어요.",
+                "오늘의 일기와 활동 기록을 확인해 보세요.",
                 TYPE_SUMMARY,
                 "success",
                 "완료",
@@ -282,15 +288,18 @@ public class NotificationService {
     @Transactional
     public NotificationEntity notifyDiaryGenerated(UUID elderId, UUID diaryId) {
         ObjectNode data = referenceData("/diaries/" + diaryId, "diary", diaryId, elderId);
-        return createForUser(
+        NotificationEntity notification = createForUser(
                 elderId,
                 "일기 생성 완료",
-                "어제 대화를 바탕으로 오늘 일기가 업데이트되었어요.",
+                "새 일기가 준비되었어요. 지금 확인해 보세요.",
                 TYPE_DIARY_GENERATED,
                 "success",
                 "완료",
                 data,
                 "diary-generated:" + diaryId);
+        notifyGuardians(elderId, "새 일기가 도착했어요", "연결된 어르신의 새 일기를 확인해 보세요.",
+                TYPE_DIARY_GENERATED, "info", "새 일기", data, "guardian-diary:" + diaryId, "diary");
+        return notification;
     }
 
     @Transactional
@@ -374,8 +383,8 @@ public class NotificationService {
             String eventKeyPrefix,
             String requiredScope
     ) {
-        if (!guardianAccessService.hasAgreedGuardianConsent(elderId)) return;
         for (GuardianLinkEntity link : guardianLinkRepository.findAllByElderIdAndStatus(elderId, GuardianLinkEntity.ACTIVE)) {
+            if (link.isConsentRequired() && !guardianAccessService.hasAgreedGuardianConsent(elderId)) continue;
             if (!hasScope(link.getId(), requiredScope)) continue;
             UserEntity guardian = userRepository.findById(link.getGuardianId())
                     .filter(UserEntity::isActive)

@@ -153,7 +153,7 @@
 - [x] `POST /diaries` - 텍스트·음성 일기 생성
 - [x] `POST /diaries/from-session` - AI 문답 요약으로 일기 생성
 - [x] `POST /diaries/from-daily-summary` - 하루 대화 집계 요약으로 일기 생성
-- [x] `GET /diaries/{user_id}/generation-status` - 날짜별 0시 일기 생성 상태 조회
+- [x] `GET /diaries/{user_id}/generation-status` - 날짜별 일기 생성 상태 조회
 - [x] `GET /diaries/{user_id}` - 날짜별 일기 목록 조회
 - [x] `GET /diaries/{diary_id}` - 일기 상세 조회
 - [x] `PATCH /diaries/{diary_id}` - 일기 수정
@@ -164,8 +164,8 @@
 
 완료 조건: 문답 결과를 일기로 저장하고, 캘린더에서 활동을 확인하며, 보호자가 일기에 반응할 수 있다. `DiaryService`는 KST 기준 생성 상태·daily_summary 중복·작성자/보호자 scope를 저장·검증한다.
 
-구현 근거: 일기 CRUD·세션/일일 요약 연결·생성 job 상태·reaction unique 정책·날짜/활동 유형 캘린더 aggregation을 구현했고, 실제 푸시 알림 이벤트와 0시 외부 워커 스케줄은 알림/운영 워커 연결 단계에서 이어간다.
-- [x] 자정 일일 리포트가 전날 정서 문답의 Gemini 세션 요약을 이어 붙여 일기 본문으로 저장 (`DailyDiaryGenerator`, 음성 답변은 STT 전사문 사용). 세션 종료 즉시 생성은 `app.diary.generate-on-session-end`(기본 false) 로컬 테스트 옵션
+구현 근거: 일기 CRUD·세션/일일 요약 연결·생성 job 상태·reaction unique 정책·날짜/활동 유형 캘린더 aggregation을 구현했다. 일기 생성 인앱 알림과 Expo 푸시 전송 코드를 연결했으며, 휴대폰 수신 확인에는 EAS 프로젝트와 FCM/APNs 자격증명이 필요하다. (#219)
+- [x] 정서 문답 세션 종료 직후 Gemini가 해당 세션의 답변·STT 전사문으로 일기 한 편을 생성한다. 같은 날 여러 세션은 별도 일기로 저장한다. 자정 작업은 일일 리포트 요약만 만들고 누락된 세션 일기를 재시도한다. (#219)
 
 ### 9차. 게임·캐릭터·캠페인 API
 
@@ -953,7 +953,7 @@
 - [x] `POST /diaries/from-daily-summary`를 구현한다.
 - [x] 생성 요청은 `202`와 `processing|completed|failed|conversation_incomplete` 작업 상태를 반환한다.
 - [x] `GET /diaries/{user_id}/generation-status`를 구현한다.
-- [x] 0시 생성 예정·처리 중·완료·실패 상태와 재시도 가능 여부를 홈·대화 완료 화면에 제공한다.
+- [x] 대화 종료 후 생성 중·완료 상태와 재시도 가능 여부를 일기 화면에 제공한다. (#219)
 - [ ] 생성 완료·실패 시 설정을 확인해 알림 이벤트를 생성한다.
 - [x] `GET /diaries/{user_id}`를 구현한다.
 - [x] `GET /diaries/{diary_id}`를 구현한다.
@@ -961,7 +961,7 @@
 - [x] `DELETE /diaries/{diary_id}`를 구현한다.
 - [x] `source_type`을 `manual`, `voice`, `session`, `daily_summary`로 관리한다.
 - [x] `daily_summary_id`를 일기와 nullable 관계로 연결한다.
-- [x] `Asia/Seoul` 기준 하루 대화 집계를 0시 이후 일기로 생성한다.
+- [x] `Asia/Seoul` 기준 하루 대화 집계는 0시 이후 리포트 요약으로 생성한다. 일기는 세션 종료 후 생성한다. (#219)
 - [x] 같은 `daily_summary_id`로 일기가 중복 생성되지 않게 한다.
 - [x] 일기에 `mood`와 `mood_level`을 저장하고 캘린더 활동의 `metadata`에 포함한다.
 - [x] `mood`를 `very_sad`, `sad`, `neutral`, `happy`, `very_happy`로 제한하고 `mood_level`을 `1~5`로 검증한다.
@@ -985,7 +985,7 @@
 - [x] 각 활동의 `reference_id`로 상세 화면 이동이 가능하게 한다.
 - [x] 일기 활동의 감정 아이콘을 `metadata.mood`와 `metadata.mood_level`로 표시한다.
 - [x] 활동이 없는 날짜의 빈 응답을 정의한다.
-- [x] 여러 대화 세션과 일일 집계·일기를 같은 `local_date` 기준으로 표시한다.
+- [x] 같은 날짜의 여러 대화 세션과 개별 일기를 모두 표시한다. (#219)
 
 ### 10단계 완료 조건
 
@@ -1069,6 +1069,7 @@
 - [x] `GET /notifications/{user_id}`를 구현한다.
 - [x] `PATCH /notifications/{id}/read`를 구현한다.
 - [x] `PATCH /notifications/read-all`을 구현한다.
+- [x] 보호자 기기의 Expo 푸시 토큰 등록·해제를 소유권과 역할 검사 후 처리한다. (#219)
 - [x] 미읽음 수를 정확하게 계산한다.
 - [x] `unread_only`, `type`, `limit` 필터를 구현한다.
 - [x] 알림의 `data`에 화면 이동용 reference ID를 저장한다.
@@ -1082,6 +1083,8 @@
 - [x] 보호자에게 위험 신호 알림을 보낼 조건을 정의한다. `caution`·`warning` 결과에 연결·동의·`screening` scope를 다시 확인해 보호자에게 전달한다.
 - [x] AI 정서 문답 요약 완료 시 알림을 생성한다.
 - [x] 일기 생성 완료와 생성 실패 알림을 구분해 생성한다.
+- [x] 일기 생성마다 일기 접근 권한이 있는 보호자의 인앱 알림을 저장하고, 등록 기기에는 커밋 후 Expo OS 푸시를 요청한다. (#219)
+- [ ] EAS 프로젝트의 FCM v1·APNs 자격증명을 설정하고 실기기 수신을 확인한다. (#219, 운영 설정)
 - [x] 검사 결과 업데이트와 인지 점수 하락 경보를 서로 다른 유형·심각도로 생성한다.
 - [x] 보호자 반응 등록 시 고령자 알림을 생성한다.
 - [ ] 캠페인 참여 완료 시 알림을 생성한다.
@@ -1163,7 +1166,7 @@
 - [ ] 보호자 응답에 연결·동의·access scope 확인 후 수치 결과가 포함되는지 확인
 - [ ] Gemini 요약 생성
 - [ ] 요약으로 일기 생성
-- [ ] 0시 이후 하루 대화 집계로 일일 일기 생성
+- [ ] 각 세션 종료 직후 개별 일기 생성과 0시 이후 하루 대화 리포트 집계 확인
 - [ ] 보호자 일기 조회
 - [ ] 보호자 반응 저장
 - [ ] 고령자 알림 생성·조회
@@ -1196,10 +1199,10 @@
 - [ ] 변경 후 다른 refresh token 폐기 확인
 - [ ] 로그아웃과 회원탈퇴 권한·상태 전이 확인
 
-#### 시나리오 H. 대화 완료 → 다음 날 일기·알림
+#### 시나리오 H. 대화 완료 → 즉시 일기·알림
 
 - [ ] 세션 대화 질문·답변·전사 내역 조회
-- [ ] 대화 완료 직후 다음 날 0시 일기 생성 예정 상태 확인
+- [ ] 대화 완료 직후 세션별 일기 생성·목록 갱신 확인
 - [ ] 생성 작업의 처리·완료·실패·대화 미완료 상태 확인
 - [ ] 생성 완료 또는 실패 알림의 유형·화면 이동 확인
 - [ ] 별도 음성 일기 업로드 후 일기와 녹음 연결 확인
