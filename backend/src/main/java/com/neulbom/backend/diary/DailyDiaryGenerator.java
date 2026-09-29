@@ -13,6 +13,7 @@ import com.neulbom.backend.analysis.api.DailySummaryRequest;
 import com.neulbom.backend.analysis.api.DailySummaryResponse;
 import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.analysis.api.SessionSummaryRequest;
+import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
 import com.neulbom.backend.diary.api.DiaryFromDailySummaryRequest;
 import com.neulbom.backend.diary.api.GenerationStatusResponse;
 import com.neulbom.backend.recording.TranscriptEntity;
@@ -28,12 +29,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 하루치 정서 문답을 Gemini 요약으로 묶어 그날의 일기를 만든다.
+ * 하루치 정서 문답을 분석 요약으로 저장하고, 전체 답변을 통합해 그날의 일기를 만든다.
  *
  * {@link DailyReportScheduler}가 자정 이후 전날 것을 만들 때 쓰는 공통 경로다. 그날의
- * 정서 문답 세션마다 세션 요약(Gemini)이 없으면 답변·STT 전사문으로 만들고, 요약문을 이어
- * 붙여 일기 본문으로 넘긴다. 문답이 없던 날은 기존과 같이 일일 요약만 만들어
- * {@code conversation_incomplete}로 남긴다. 같은 날 일기가 이미 있으면 {@link DiaryService}가
+ * 정서 문답 세션마다 세션 요약(Gemini)이 없으면 답변·STT 전사문으로 만들고, 같은 날 모든
+ * 세션의 문답을 Gemini 일기 작성기에 전달해 한 편으로 통합한다. 같은 날 일기가 이미 있으면 {@link DiaryService}가
  * 기존 것을 돌려주므로 재실행해도 안전하다.
  */
 @Component
@@ -51,6 +51,7 @@ public class DailyDiaryGenerator {
     private final TranscriptRepository transcriptRepository;
     private final AnalysisService analysisService;
     private final DiaryService diaryService;
+    private final DailyDiaryWriter dailyDiaryWriter;
 
     public DailyDiaryGenerator(
             SessionRepository sessionRepository,
@@ -59,7 +60,8 @@ public class DailyDiaryGenerator {
             QuestionRepository questionRepository,
             TranscriptRepository transcriptRepository,
             AnalysisService analysisService,
-            DiaryService diaryService
+            DiaryService diaryService,
+            DailyDiaryWriter dailyDiaryWriter
     ) {
         this.sessionRepository = sessionRepository;
         this.sessionSummaryRepository = sessionSummaryRepository;
@@ -68,25 +70,29 @@ public class DailyDiaryGenerator {
         this.transcriptRepository = transcriptRepository;
         this.analysisService = analysisService;
         this.diaryService = diaryService;
+        this.dailyDiaryWriter = dailyDiaryWriter;
     }
 
     /** {@code date}(Asia/Seoul)의 정서 문답으로 그날 일기를 만든다. 결과는 생성 상태 응답. */
     public GenerationStatusResponse generate(UUID userId, LocalDate date) {
-        List<String> summaries = new ArrayList<>();
+        List<List<QaPair>> conversations = new ArrayList<>();
         for (SessionEntity session : emotionalSessionsOn(userId, date)) {
-            String summary = summarize(session);
-            if (StringUtils.hasText(summary)) {
-                summaries.add(summary.trim());
+            List<QaPair> pairs = qaPairs(session.getId());
+            if (pairs.isEmpty()) {
+                log.info("문답 텍스트가 없어 일기 집계에서 건너뜁니다 session_id={}", session.getId());
+                continue;
             }
+            summarize(session, pairs);
+            conversations.add(pairs);
         }
         DailySummaryResponse dailySummary = analysisService.createDailySummary(
                 new DailySummaryRequest(userId, date, BUSINESS_ZONE.getId()));
-        String content = summaries.isEmpty() ? null : String.join("\n\n", summaries);
+        String content = conversations.isEmpty() ? "" : dailyDiaryWriter.write(date, conversations);
         GenerationStatusResponse status = diaryService.createFromDailySummary(
                 userId,
                 new DiaryFromDailySummaryRequest(dailySummary.dailySummaryId(), userId, DIARY_TITLE, content, null, null));
         log.info("일기 생성 user_id={} target_date={} sessions={} status={}",
-                userId, date, summaries.size(), status.status());
+                userId, date, conversations.size(), status.status());
         return status;
     }
 
@@ -100,21 +106,15 @@ public class DailyDiaryGenerator {
     }
 
     /** 세션 요약이 있으면 재사용하고, 없으면 답변·전사문으로 Gemini 요약을 만든다. */
-    private String summarize(SessionEntity session) {
+    private void summarize(SessionEntity session, List<QaPair> qaPairs) {
         SessionSummaryEntity existing = sessionSummaryRepository.findBySessionId(session.getId()).orElse(null);
         if (existing != null) {
-            return existing.getSummary();
+            return;
         }
-        List<QaPair> qaPairs = qaPairs(session.getId());
-        if (qaPairs.isEmpty()) {
-            log.info("문답 텍스트가 없어 요약을 건너뜁니다 session_id={}", session.getId());
-            return null;
-        }
-        return analysisService.createSessionSummary(
-                new SessionSummaryRequest(session.getId(), session.getUserId(), qaPairs)).summary();
+        analysisService.createSessionSummary(new SessionSummaryRequest(session.getId(), session.getUserId(), qaPairs));
     }
 
-    /** 답변 순서대로 (질문 본문, 답변 텍스트) 쌍을 만든다. 텍스트를 못 찾는 답변은 건너뛴다. */
+    /** 답변 순서대로 질문·답변 쌍을 만든다. CIST 표본은 제외하고, Gemini 음성 전사가 준비되지 않으면 재시도를 요청한다. */
     List<QaPair> qaPairs(UUID sessionId) {
         return answerRepository.findAllBySessionIdOrderByAnsweredAtAsc(sessionId).stream()
                 .map(this::toQaPair)
@@ -123,18 +123,23 @@ public class DailyDiaryGenerator {
     }
 
     private QaPair toQaPair(AnswerEntity answer) {
-        String text = answerText(answer);
-        if (!StringUtils.hasText(text)) {
+        var question = questionRepository.findById(answer.getQuestionId())
+                .filter(item -> !"cist_bank".equals(item.getQuestionSource()));
+        if (question.isEmpty()) {
             return null;
         }
-        return questionRepository.findById(answer.getQuestionId())
-                .filter(question -> !"cist_bank".equals(question.getQuestionSource()))
-                .map(question -> new QaPair(
-                        question.getId(),
-                        question.getContent(),
-                        text.trim(),
-                        question.getQuestionType()))
-                .orElse(null);
+        String text = answerText(answer);
+        if (!StringUtils.hasText(text)) {
+            if ("gemini".equals(question.get().getQuestionSource())) {
+                throw new ExternalServiceUnavailableException("일상 문답 음성 전사가 아직 준비되지 않았습니다.");
+            }
+            return null;
+        }
+        return new QaPair(
+                question.get().getId(),
+                question.get().getContent(),
+                text.trim(),
+                question.get().getQuestionType());
     }
 
     /**

@@ -22,6 +22,7 @@ import com.neulbom.backend.analysis.api.QaPair;
 import com.neulbom.backend.config.ExternalApiExecutor;
 import com.neulbom.backend.config.ExternalApiProperties;
 import com.neulbom.backend.common.exception.EmptyTranscriptException;
+import com.neulbom.backend.diary.integration.GeminiDailyDiaryWriter;
 import com.neulbom.backend.session.integration.GeminiConversationQuestionClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -187,6 +188,9 @@ class ExternalApiClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("x-goog-api-key", "gemini-secret"))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("공원에서 산책했어요")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("답변에 없는 식사, 외출, 사람, 감정")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("그 산책에 대해 조금 더 들려주시겠어요?")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("이 이야기를 조금 더 나누고 싶으세요, 아니면 다른 이야기를 해볼까요?")))
                 .andRespond(withSuccess("""
                         {"candidates":[{"content":{"parts":[{"text":"{\\"question\\":\\"공원에서 무엇이 가장 기억에 남으셨어요?\\"}"}]}}]}
                         """, MediaType.APPLICATION_JSON));
@@ -198,6 +202,33 @@ class ExternalApiClientTest {
                 2, 6);
 
         assertThat(question).isEqualTo("공원에서 무엇이 가장 기억에 남으셨어요?");
+        server.verify();
+    }
+
+    @Test
+    void geminiDailyDiaryWriterReceivesAllConversationsAndReturnsOneDiary() {
+        ExternalApiProperties properties = properties("", "", "", "gemini-secret");
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("x-goog-api-key", "gemini-secret"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("대화 1")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("대화 2")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("답변에 명시된 사실만 사용")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("하루의 기분이나 평가")))
+                .andRespond(withSuccess("""
+                        {"candidates":[{"content":{"parts":[{"text":"{\\"diary\\":\\"오늘은 아들과 비빔밥을 먹고 공원을 걸었다. 저녁에는 친구와 통화했다.\\"}"}]}}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        GeminiDailyDiaryWriter writer = new GeminiDailyDiaryWriter(
+                builder.build(), properties, new ExternalApiExecutor(properties), new ObjectMapper());
+        String diary = writer.write(java.time.LocalDate.of(2026, 9, 28), List.of(
+                List.of(new QaPair(UUID.randomUUID(), "점심에 무엇을 드셨어요?", "아들과 비빔밥을 먹었어요.", "emotion")),
+                List.of(new QaPair(UUID.randomUUID(), "오늘 누구와 이야기하셨어요?", "친구와 통화했어요.", "emotion"))));
+
+        assertThat(writer.isConfigured()).isTrue();
+        assertThat(diary).contains("아들과 비빔밥", "친구와 통화");
         server.verify();
     }
 

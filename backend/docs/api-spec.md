@@ -1286,7 +1286,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `question_source` | enum/null | `gemini`, `cist_bank`; 기존 고정 문항은 `null` |
 | `source_question_id` | string/null | 문제은행 원문 ID |
 
-일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다.
+일상 문답은 이 목록을 사용하지 않는다. 시작된 `emotional_qa` 세션에서 서버가 다음 질문을 생성·배정한다. Gemini 후속 질문은 최근 답변의 명시된 사실만 사용하며, 짧거나 모호한 답변에서 식사·사람·활동·감정을 추측하지 않는다. 슬픔·상실·질병·불안에는 짧게 공감하고 설명이나 긍정적인 결론을 강요하지 않는다.
 
 ### 6.8.1 `POST /sessions/{session_id}/questions/next` - 현재 순서의 일상 문답 질문 가져오기
 
@@ -1950,7 +1950,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 }
 ```
 
-동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 대화가 없으면 `conversation_incomplete`로 종료한다.
+동일한 `daily_summary_id`로 재요청해도 생성 작업과 일기가 중복되지 않아야 한다. 생성 완료 시 `status=completed`, `diary_id`, `available_at`을 저장하고 `diary_generated` 알림을 생성한다. 실패 시 `status=failed`와 안전한 `failure_reason`을 저장하고 `diary_generation_failed` 알림을 생성한다. 해당 날짜에 완료된 세션이 없거나 요청의 `content`가 명시적으로 빈 문자열이면 `conversation_incomplete`로 종료한다. 자동 일기 작업은 일기용 문답 답변이 하나도 없을 때 빈 문자열을 보내 CIST 표본이나 일반 활동 요약으로 일기를 대신 만들지 않는다.
 
 ### 8.3.1 `GET /diaries/{user_id}/generation-status` - 날짜별 일기 생성 상태
 
@@ -2232,7 +2232,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 `daily_summary`에는 `local_date`, `timezone`, `session_count`, `analyzed_session_count`, `analysis_status`, `diary_id`, `conversation_results[]`를 포함한다. `conversation_results[]`에는 날짜 안에 종료된 각 세션의 `session_id`, `session_type`, `result_type`, `display_label`, `screening_reference_score`, `domain_scores`를 포함한다. `screening_reference_score`와 `domain_scores`는 보호자 리포트에서만 반환한다.
 
-서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
+서버는 `Asia/Seoul` 기준 매일 00:05에 전날의 활성 고령자별 `POST /summary/daily`와 일기 생성을 실행한다. 종료된 같은 날짜의 `emotional_qa` 세션을 모두 시작 시각 순서로 읽고, 각 세션의 Gemini 질문·답변과 음성 답변 전사문을 모아 Gemini가 하루 일기 한 편으로 통합한다. 세션별 요약은 분석 기록으로 각각 보관하며, 일기에는 CIST 문제은행 답변을 포함하지 않는다. 음성 답변 전사가 아직 준비되지 않은 경우 일부 답변만으로 일기를 확정하지 않고 다음 복구 실행에서 다시 시도한다. 일기는 확인된 답변 사실만 반영하고 모호한 내용을 추측하지 않는다. 작업은 `(user_id, local_date, timezone)` 및 `daily_summary_id` 유일 제약으로 멱등 처리하며, 서버가 중단된 경우 다음 실행에서 누락 날짜를 보정한다. `baseline`·`onboarding` 세션은 집계에서 제외한다.
 
 `trend_points[]` 예시:
 
