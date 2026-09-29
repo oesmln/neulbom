@@ -646,6 +646,7 @@
 - [x] 분석이 비동기이면 `GET /screenings/{session_id}/result` 재조회로 결과를 확인한다.
 - [x] 정서 문답 완료 이벤트를 `event_id=session_id`로 경험치 적립과 연결한다.
 - [x] `GET /sessions`를 구현한다.
+- [x] `GET /cist/retest-schedule`에서 완료된 전체 CIST 기준 서울 날짜 + 3개월 예정일과 도래 여부를 반환한다.
 - [x] 날짜·세션 유형·페이지네이션 필터를 구현한다.
 - [x] `GET /sessions/{session_id}/answers`를 구현해 질문·답변·전사문·녹음 연결을 순서대로 반환한다.
 - [x] 대화 내역 조회 시 본인 또는 연결·동의·access scope를 검증한다.
