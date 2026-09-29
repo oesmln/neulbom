@@ -31,6 +31,7 @@ export default function AiRiskTrendChart({
   // A date can contain several analyses; keep the backend's analysis-time order.
   const ordered = [...points].sort((a, b) =>
     a.analyzed_at.localeCompare(b.analyzed_at) || a.session_id.localeCompare(b.session_id));
+  const hasDailyEstimates = ordered.some((point) => point.is_estimated);
 
   return (
     <View>
@@ -77,10 +78,12 @@ export default function AiRiskTrendChart({
           <View style={[styles.legendDot, { backgroundColor: guardian.blue, borderColor: guardian.blue }]} />
           <Text style={[styles.legendText, { color: colors.mutedForeground }]}>전체 CIST 기준점</Text>
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: colors.card, borderColor: colors.accent }]} />
-          <Text style={[styles.legendText, { color: colors.mutedForeground }]}>일상 문답 추정점</Text>
-        </View>
+        {hasDailyEstimates ? (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: colors.card, borderColor: colors.accent }]} />
+            <Text style={[styles.legendText, { color: colors.mutedForeground }]}>일상 문답 추정점</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );

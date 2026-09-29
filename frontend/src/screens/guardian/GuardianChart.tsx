@@ -6,7 +6,7 @@ import { useApp } from "@/store/AppContext";
 import { reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { guardianAccessErrorMessage } from "@/api/errors";
-import { isoDateOf, monthDayLabel } from "@/utils/format";
+import { monthDayLabel } from "@/utils/format";
 import type { HistoryRecordResponse } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import ScoreTrendChart, { type TrendPoint } from "@/components/ScoreTrendChart";
@@ -24,21 +24,31 @@ import {
 } from "@/components/ui";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 
-/**
- * Score trend from `GET /analysis/cognitive/{user_id}/history`.
- *
- * The backend supports `day` aggregation rather than a synthetic monthly
- * value, so the period toggle sends a date range and asks for daily points.
- */
 const PERIODS = [
+  { key: "1m", label: "1개월", months: 1 },
   { key: "3m", label: "3개월", months: 3 },
   { key: "6m", label: "6개월", months: 6 },
   { key: "1y", label: "1년", months: 12 },
 ] as const;
 
 type PeriodKey = (typeof PERIODS)[number]["key"];
+type ViewMode = "all" | "cist";
 
 const HISTORY_LIMIT = 100;
+const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+function dateRangeInSeoul(months: number) {
+  const today = new Date(Date.now() + SEOUL_OFFSET_MS);
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+  const day = today.getUTCDate();
+  const lastDayOfStartMonth = new Date(Date.UTC(year, month - months + 1, 0)).getUTCDate();
+  const from = new Date(Date.UTC(year, month - months, Math.min(day, lastDayOfStartMonth)));
+  return {
+    fromDate: from.toISOString().slice(0, 10),
+    toDate: today.toISOString().slice(0, 10),
+  };
+}
 
 function scoreOf(record: HistoryRecordResponse): number | null {
   return record.display_score ?? record.screening_reference_score ?? null;
@@ -63,12 +73,11 @@ export default function GuardianChartScreen() {
   const isFocused = useIsFocused();
   const { userId, selectedElderId } = useApp();
   const [period, setPeriod] = React.useState<PeriodKey>("6m");
+  const [viewMode, setViewMode] = React.useState<ViewMode>("all");
 
   const dateRange = React.useMemo(() => {
     const months = PERIODS.find((item) => item.key === period)?.months ?? 6;
-    const to = new Date();
-    const from = new Date(to.getFullYear(), to.getMonth() - months, to.getDate());
-    return { fromDate: isoDateOf(from), toDate: isoDateOf(to) };
+    return dateRangeInSeoul(months);
   }, [period]);
 
   const report = useApi(
@@ -91,7 +100,7 @@ export default function GuardianChartScreen() {
   const header = (
     <ScreenHeader
       color={guardian.blue}
-      title="인지 저하 추이"
+      title="인지 위험 신호 추이"
       subtitle={
         report.data ? `${report.data.elder_name} · 보호자 모니터링` : "보호자 모니터링"
       }
@@ -143,55 +152,79 @@ export default function GuardianChartScreen() {
   const run = decliningRun(points);
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
   const aiRiskPoints = history.data.ai_risk_trend_points ?? [];
+  const visibleAiRiskPoints = viewMode === "cist"
+    ? aiRiskPoints.filter((point) => point.point_type === "full_cist")
+    : aiRiskPoints;
 
   return (
     <Screen header={header}>
-      <View style={styles.periodRow}>
-        {PERIODS.map((p) => {
-          const on = p.key === period;
-          return (
-            <Pressable
-              key={p.key}
-              onPress={() => setPeriod(p.key)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: on }}
-              accessibilityLabel={`${p.label} 보기`}
-              style={[
-                styles.periodChip,
-                {
-                  // `colors.card`, not `colors.white`: white stays white in
-                  // dark mode and would wash out the unselected chip label.
-                  backgroundColor: on ? guardian.blue : colors.card,
-                  borderColor: on ? guardian.blue : colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.periodLabel, { color: on ? colors.white : colors.mutedForeground }]}
+      <Card>
+        <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
+          AI 인지 위험 신호 추이
+        </Body>
+        <View style={styles.modeRow}>
+          {([
+            { key: "all", label: "전체 추이" },
+            { key: "cist", label: "CIST 검사만" },
+          ] as const).map((mode) => {
+            const selected = viewMode === mode.key;
+            return (
+              <Pressable
+                key={mode.key}
+                onPress={() => setViewMode(mode.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={mode.label}
+                style={[styles.modeChip, { backgroundColor: selected ? guardian.blue : colors.card }]}
               >
-                {p.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {aiRiskPoints.length > 0 ? (
-        <Card style={{ marginTop: spacing.lg }}>
-          <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
-            AI 인지 위험 신호 추이
+                <Text style={[styles.periodLabel, { color: selected ? colors.white : colors.mutedForeground }]}>
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => {
+            const selected = p.key === period;
+            return (
+              <Pressable
+                key={p.key}
+                onPress={() => setPeriod(p.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${p.label} 보기`}
+                style={[
+                  styles.periodChip,
+                  {
+                    backgroundColor: selected ? guardian.blue : colors.card,
+                    borderColor: selected ? guardian.blue : colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.periodLabel, { color: selected ? colors.white : colors.mutedForeground }]}>
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {visibleAiRiskPoints.length > 0 ? (
+          <>
+            <AiRiskTrendChart points={visibleAiRiskPoints} />
+            <Caption>AI 위험 신호 지수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.{viewMode === "all" ? " 일상 문답 추정점은 일부 문항만 갱신한 결과예요." : ""}</Caption>
+            {visibleAiRiskPoints.length < 2 ? (
+              <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
+            ) : null}
+          </>
+        ) : (
+          <Body style={{ marginTop: spacing.md }}>
+            {viewMode === "cist" ? "이 기간의 CIST 검사는 없어요." : "이 기간의 분석 결과가 없어요."}
           </Body>
-          <AiRiskTrendChart points={aiRiskPoints} />
-          <Caption>AI 위험 점수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다. 일상 문답 추정점은 일부 문항만 갱신한 결과예요.</Caption>
-          {aiRiskPoints.length < 2 ? (
-            <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
-          ) : null}
-        </Card>
-      ) : null}
+        )}
+      </Card>
 
-      {points.length === 0 ? (
-        aiRiskPoints.length === 0 ? <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" /> : null
-      ) : (
+      {points.length === 0 ? null : (
         <>
           <Card style={{ marginTop: spacing.lg }}>
             <View style={styles.chartHead}>
@@ -248,9 +281,19 @@ export default function GuardianChartScreen() {
 }
 
 const styles = StyleSheet.create({
-  periodRow: { flexDirection: "row", gap: spacing.sm },
+  modeRow: {
+    flexDirection: "row",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    overflow: "hidden",
+  },
+  modeChip: { flex: 1, alignItems: "center", paddingVertical: spacing.sm },
+  periodRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, marginBottom: spacing.md },
   periodChip: {
-    paddingHorizontal: spacing.lg,
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: spacing.xs,
     paddingVertical: 6,
     borderRadius: radius.sm,
     borderWidth: 1,

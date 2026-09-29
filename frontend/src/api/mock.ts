@@ -1124,26 +1124,29 @@ export function mockNearbyCenters(
   return { centers, total: centers.length, provider_status: "ok" };
 }
 
-export function mockHistory(): HistoryResponse {
+export function mockHistory(params: { fromDate?: string; toDate?: string } = {}): HistoryResponse {
   const weekly = [22, 23, 21, 24, 24, 25];
+  const inRange = (date: string) =>
+    (!params.fromDate || date >= params.fromDate) && (!params.toDate || date <= params.toDate);
+  const records = weekly.map((score, i) => ({
+    analysis_id: fixedId("88888888", i + 1),
+    session_id: MOCK_SESSION_ID,
+    screening_reference_score: score,
+    display_score: score,
+    score_max: 30,
+    score_rate: score / 30,
+    label: "stable",
+    risk_level: "low",
+    domain_scores: { memory: 4, attention: -2, language: 1, visuospatial: 3 },
+    trend: "improving",
+    score_delta: i === 0 ? undefined : score - weekly[i - 1],
+    analyzed_at: daysAgo((weekly.length - 1 - i) * 7).toISOString(),
+  })).filter((record) => inRange(record.analyzed_at.slice(0, 10)));
   return {
-    records: weekly.map((score, i) => ({
-      analysis_id: fixedId("88888888", i + 1),
-      session_id: MOCK_SESSION_ID,
-      screening_reference_score: score,
-      display_score: score,
-      score_max: 30,
-      score_rate: score / 30,
-      label: "stable",
-      risk_level: "low",
-      domain_scores: { memory: 4, attention: -2, language: 1, visuospatial: 3 },
-      trend: "improving",
-      score_delta: i === 0 ? undefined : score - weekly[i - 1],
-      analyzed_at: daysAgo((weekly.length - 1 - i) * 7).toISOString(),
-    })),
-    total: weekly.length,
+    records,
+    total: records.length,
     aggregation: "weekly",
-    sample_sufficient: true,
-      ai_risk_trend_points: mockGuardianReport().ai_risk_trend_points,
+    sample_sufficient: records.length >= 2,
+    ai_risk_trend_points: mockGuardianReport().ai_risk_trend_points.filter((point) => inRange(point.date)),
   };
 }

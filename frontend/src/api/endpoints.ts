@@ -519,7 +519,7 @@ export const reports = {
     userId: Uuid,
     params: { limit?: number; fromDate?: IsoDate; toDate?: IsoDate; aggregation?: string } = {},
   ): Promise<HistoryResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockHistory());
+    if (USE_MOCK_API) return Promise.resolve(mock.mockHistory(params));
     return request(`/analysis/cognitive/${userId}/history`, {
       query: {
         limit: params.limit,
