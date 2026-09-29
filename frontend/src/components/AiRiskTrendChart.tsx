@@ -13,9 +13,11 @@ export type AiRiskPoint = GuardianAiRiskTrendPoint;
 export default function AiRiskTrendChart({
   points,
   compact = false,
+  hasPriorCistBaseline = false,
 }: {
   points: AiRiskPoint[];
   compact?: boolean;
+  hasPriorCistBaseline?: boolean;
 }) {
   useDisplaySettings();
   if (points.length === 0) return null;
@@ -70,7 +72,7 @@ export default function AiRiskTrendChart({
         ))}
         {ordered.map((point, index) => (
           <React.Fragment key={point.session_id}>
-            {point.point_type === "full_cist" && cistPositions[0] !== index ? (
+            {point.point_type === "full_cist" && (hasPriorCistBaseline || cistPositions[0] !== index) ? (
               <Circle cx={x(index)} cy={y(point.risk_score)} r={9}
                 fill="none" stroke={guardian.blue} strokeWidth={1.5} />
             ) : null}

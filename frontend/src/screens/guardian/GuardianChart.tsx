@@ -18,6 +18,7 @@ import {
   Card,
   Body,
   Caption,
+  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -30,6 +31,7 @@ const PERIODS = [
   { key: "3m", label: "3개월", months: 3 },
   { key: "6m", label: "6개월", months: 6 },
   { key: "1y", label: "1년", months: 12 },
+  { key: "all", label: "전체", months: 0 },
 ] as const;
 
 type PeriodKey = (typeof PERIODS)[number]["key"];
@@ -40,6 +42,7 @@ const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 function dateRangeInSeoul(months: number) {
   const today = new Date(Date.now() + SEOUL_OFFSET_MS);
+  if (months === 0) return { fromDate: undefined, toDate: today.toISOString().slice(0, 10) };
   const year = today.getUTCFullYear();
   const month = today.getUTCMonth();
   const day = today.getUTCDate();
@@ -167,13 +170,21 @@ export default function GuardianChartScreen() {
     : aiRiskPoints;
   const cistPoints = aiRiskPoints.filter((point) => point.point_type === "full_cist")
     .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at));
-  const recentCist = cistPoints.at(-1);
-  const previousCist = cistPoints.at(-2);
+  const priorCistBaseline = history.data.prior_cist_baseline;
+  const recentCist = cistPoints.at(-1) ?? priorCistBaseline;
+  const previousCist = cistPoints.at(-2) ?? (cistPoints.length > 0 ? priorCistBaseline : null);
   const recentDaily = recentCist && aiRiskPoints
     .filter((point) => point.point_type === "daily_partial_estimate"
       && sharesCistBaseline(point, recentCist)
       && point.analyzed_at > recentCist.analyzed_at)
     .sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1);
+  const expandPeriod = () => {
+    if (!priorCistBaseline) return;
+    const selectedMonths = PERIODS.find((item) => item.key === period)?.months ?? 6;
+    const wider = PERIODS.find((item) => item.months > selectedMonths
+      && (dateRangeInSeoul(item.months).fromDate ?? "") <= priorCistBaseline.date);
+    setPeriod(wider?.key ?? "all");
+  };
 
   return (
     <Screen header={header}>
@@ -228,9 +239,18 @@ export default function GuardianChartScreen() {
             );
           })}
         </View>
+        {priorCistBaseline ? (
+          <View style={styles.baselineCard}>
+            <Caption style={styles.baselineEyebrow}>조회 기간 이전 검사</Caption>
+            <Body style={{ fontWeight: fontWeight.semibold }}>
+              {cistPoints.length === 0 ? "현재 적용 중인 CIST 기준점" : "조회 시작 시 CIST 기준점"}
+            </Body>
+            <Caption>{priorCistBaseline.date} · 위험 신호 지수 {riskIndex(priorCistBaseline)}</Caption>
+          </View>
+        ) : null}
         {visibleAiRiskPoints.length > 0 ? (
           <>
-            <AiRiskTrendChart points={visibleAiRiskPoints} />
+            <AiRiskTrendChart points={visibleAiRiskPoints} hasPriorCistBaseline={!!priorCistBaseline} />
             {previousCist && recentCist ? (
               <View style={styles.retestNotice}>
                 <Body style={{ fontWeight: fontWeight.semibold, color: guardian.blue }}>CIST 재검사 · 새 기준점</Body>
@@ -257,9 +277,16 @@ export default function GuardianChartScreen() {
             ) : null}
           </>
         ) : (
-          <Body style={{ marginTop: spacing.md }}>
-            {viewMode === "cist" ? "이 기간의 CIST 검사는 없어요." : "이 기간의 분석 결과가 없어요."}
-          </Body>
+          <View style={styles.emptyTrend}>
+            <Body>{viewMode === "cist" ? "이 기간의 CIST 검사는 없어요." : "이 기간의 분석 결과가 없어요."}</Body>
+            {viewMode === "cist" && priorCistBaseline ? (
+              <Button label="기간 넓혀 보기" variant="outline" size="sm" onPress={expandPeriod}
+                style={{ marginTop: spacing.md }} />
+            ) : null}
+            {viewMode === "cist" && !priorCistBaseline && period === "all" ? (
+              <Caption style={{ marginTop: spacing.sm }}>완료된 CIST 검사가 아직 없어요.</Caption>
+            ) : null}
+          </View>
         )}
       </Card>
 
@@ -338,6 +365,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   periodLabel: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
+  baselineCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  baselineEyebrow: { marginBottom: spacing.xs },
+  emptyTrend: { marginTop: spacing.md },
   retestNotice: {
     padding: spacing.sm,
     marginBottom: spacing.md,
