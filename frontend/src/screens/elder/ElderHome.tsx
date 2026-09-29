@@ -1,12 +1,12 @@
 import React from "react";
-import { View, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable, AppState } from "react-native";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ElderNav, ElderTabParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { reports } from "@/api";
+import { cistAi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import type {
@@ -15,12 +15,13 @@ import type {
   DashboardTask,
 } from "@/api/types";
 import { colors, spacing, radius, fontSize, fontWeight, cognitiveStages } from "@/theme";
-import { Badge, Card, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
+import { Badge, Button, Card, ErrorState, LoadingState, SentenceText as Text } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { memoiForLevel } from "@/components/memoiCharacters";
 
 /**
- * Elder home — everything on this screen comes from `GET /dashboard/{user_id}`.
+ * Elder home — dashboard content comes from `GET /dashboard/{user_id}` and
+ * the CIST retest banner comes from `GET /cist/retest-schedule`.
  *
  * Nothing here is derived locally: the greeting card reads
  * `conversation_streak_days`, the activity cards are the eligible `today_tasks`,
@@ -106,6 +107,23 @@ export default function ElderHomeScreen() {
     [userId, isFocused],
     { enabled: !!userId && isFocused },
   );
+  const {
+    data: retestSchedule,
+    error: retestError,
+    loading: retestLoading,
+    reload: reloadRetestSchedule,
+  } = useApi(
+    () => cistAi.getRetestSchedule(),
+    [userId, isFocused],
+    { enabled: !!userId && isFocused },
+  );
+
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && isFocused) reloadRetestSchedule();
+    });
+    return () => subscription.remove();
+  }, [isFocused, reloadRetestSchedule]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -151,6 +169,33 @@ export default function ElderHomeScreen() {
 
           {error && !data ? (
             <ErrorState message={apiErrorMessage(error)} onRetry={reload} />
+          ) : null}
+
+          {!retestLoading && !retestError && retestSchedule?.retest_due ? (
+            <Card style={styles.retestCard} color={colors.secondary}>
+              <View style={styles.retestRow}>
+                <View style={styles.retestCopy}>
+                  <View style={styles.retestTitleRow}>
+                    <Text style={styles.retestTitle}>CIST 인지 검사</Text>
+                    <Badge label="검사 필요" color={colors.primaryDark} background={colors.muted} />
+                  </View>
+                  <Text style={styles.retestDescription}>마지막 검사로부터 3개월이 지났어요</Text>
+                </View>
+                <Button
+                  label="검사하기"
+                  size="sm"
+                  style={styles.retestButton}
+                  onPress={() => navigation.navigate("ElderCist")}
+                />
+              </View>
+            </Card>
+          ) : null}
+
+          {!retestLoading && retestError ? (
+            <Card style={styles.retestErrorCard}>
+              <Text style={styles.retestErrorText}>검사 일정을 확인하지 못했어요.</Text>
+              <Button label="다시 조회" size="sm" variant="outline" onPress={reloadRetestSchedule} />
+            </Card>
           ) : null}
 
           {data
@@ -356,6 +401,16 @@ const styles = StyleSheet.create({
   },
 
   body: { padding: spacing.xl, gap: spacing.md },
+
+  retestCard: { borderColor: colors.primary, borderWidth: 1.5 },
+  retestRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  retestCopy: { flex: 1, minWidth: 0 },
+  retestTitleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.xs },
+  retestTitle: { fontSize: fontSize.cardTitle, fontWeight: fontWeight.bold, color: colors.primaryDark },
+  retestDescription: { fontSize: fontSize.caption, lineHeight: 19, color: colors.primaryDark },
+  retestButton: { paddingHorizontal: spacing.md },
+  retestErrorCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  retestErrorText: { flex: 1, fontSize: fontSize.caption, color: colors.mutedForeground },
 
   feature: { paddingVertical: spacing.lg, paddingHorizontal: spacing.xl, minHeight: 72 },
   featureRow: { flexDirection: "row", alignItems: "center" },
