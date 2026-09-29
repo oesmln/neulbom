@@ -61,7 +61,7 @@ export default function ElderResultScreen() {
     () => reports.screeningResult(sessionId as string, "elder"),
     [sessionId],
     {
-      // 정서 문답은 그 자리에서 분석하지 않는다. 대화는 자정 배치에서 일기가 되고
+      // 정서 문답의 검사 결과는 이 화면에서 분석하지 않는다. 일기는 세션 종료 후 생성된다.
       // `result_status`는 계속 `pending`이라, 폴링하면 끝나지 않는 대기가 된다.
       enabled: !!sessionId && !baseline,
     },
@@ -251,7 +251,7 @@ export default function ElderResultScreen() {
           <Text style={styles.noteText}>
             {mode === "baseline"
               ? "이 검사는 진단이 아니라 앞으로의 변화를 비교하기 위한 기준이에요."
-              : "오늘 대화는 내일 0시에 일기로 생성돼요.\n내일 일기 탭에서 확인하실 수 있어요."}
+              : "오늘 대화를 마치면 일기를 바로 준비해요.\n일기 탭에서 확인하실 수 있어요."}
           </Text>
         </View>
 
@@ -274,6 +274,12 @@ export default function ElderResultScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {!baseline ? (
+          <Button
+            label="일기 확인하기"
+            onPress={() => navigation.navigate("ElderTabs", { screen: "ElderCalendar" })}
+          />
+        ) : null}
         <Button
           label={mode === "baseline" ? `${companionName} 시작하기` : "홈으로 돌아가기"}
           onPress={() => navigation.navigate("ElderTabs", { screen: "ElderHome" })}

@@ -1,10 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Platform } from "react-native";
+import type { NotificationResponse } from "expo-notifications";
 
 import { USE_MOCK_API } from "@/api/config";
 import { setUnauthorizedListener } from "@/api/client";
 import { clearSession, loadSession, saveSession } from "@/api/tokens";
-import { auth, users } from "@/api";
-import { resetToLogin } from "@/navigation/ref";
+import { auth, notifications, users } from "@/api";
+import { navigationRef, resetToLogin } from "@/navigation/ref";
 import { MOCK_ELDER_ID, MOCK_GUARDIAN_ID } from "@/api/mock";
 import type { AuthTokenResponse, OnboardingStep, Uuid } from "@/api/types";
 import { installRecordingQueueSync } from "@/recording/recordingQueue";
@@ -69,6 +71,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<Uuid | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [selectedElderId, setSelectedElderId] = useState<Uuid | null>(null);
+  const pushTokenRef = useRef<{ token: string; platform: "ios" | "android" } | null>(null);
 
   // Restore a previous session so a returning user does not sign in again.
   useEffect(() => {
@@ -94,6 +97,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const stored = await loadSession();
+    if (pushTokenRef.current) {
+      await notifications.unregisterDevice(pushTokenRef.current.token, pushTokenRef.current.platform).catch(() => undefined);
+      pushTokenRef.current = null;
+    }
     if (stored?.refreshToken) {
       // Best effort: a failed logout must not trap the user in the app.
       await auth.logout(stored.refreshToken).catch(() => undefined);
@@ -109,6 +116,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserName("");
     setSelectedElderId(null);
   }, []);
+
+  useEffect(() => {
+    if (!ready || role !== "guardian" || !userId || USE_MOCK_API || Platform.OS === "web") return;
+    let cancelled = false;
+    let responseSubscription: { remove: () => void } | null = null;
+    let navigationRetry: ReturnType<typeof setTimeout> | null = null;
+    const handledResponses = new Set<string>();
+    const openDiaryPush = (response: NotificationResponse) => {
+      if (cancelled || handledResponses.has(response.notification.request.identifier)) return;
+      const data = response.notification.request.content.data;
+      if (data?.reference_type !== "diary" || typeof data.elder_id !== "string") return;
+      handledResponses.add(response.notification.request.identifier);
+      setSelectedElderId(data.elder_id);
+      const diaryId = typeof data.reference_id === "string" ? data.reference_id : undefined;
+      const navigate = () => {
+        if (cancelled) return;
+        if (!navigationRef.isReady()) {
+          navigationRetry = setTimeout(navigate, 250);
+          return;
+        }
+        navigationRef.navigate("Guardian", { screen: "GuardianTabs", params: {
+          screen: "GuardianRecord", params: { diaryId },
+        } });
+      };
+      navigate();
+    };
+    void (async () => {
+      const [Notifications, Constants] = await Promise.all([import("expo-notifications"), import("expo-constants")]);
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }),
+      });
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("diary", {
+          name: "새 일기",
+          importance: Notifications.AndroidImportance.MAX,
+        });
+      }
+      responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+        openDiaryPush(response);
+        void Notifications.clearLastNotificationResponseAsync();
+      });
+      const lastResponse = await Notifications.getLastNotificationResponseAsync();
+      if (lastResponse) {
+        openDiaryPush(lastResponse);
+        await Notifications.clearLastNotificationResponseAsync();
+      }
+      const existing = await Notifications.getPermissionsAsync();
+      const permission = existing.status === "granted" ? existing : await Notifications.requestPermissionsAsync();
+      if (permission.status !== "granted" || cancelled) return;
+      const projectId = Constants.default.expoConfig?.extra?.eas?.projectId
+        ?? Constants.default.easConfig?.projectId
+        ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+      if (!projectId) return;
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      if (cancelled) return;
+      const platform = Platform.OS as "ios" | "android";
+      await notifications.registerDevice(token, platform);
+      pushTokenRef.current = { token, platform };
+    })().catch(() => undefined);
+    return () => {
+      cancelled = true;
+      responseSubscription?.remove();
+      if (navigationRetry) clearTimeout(navigationRetry);
+    };
+  }, [ready, role, userId]);
 
   // A refresh that cannot be recovered ends the session here rather than
   // leaving screens to each discover the 401 on their own. The user is sent

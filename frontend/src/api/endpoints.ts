@@ -660,6 +660,22 @@ export const game = {
 /* ── notifications ──────────────────────────────────────────────────────── */
 
 export const notifications = {
+  registerDevice(token: string, platform: "ios" | "android"): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request("/notifications/devices", {
+      method: "POST",
+      body: { expo_push_token: token, platform },
+    });
+  },
+
+  unregisterDevice(token: string, platform: "ios" | "android"): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request("/notifications/devices", {
+      method: "DELETE",
+      body: { expo_push_token: token, platform },
+    });
+  },
+
   list(userId: Uuid, role: Role, params: { unreadOnly?: boolean; limit?: number } = {}): Promise<NotificationsResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockNotifications(role));
     return request(`/notifications/${userId}`, {

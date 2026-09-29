@@ -38,7 +38,7 @@ export type RootStackParamList = {
   ElderProfile: { inviteCode?: string; signup?: PendingSignup } | undefined;
   Onboarding: undefined;
   Elder: NavigatorScreenParams<ElderStackParamList> | undefined;
-  Guardian: undefined;
+  Guardian: NavigatorScreenParams<GuardianStackParamList> | undefined;
 };
 
 /** Values held between the sign-up form and the role choice. Never persisted. */
@@ -127,7 +127,7 @@ export type GuardianStackParamList = {
 
 export type GuardianTabParamList = {
   GuardianDashboard: undefined;
-  GuardianRecord: undefined;
+  GuardianRecord: { diaryId?: string } | undefined;
   GuardianChart: undefined;
   GuardianAppointments: undefined;
   GuardianSettings: undefined;

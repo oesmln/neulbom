@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 
 import { notifications } from "@/api";
 import { useApi } from "@/hooks/useApi";
@@ -11,11 +11,12 @@ import { colors, guardian, onHeader } from "@/theme";
 
 export default function GuardianNotificationButton() {
   const navigation = useNavigation<GuardianNav>();
+  const isFocused = useIsFocused();
   const { userId, role } = useApp();
   const result = useApi(
     () => notifications.list(userId as string, role ?? "guardian", { unreadOnly: true, limit: 1 }),
-    [userId, role],
-    { enabled: !!userId },
+    [userId, role, isFocused],
+    { enabled: !!userId && isFocused, intervalMs: isFocused ? 5000 : undefined },
   );
   const unread = result.data?.unread_count ?? 0;
 

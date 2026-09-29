@@ -229,7 +229,7 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
       generation_status: "completed",
       diary_id: fixedId("aaaaaaaa", 1),
       display_label: "일기 생성 완료",
-      message: "어제 대화를 바탕으로 오늘 일기가 업데이트되었어요.",
+      message: "새 일기를 확인해 보세요.",
       available_at: daysAgo(0).toISOString(),
     },
     cognitive_activity: {
@@ -393,7 +393,7 @@ const elderNotifications: NotificationResponse[] = [
   {
     notification_id: fixedId("cccccccc", 1),
     title: "일기 생성 완료",
-    body: "어제 대화를 바탕으로 오늘 일기가 업데이트되었어요.",
+    body: "새 일기가 준비되었어요. 지금 확인해 보세요.",
     type: "diary_generated",
     severity: "info",
     status_label: null,
@@ -442,6 +442,30 @@ const elderNotifications: NotificationResponse[] = [
 
 const guardianNotifications: NotificationResponse[] = [
   {
+    notification_id: fixedId("dddddddd", 5),
+    title: "새 일기가 도착했어요",
+    body: "연결된 어르신의 새 일기를 확인해 보세요.",
+    type: "diary_generated",
+    severity: "info",
+    status_label: "새 일기",
+    data: { elder_id: MOCK_ELDER_ID, reference_type: "diary", reference_id: fixedId("aaaaaaaa", 1) },
+    is_read: false,
+    read_at: null,
+    created_at: new Date(Date.now() - 120_000).toISOString(),
+  },
+  {
+    notification_id: fixedId("dddddddd", 6),
+    title: "새 일기가 도착했어요",
+    body: "연결된 어르신의 새 일기를 확인해 보세요.",
+    type: "diary_generated",
+    severity: "info",
+    status_label: "새 일기",
+    data: { elder_id: MOCK_ELDER_ID, reference_type: "diary", reference_id: fixedId("aaaaaaaa", 2) },
+    is_read: false,
+    read_at: null,
+    created_at: new Date(Date.now() - 3_600_000).toISOString(),
+  },
+  {
     notification_id: fixedId("dddddddd", 1),
     title: "주의력 점수 하락",
     body: "이번 주 주의력이 지난주 대비 2% 낮아졌어요.",
@@ -469,10 +493,10 @@ const guardianNotifications: NotificationResponse[] = [
     notification_id: fixedId("dddddddd", 3),
     title: "새 일기가 등록되었어요",
     body: "따뜻한 반응을 남겨보세요 💚",
-    type: "diary_created",
+    type: "diary_generated",
     severity: "info",
     status_label: null,
-    data: null,
+    data: { elder_id: MOCK_ELDER_ID, reference_type: "diary", reference_id: fixedId("aaaaaaaa", 3) },
     is_read: true,
     read_at: daysAgo(1).toISOString(),
     created_at: daysAgo(1).toISOString(),
@@ -527,8 +551,9 @@ export function mockMarkAllRead(role: Role): number {
 
 /* ── diaries & calendar ─────────────────────────────────────────────────── */
 
-const DIARY_SEED: { ago: number; mood: string; level: number; content: string }[] = [
-  { ago: 0, mood: "good", level: 4, content: "손주가 놀러 와서 즐거웠다. 기억력 게임도 같이 했다." },
+const DIARY_SEED: { ago: number; hour?: number; mood: string; level: number; content: string }[] = [
+  { ago: 0, hour: 18, mood: "good", level: 4, content: "손주가 놀러 와서 즐거웠다. 기억력 게임도 같이 했다." },
+  { ago: 0, hour: 10, mood: "neutral", level: 3, content: "아침에는 동네를 천천히 산책하고 이웃과 인사했다." },
   { ago: 1, mood: "neutral", level: 3, content: "비가 와서 산책은 못 했지만 AI 문답을 했다." },
   { ago: 2, mood: "good", level: 5, content: "경로당에서 친구들과 이야기를 많이 나눴다." },
   { ago: 3, mood: "good", level: 4, content: "아침에 텃밭을 돌봤다. 상추가 잘 자라고 있다." },
@@ -540,12 +565,12 @@ const DIARY_SEED: { ago: number; mood: string; level: number; content: string }[
 export function mockDiaries(): DiariesResponse {
   const diaries = DIARY_SEED.map((d, i) => ({
     diary_id: fixedId("aaaaaaaa", i + 1),
-    title: null,
+    title: "오늘의 이야기",
     preview: d.content,
-    source_type: "daily_summary",
+    source_type: "session",
     mood: d.mood,
     mood_level: d.level,
-    written_at: daysAgo(d.ago).toISOString(),
+    written_at: (() => { const date = daysAgo(d.ago); date.setHours(d.hour ?? 12, 0, 0, 0); return date.toISOString(); })(),
     reaction_count: mockReactions(fixedId("aaaaaaaa", i + 1)).length,
   }));
   return { diaries, total: diaries.length, page: 1, limit: 20 };
