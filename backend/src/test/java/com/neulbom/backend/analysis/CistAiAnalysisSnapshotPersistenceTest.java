@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,5 +94,54 @@ class CistAiAnalysisSnapshotPersistenceTest {
         CistAiAnalysisEntity reloaded = analysisRepository.findById(analysisId).orElseThrow();
         assertThat(objectMapper.readTree(reloaded.getFeatureSnapshot()))
                 .isEqualTo(objectMapper.readTree(featureSnapshot));
+    }
+
+    @Test
+    void selectsOnlyInFlightDailyAnalysesForStatusSynchronization() {
+        Instant now = Instant.parse("2026-09-29T10:00:00Z");
+        UserEntity user = userRepository.saveAndFlush(new UserEntity(
+                UUID.randomUUID(), "daily-sync-" + UUID.randomUUID() + "@example.com", null,
+                "일상 상태 조회 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
+                true, now, now));
+        SessionEntity baselineSession = new SessionEntity(
+                UUID.randomUUID(), user.getId(), "cist", 17, "{}", false, now);
+        SessionEntity fullPendingSession = new SessionEntity(
+                UUID.randomUUID(), user.getId(), "cist", 17, "{}", false, now.plusSeconds(1));
+        SessionEntity firstDailySession = new SessionEntity(
+                UUID.randomUUID(), user.getId(), "emotional_qa", 7, "{}", false, now.plusSeconds(2));
+        SessionEntity secondDailySession = new SessionEntity(
+                UUID.randomUUID(), user.getId(), "emotional_qa", 7, "{}", false, now.plusSeconds(3));
+        SessionEntity completedDailySession = new SessionEntity(
+                UUID.randomUUID(), user.getId(), "emotional_qa", 7, "{}", false, now.plusSeconds(4));
+        sessionRepository.saveAllAndFlush(List.of(
+                baselineSession, fullPendingSession, firstDailySession, secondDailySession, completedDailySession));
+
+        CistAiAnalysisEntity baseline = analysis(baselineSession.getId(), "completed", null, now);
+        CistAiAnalysisEntity fullPending = analysis(fullPendingSession.getId(), "pending", null, now);
+        CistAiAnalysisEntity firstDaily = analysis(
+                firstDailySession.getId(), "pending", baseline.getAnalysisId(), now.plusSeconds(2));
+        CistAiAnalysisEntity secondDaily = analysis(
+                secondDailySession.getId(), "processing", baseline.getAnalysisId(), now.plusSeconds(3));
+        CistAiAnalysisEntity completedDaily = analysis(
+                completedDailySession.getId(), "completed", baseline.getAnalysisId(), now.plusSeconds(4));
+        analysisRepository.saveAndFlush(baseline);
+        analysisRepository.saveAllAndFlush(List.of(fullPending, firstDaily, secondDaily, completedDaily));
+        entityManager.clear();
+
+        assertThat(analysisRepository
+                .findTop100ByBaselineAnalysisIdIsNotNullAndStatusInOrderByUpdatedAtAsc(
+                        Set.of("pending", "processing")))
+                .extracting(CistAiAnalysisEntity::getAnalysisId)
+                .containsExactly(firstDaily.getAnalysisId(), secondDaily.getAnalysisId());
+    }
+
+    private CistAiAnalysisEntity analysis(UUID sessionId, String status, UUID baselineAnalysisId, Instant now) {
+        UUID analysisId = UUID.randomUUID();
+        CistAiAnalysisEntity analysis = new CistAiAnalysisEntity(
+                analysisId, sessionId, status, "sync-test-" + analysisId, "0".repeat(64), "{}", now, now);
+        if (baselineAnalysisId != null) {
+            analysis.linkBaselineAnalysis(baselineAnalysisId);
+        }
+        return analysis;
     }
 }

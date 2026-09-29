@@ -266,6 +266,73 @@ class DailyCognitiveAnalysisIntegrationTest {
     }
 
     @Test
+    void carriesForwardCompletedSnapshotsAndStartsNewLineageAfterRepeatCist() throws Exception {
+        Instant start = Instant.parse("2026-09-20T00:00:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "daily-lineage-" + UUID.randomUUID() + "@example.com", null,
+                "일상 분석 계보 테스트", "elder", LocalDate.of(1945, 1, 1), "80s_plus", "female", null,
+                true, start, start));
+        saveDailyAnalysisConsents(elder.getId(), start);
+
+        SessionEntity firstCist = endedSession(elder.getId(), "cist", 17, start, start.plusSeconds(600));
+        SessionEntity firstDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(3600), start.plusSeconds(4200));
+        SessionEntity secondDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(7200), start.plusSeconds(7800));
+        SessionEntity repeatCist = endedSession(elder.getId(), "cist", 17,
+                start.plusSeconds(10800), start.plusSeconds(11400));
+        SessionEntity thirdDaily = endedSession(elder.getId(), "emotional_qa", 7,
+                start.plusSeconds(14400), start.plusSeconds(15000));
+        sessionRepository.saveAll(List.of(firstCist, firstDaily, secondDaily, repeatCist, thirdDaily));
+
+        var features = features("0.10", "0.20", "0.30", "0.40");
+        CistAiAnalysisEntity firstBaseline = completedAnalysis(firstCist.getId(), null, "0.41",
+                featureSnapshot(fullQuestionResults(), new BigDecimal("0.41"), features), start.plusSeconds(600));
+        analysisRepository.save(firstBaseline);
+        prepareDailyResponses(elder, firstDaily, start.plusSeconds(4200));
+        prepareDailyResponses(elder, secondDaily, start.plusSeconds(7800));
+        prepareDailyResponses(elder, thirdDaily, start.plusSeconds(15000));
+        when(audioUrlSigner.issue(any(RecordingEntity.class))).thenAnswer(invocation -> {
+            RecordingEntity recording = invocation.getArgument(0);
+            return new AiServerContracts.AudioResource(
+                    URI.create("https://audio.test/" + recording.getId()),
+                    Instant.parse("2099-01-01T00:00:00Z"), "audio/wav", recording.getFileSizeBytes(), null);
+        });
+        when(aiServerClient.createDailyCognitiveAnalysis(anyString(), any(DailyAnalysisCreateRequest.class)))
+                .thenAnswer(invocation -> {
+                    DailyAnalysisCreateRequest request = invocation.getArgument(1);
+                    return new AiServerContracts.DailyAnalysisAcceptedResponse(
+                            request.analysisId(), request.sessionId(), "pending", start);
+                });
+
+        var firstRequest = createAndCaptureDailyRequest(elder.getId(), firstDaily.getId(), 1);
+        assertThat(firstRequest.baselineAnalysisId()).isEqualTo(firstBaseline.getAnalysisId());
+        assertThat(firstRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.41");
+        completeDailyRequest(elder.getId(), firstRequest, "0.45", start.plusSeconds(4300));
+
+        var secondRequest = createAndCaptureDailyRequest(elder.getId(), secondDaily.getId(), 2);
+        assertThat(secondRequest.baselineAnalysisId()).isEqualTo(firstBaseline.getAnalysisId());
+        assertThat(secondRequest.baselineModelScore()).isEqualByComparingTo("0.41");
+        assertThat(secondRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.45");
+        completeDailyRequest(elder.getId(), secondRequest, "0.48", start.plusSeconds(7900));
+
+        CistAiAnalysisEntity newBaseline = completedAnalysis(repeatCist.getId(), null, "0.36",
+                featureSnapshot(fullQuestionResults(), new BigDecimal("0.36"), features), start.plusSeconds(11400));
+        analysisRepository.save(newBaseline);
+
+        var thirdRequest = createAndCaptureDailyRequest(elder.getId(), thirdDaily.getId(), 3);
+        assertThat(thirdRequest.baselineAnalysisId()).isEqualTo(newBaseline.getAnalysisId());
+        assertThat(thirdRequest.baselineModelScore()).isEqualByComparingTo("0.36");
+        assertThat(thirdRequest.inputSnapshot().modelScore()).isEqualByComparingTo("0.36");
+        assertThat(analysisRepository.findById(firstBaseline.getAnalysisId()).orElseThrow().getFeatureSnapshot())
+                .contains("\"model_score\":0.41");
+        assertThat(analysisRepository.findBySessionId(firstDaily.getId()).orElseThrow().getFeatureSnapshot())
+                .contains("\"model_score\":0.45");
+        assertThat(analysisRepository.findBySessionId(secondDaily.getId()).orElseThrow().getFeatureSnapshot())
+                .contains("\"model_score\":0.48");
+    }
+
+    @Test
     void rejectsDailyAnalysisWhenLatestConsentIsNotAgreed() {
         Instant now = Instant.parse("2026-09-29T00:00:00Z");
         UserEntity elder = userRepository.save(new UserEntity(
@@ -288,6 +355,49 @@ class DailyCognitiveAnalysisIntegrationTest {
                 UUID.randomUUID(), userId, "analysis", true, now, "v1", now));
         consentRepository.save(new ConsentEntity(
                 UUID.randomUUID(), userId, "voice_collection", true, now, "v1", now));
+    }
+
+    private void prepareDailyResponses(UserEntity elder, SessionEntity session, Instant answeredAt) {
+        QuestionEntity orientation = questionRepository.findByQuestionCodeAndActiveTrue("orientation_year")
+                .orElseThrow();
+        QuestionEntity attention = questionRepository.findByQuestionCodeAndActiveTrue("attention_digit_span_4")
+                .orElseThrow();
+        addDailyResponse(elder, session, orientation, 2, answeredAt);
+        addDailyResponse(elder, session, attention, 6, answeredAt.plusSeconds(20));
+    }
+
+    private DailyAnalysisCreateRequest createAndCaptureDailyRequest(UUID userId, UUID sessionId, int invocationCount) {
+        assertThat(analysisService.createDailyAnalysis(userId, sessionId).status()).isEqualTo("pending");
+        ArgumentCaptor<DailyAnalysisCreateRequest> captor = ArgumentCaptor.forClass(DailyAnalysisCreateRequest.class);
+        verify(aiServerClient, times(invocationCount)).createDailyCognitiveAnalysis(anyString(), captor.capture());
+        return captor.getAllValues().get(invocationCount - 1);
+    }
+
+    private void completeDailyRequest(
+            UUID userId, DailyAnalysisCreateRequest request, String score, Instant completedAt
+    ) {
+        BigDecimal estimatedScore = new BigDecimal(score);
+        BigDecimal inputScore = request.inputSnapshot().modelScore();
+        var features = features("0.10", "0.20", "0.30", "0.40");
+        var outputSnapshot = featureSnapshot(fullQuestionResults(), estimatedScore, features);
+        var questionResults = request.responses().stream()
+                .map(response -> new AiServerContracts.QuestionAnalysisResult(
+                        response.questionCode(), "administered", response.recordingId(), response.responseId(),
+                        "speech_detected", "scored", "correct", 0, null, 500L, null))
+                .toList();
+        var result = new AiServerContracts.DailyAnalysisResult(
+                "daily_partial_estimate", request.baselineAnalysisId(), request.baselineModelScore(),
+                inputScore, estimatedScore, estimatedScore.subtract(request.baselineModelScore()),
+                estimatedScore.subtract(inputScore), AiServerContracts.FUSION_MODEL_VERSION,
+                new BigDecimal("0.38592870327757767"), new BigDecimal("0.8061380697921943"),
+                AiServerContracts.THRESHOLD_VERSION, true, "monitoring_needed",
+                request.responses().stream().map(AiServerContracts.AdministeredQuestionResponse::questionCode).toList(),
+                features, outputSnapshot, questionResults);
+        when(aiServerClient.getDailyCognitiveAnalysis(request.analysisId()))
+                .thenReturn(new AiServerContracts.DailyAnalysisStatusResponse(
+                        request.analysisId(), request.sessionId(), "completed", completedAt.minusSeconds(30),
+                        completedAt, false, null, List.of(), result));
+        assertThat(analysisService.refreshDailyAnalysis(userId, request.sessionId()).status()).isEqualTo("completed");
     }
 
     private SessionEntity endedSession(
