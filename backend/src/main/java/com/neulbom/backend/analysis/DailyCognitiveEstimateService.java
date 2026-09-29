@@ -1,5 +1,7 @@
 package com.neulbom.backend.analysis;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,6 +18,7 @@ import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +60,13 @@ public class DailyCognitiveEstimateService {
 
     @Transactional
     public DailyCognitiveEstimateEntity createDailyEstimate(UUID userId, UUID sessionId) {
+        CognitiveFeatureSnapshotEntity baseline = snapshotService.findLatestBaselineSnapshot(userId)
+                .orElseThrow(() -> CognitiveFeatureSnapshotService.invalid("완료된 전체 CIST 기준 스냅샷이 필요합니다."));
+        return createDailyEstimate(userId, sessionId, baseline.getSnapshotId());
+    }
+
+    @Transactional
+    public DailyCognitiveEstimateEntity createDailyEstimate(UUID userId, UUID sessionId, UUID baselineSnapshotId) {
         users.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("일상 문답 사용자를 찾을 수 없습니다."));
         SessionEntity session = sessions.findByIdForUpdate(sessionId)
@@ -66,15 +76,29 @@ public class DailyCognitiveEstimateService {
             throw CognitiveFeatureSnapshotService.invalid("종료된 본인의 일상 문답 세션만 분석할 수 있습니다.");
         }
         Optional<DailyCognitiveEstimateEntity> existing = estimates.findBySessionId(sessionId);
-        if (existing.isPresent()) return existing.get();
-        CognitiveFeatureSnapshotEntity baseline = snapshotService.findLatestBaselineSnapshot(userId)
-                .orElseThrow(() -> CognitiveFeatureSnapshotService.invalid("완료된 전체 CIST 기준 스냅샷이 필요합니다."));
+        if (existing.isPresent()) {
+            DailyCognitiveEstimateEntity saved = existing.get();
+            if (!baselineSnapshotId.equals(saved.getBaselineSnapshotId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "일상 인지 분석의 기준이 이미 정해졌습니다.",
+                        "동일 세션의 기준 스냅샷은 변경할 수 없습니다.");
+            }
+            return saved;
+        }
+        CognitiveFeatureSnapshotEntity baseline = snapshots.findById(baselineSnapshotId)
+                .filter(snapshot -> userId.equals(snapshot.getUserId()))
+                .orElseThrow(() -> CognitiveFeatureSnapshotService.invalid("선택한 전체 CIST 기준 스냅샷이 없습니다."));
         if (estimates.existsByUserIdAndBaselineSnapshotIdAndStatusIn(userId, baseline.getSnapshotId(),
                 List.of("pending", "processing"))) {
             throw new ApiException(HttpStatus.CONFLICT, "진행 중인 일상 인지 분석이 있습니다.",
                     "같은 기준 계보의 분석이 완료된 뒤 다음 분석을 시작하세요.");
         }
-        CurrentSnapshot current = findLatestCurrentSnapshot(userId, baseline.getSnapshotId());
+        CurrentSnapshot current = estimates.findCompletedBefore(
+                        userId, baseline.getSnapshotId(), session.getStartedAt(), PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .map(parent -> new CurrentSnapshot(baseline.getSnapshotId(), parent.getEstimateId(),
+                        parent.getOutputFeatureSnapshot()))
+                .orElseGet(() -> new CurrentSnapshot(baseline.getSnapshotId(), null, baseline.getFeatureSnapshot()));
         return estimates.save(new DailyCognitiveEstimateEntity(ids.generate(), userId, sessionId,
                 baseline.getSnapshotId(), current.parentEstimateId(), baseline.getBaselineModelScore(), clock.instant()));
     }
@@ -98,11 +122,15 @@ public class DailyCognitiveEstimateService {
     public DailyCognitiveEstimateEntity completeDailyEstimate(UUID estimateId, DailyEstimateCompletion completion) {
         if (completion == null) throw CognitiveFeatureSnapshotService.invalid("완료 분석 결과가 필요합니다.");
         CognitiveFeatureSnapshotService.requireScore(completion.estimatedModelScore());
+        DailyEstimateCompletion storedCompletion = new DailyEstimateCompletion(
+                databaseScore(completion.estimatedModelScore()), databaseScore(completion.scoreDelta()),
+                completion.modelVersion(), completion.thresholdVersion(), completion.riskLevel(),
+                completion.resultJson(), completion.analyzedAt(), completion.outputSnapshot());
         DailyCognitiveEstimateEntity estimate = estimates.findByIdForUpdate(estimateId)
                 .orElseThrow(() -> new ResourceNotFoundException("일상 인지 분석을 찾을 수 없습니다."));
         if ("completed".equals(estimate.getStatus())) {
-            if (estimate.getEstimatedModelScore().compareTo(completion.estimatedModelScore()) == 0
-                    && sameDecimal(estimate.getScoreDelta(), completion.scoreDelta())
+            if (estimate.getEstimatedModelScore().compareTo(storedCompletion.estimatedModelScore()) == 0
+                    && sameDecimal(estimate.getScoreDelta(), storedCompletion.scoreDelta())
                     && Objects.equals(estimate.getModelVersion(), completion.modelVersion())
                     && Objects.equals(estimate.getThresholdVersion(), completion.thresholdVersion())
                     && Objects.equals(estimate.getRiskLevel(), completion.riskLevel())
@@ -123,7 +151,7 @@ public class DailyCognitiveEstimateService {
         if (completion.analyzedAt() == null || completion.analyzedAt().isBefore(estimate.getCreatedAt())) {
             throw CognitiveFeatureSnapshotService.invalid("분석 완료 시각이 올바르지 않습니다.");
         }
-        estimate.complete(completion, clock.instant());
+        estimate.complete(storedCompletion, clock.instant());
         return estimate;
     }
 
@@ -158,7 +186,11 @@ public class DailyCognitiveEstimateService {
                 .orElseThrow(() -> new ResourceNotFoundException("기준 특징 스냅샷을 찾을 수 없습니다."));
     }
 
-    private boolean sameDecimal(java.math.BigDecimal left, java.math.BigDecimal right) {
+    private boolean sameDecimal(BigDecimal left, BigDecimal right) {
         return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    private BigDecimal databaseScore(BigDecimal value) {
+        return value == null ? null : value.setScale(10, RoundingMode.HALF_UP);
     }
 }

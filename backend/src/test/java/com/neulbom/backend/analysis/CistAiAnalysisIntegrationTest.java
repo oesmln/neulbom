@@ -65,6 +65,7 @@ class CistAiAnalysisIntegrationTest {
     @Autowired private TranscriptRepository transcriptRepository;
     @Autowired private AnswerRepository answerRepository;
     @Autowired private CistAiAnalysisRepository analysisRepository;
+    @Autowired private CognitiveFeatureSnapshotRepository featureSnapshotRepository;
 
     @MockitoBean private AiServerClient aiServerClient;
     @MockitoBean private AiAudioUrlSigner audioUrlSigner;
@@ -188,6 +189,8 @@ class CistAiAnalysisIntegrationTest {
                 .andExpect(jsonPath("$.status").value("needs_retry"))
                 .andExpect(jsonPath("$.retryable").value(true))
                 .andExpect(jsonPath("$.retry_items.length()").value(2));
+        org.assertj.core.api.Assertions.assertThat(
+                featureSnapshotRepository.findBySourceAnalysisId(request.analysisId())).isEmpty();
 
         QuestionEntity q11 = questionRepository.findByQuestionCodeAndActiveTrue("memory_delayed_free_recall")
                 .orElseThrow();
@@ -288,7 +291,7 @@ class CistAiAnalysisIntegrationTest {
                 "cist-v1",
                 "wrong-event-v1",
                 AiServerContracts.FUSION_MODEL_VERSION,
-                new BigDecimal("0.61"),
+                new BigDecimal("0.613456789123"),
                 new BigDecimal("0.38592870327757767"),
                 new BigDecimal("0.8061380697921943"),
                 "fusion-threshold-v2",
@@ -301,7 +304,7 @@ class CistAiAnalysisIntegrationTest {
                         new BigDecimal("0.4")),
                 featureSnapshot(
                         finalQuestionResults,
-                        new BigDecimal("0.61"),
+                        new BigDecimal("0.613456789123"),
                         new AiServerContracts.FusionFeatures(
                                 new BigDecimal("0.1"),
                                 new BigDecimal("0.2"),
@@ -316,7 +319,7 @@ class CistAiAnalysisIntegrationTest {
                         .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("completed"))
-                .andExpect(jsonPath("$.model_score").value(0.61))
+                .andExpect(jsonPath("$.model_score").value(0.613456789123))
                 .andExpect(jsonPath("$.model_version").value(AiServerContracts.FUSION_MODEL_VERSION))
                 .andExpect(jsonPath("$.decision_threshold").value(0.38592870327757767))
                 .andExpect(jsonPath("$.review_threshold").value(0.8061380697921943))
@@ -325,7 +328,7 @@ class CistAiAnalysisIntegrationTest {
                 .andExpect(jsonPath("$.risk_level").value("monitoring_needed"));
 
         CistAiAnalysisEntity stored = analysisRepository.findById(request.analysisId()).orElseThrow();
-        org.assertj.core.api.Assertions.assertThat(stored.getModelScore()).isEqualByComparingTo("0.61");
+        org.assertj.core.api.Assertions.assertThat(stored.getModelScore()).isEqualByComparingTo("0.613456789123");
         org.assertj.core.api.Assertions.assertThat(stored.getModelVersion())
                 .isEqualTo(AiServerContracts.FUSION_MODEL_VERSION);
         org.assertj.core.api.Assertions.assertThat(stored.getDecisionThreshold()).isEqualByComparingTo("0.38592870327757767");
@@ -337,6 +340,29 @@ class CistAiAnalysisIntegrationTest {
                 .contains("\"schema_version\":\"cognitive-feature-snapshot-v1\"")
                 .contains("\"ast_question_features\"")
                 .contains("\"orientation_year\"");
+
+        CognitiveFeatureSnapshotEntity baseline = featureSnapshotRepository
+                .findBySourceAnalysisId(request.analysisId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(baseline.getUserId()).isEqualTo(elder.getId());
+        org.assertj.core.api.Assertions.assertThat(baseline.getSourceSessionId()).isEqualTo(session.getId());
+        org.assertj.core.api.Assertions.assertThat(baseline.getQuestionSetVersion()).isEqualTo("cist-v1");
+        org.assertj.core.api.Assertions.assertThat(baseline.getModelVersion())
+                .isEqualTo(AiServerContracts.FUSION_MODEL_VERSION);
+        org.assertj.core.api.Assertions.assertThat(baseline.getThresholdVersion()).isEqualTo("fusion-threshold-v2");
+        org.assertj.core.api.Assertions.assertThat(baseline.getBaselineModelScore())
+                .isEqualByComparingTo("0.6134567891");
+        org.assertj.core.api.Assertions.assertThat(baseline.getFeatureSnapshot())
+                .contains("\"schema_version\":\"cognitive-feature-snapshot-v1\"")
+                .contains("\"orientation_year\"");
+
+        mockMvc.perform(get("/api/v1/sessions/{sessionId}/cist-ai/analyses", session.getId())
+                        .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("completed"));
+        org.assertj.core.api.Assertions.assertThat(featureSnapshotRepository.findAllByUserId(elder.getId()))
+                .singleElement()
+                .extracting(CognitiveFeatureSnapshotEntity::getSnapshotId)
+                .isEqualTo(baseline.getSnapshotId());
     }
 
     private void saveAdministeredResponse(

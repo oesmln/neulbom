@@ -18,6 +18,7 @@ import type {
   CharacterResponse,
   CistAiAnalysisResponse,
   CistRecognitionPlanResponse,
+  CistRetestScheduleResponse,
   CounselingCentersResponse,
   DashboardResponse,
   DiaryReactionType,
@@ -697,6 +698,42 @@ export function mockGetCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
   return response;
 }
 
+export function mockCistRetestSchedule(): CistRetestScheduleResponse {
+  const latest = [...mockCistAnalyses.values()]
+    .filter((analysis) => analysis.status === "completed")
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+  if (!latest) {
+    return {
+      last_completed_session_id: null,
+      last_completed_date: null,
+      next_due_date: null,
+      retest_due: false,
+      timezone: "Asia/Seoul",
+    };
+  }
+
+  const seoulDate = (instant: string) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date(instant));
+    const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    return `${value("year")}-${value("month")}-${value("day")}`;
+  };
+  const lastDate = seoulDate(latest.updated_at);
+  const [year, month, day] = lastDate.split("-").map(Number);
+  const targetFirst = new Date(Date.UTC(year, month - 1 + 3, 1));
+  const targetLastDay = new Date(Date.UTC(year, month - 1 + 4, 0)).getUTCDate();
+  const dueDate = `${targetFirst.getUTCFullYear()}-${String(targetFirst.getUTCMonth() + 1).padStart(2, "0")}-${String(Math.min(day, targetLastDay)).padStart(2, "0")}`;
+
+  return {
+    last_completed_session_id: latest.session_id,
+    last_completed_date: lastDate,
+    next_due_date: dueDate,
+    retest_due: seoulDate(new Date().toISOString()) >= dueDate,
+    timezone: "Asia/Seoul",
+  };
+}
+
 export function mockRetryCistAiAnalysis(sessionId: Uuid): CistAiAnalysisResponse {
   const previous = mockCistAnalyses.get(sessionId) ?? completedMockCistAnalysis(sessionId);
   const response: CistAiAnalysisResponse = {
@@ -935,8 +972,24 @@ export function mockGuardianReport(): GuardianReportResponse {
       risk_level: "low",
     })),
     ai_risk_trend_points: [
-      { date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed" },
-      { date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable" },
+      {
+        date: isoDate(daysAgo(30)), risk_score: 0.42, risk_level: "monitoring_needed",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(30).toISOString(),
+        session_id: fixedId("33333333", 1), baseline_session_id: fixedId("33333333", 1),
+        baseline_snapshot_id: fixedId("99999999", 1),
+      },
+      {
+        date: isoDate(daysAgo(15)), risk_score: 0.38, risk_level: "stable",
+        point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(15).toISOString(),
+        session_id: fixedId("33333333", 2), baseline_session_id: fixedId("33333333", 1),
+        baseline_snapshot_id: fixedId("99999999", 1),
+      },
+      {
+        date: isoDate(daysAgo(0)), risk_score: 0.35, risk_level: "stable",
+        point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(0).toISOString(),
+        session_id: fixedId("33333333", 3), baseline_session_id: fixedId("33333333", 3),
+        baseline_snapshot_id: fixedId("99999999", 3),
+      },
     ],
     recent_alerts: guardianNotifications.slice(0, 2).map((n) => ({
       notification_id: n.notification_id,
@@ -1061,5 +1114,6 @@ export function mockHistory(): HistoryResponse {
     total: weekly.length,
     aggregation: "weekly",
     sample_sufficient: true,
+      ai_risk_trend_points: mockGuardianReport().ai_risk_trend_points,
   };
 }

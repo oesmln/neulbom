@@ -1,5 +1,6 @@
 import React from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -39,6 +40,13 @@ function todayLabel() {
   return `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
 }
 
+function formatKoreanDate(date: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return match
+    ? `${match[1]}년 ${Number(match[2])}월 ${Number(match[3])}일`
+    : date;
+}
+
 export default function ElderResultScreen() {
   const navigation = useNavigation<ElderNav>();
   const route = useRoute<RouteProp<ElderStackParamList, "ElderResult">>();
@@ -70,6 +78,16 @@ export default function ElderResultScreen() {
       enabled: !!sessionId && baseline,
       intervalMs: baseline && aiPolling ? POLL_INTERVAL_MS : undefined,
     },
+  );
+  const {
+    data: retestSchedule,
+    error: scheduleError,
+    loading: scheduleLoading,
+    reload: reloadSchedule,
+  } = useApi(
+    () => cistAi.getRetestSchedule(),
+    [sessionId],
+    { enabled: !!sessionId && baseline && aiAnalysis?.status === "completed" },
   );
   const [retrying, setRetrying] = React.useState(false);
   const [retryError, setRetryError] = React.useState<string | null>(null);
@@ -188,6 +206,41 @@ export default function ElderResultScreen() {
           )}
         </View>
 
+        {baseline && aiAnalysis?.status === "completed" ? (
+          <View style={styles.scheduleCard}>
+            <View style={styles.scheduleHeading}>
+              <View style={styles.scheduleIcon}>
+                <Ionicons name="calendar-outline" size={21} color={colors.primaryDark} />
+              </View>
+              <View style={styles.scheduleHeadingText}>
+                <Text style={styles.scheduleLabel}>다음 검사 예정일</Text>
+                {retestSchedule?.next_due_date ? (
+                  <Text style={styles.scheduleDate}>
+                    {formatKoreanDate(retestSchedule.next_due_date)}
+                  </Text>
+                ) : (
+                  <Text style={styles.schedulePending}>
+                    {scheduleLoading ? "예정일을 확인하고 있어요" : "예정일을 확인하지 못했어요"}
+                  </Text>
+                )}
+              </View>
+            </View>
+            {scheduleError || (!scheduleLoading && !retestSchedule?.next_due_date) ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={reloadSchedule}
+                style={styles.scheduleRetry}
+              >
+                <Text style={styles.scheduleRetryText}>다시 조회하기</Text>
+              </Pressable>
+            ) : null}
+            <View style={styles.scheduleDivider} />
+            <Text style={styles.scheduleDescription}>
+              CIST 인지 검사는 3개월마다 진행돼요. 다음 검사 시기가 되면 홈 화면에서 알려드릴게요.
+            </Text>
+          </View>
+        ) : null}
+
         {!baseline && result?.result_status === "completed" && result.recommendation ? (
           <View style={styles.note}>
             <Text style={styles.noteText}>{result.recommendation}</Text>
@@ -257,6 +310,33 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   noteText: { fontSize: fontSize.body, color: colors.primaryDark, lineHeight: 24 },
+
+  scheduleCard: {
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    backgroundColor: colors.secondary,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  scheduleHeading: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  scheduleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(90,143,104,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scheduleHeadingText: { flex: 1 },
+  scheduleLabel: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  scheduleDate: { fontSize: fontSize.subtitle, fontWeight: fontWeight.bold, color: colors.primary, marginTop: spacing.xs },
+  schedulePending: { fontSize: fontSize.body, color: colors.mutedForeground, marginTop: spacing.xs },
+  scheduleRetry: { alignSelf: "flex-start", marginLeft: 40 + spacing.md, marginTop: spacing.sm },
+  scheduleRetryText: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.primaryDark },
+  scheduleDivider: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.lg, marginBottom: spacing.md },
+  scheduleDescription: { fontSize: fontSize.body, lineHeight: 23, color: colors.primaryDark },
 
   footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xl },
   retryAction: { paddingHorizontal: spacing.xl, gap: spacing.sm },

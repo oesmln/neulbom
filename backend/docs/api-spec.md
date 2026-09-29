@@ -188,6 +188,7 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `PATCH` | `/sessions/{session_id}/settings` | 청취·음성·자막 설정 적용 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `PATCH` | `/sessions/{session_id}/end` | 세션 종료·정성 결과·경험치 적립 상태 반환 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `GET` | `/sessions` | 세션 목록 조회 | 필요 | 본인, 권한 보유자 | MVP |
+| `GET` | `/cist/retest-schedule` | 마지막 완료 CIST 기준 3개월 재검사 예정일·도래 여부 | 필요 | 고령자 본인 | MVP |
 | `POST` | `/sessions/{session_id}/answers` | 문항별 답변 저장 | 필요 | 세션 사용자, 권한 보유자 | MVP |
 | `POST` | `/sessions/{session_id}/questions/next` | Gemini 일상 질문 또는 무작위 CIST 문제은행 질문 생성·조회 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/sessions/{session_id}/answers` | 세션 대화·답변 내역 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
@@ -1332,6 +1333,24 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 ```
 
 > 화면은 한 번에 하나의 질문만 표시한다. 정서 문답은 서버가 `questions/next` 응답으로 진행할 질문을 결정하고, 프론트엔드는 `다음`, `다시 듣기`, `처음으로` 동작을 처리한다.
+
+### 6.10 `GET /cist/retest-schedule` - CIST 재검사 일정
+
+로그인한 사용자 본인의 전체 CIST(`cist`·`baseline`·`onboarding`) 중 세션이 종료되고 AI 분석이 `completed`된 가장 최근 검사를 기준으로 계산한다. 일상 문답의 부분 갱신 추정치는 기준일을 변경하지 않는다. 검사 완료일은 세션 종료 시각의 `Asia/Seoul` 날짜이며, 다음 예정일은 그 날짜에 달력상 3개월을 더한 날이다. 예정일 당일부터 `retest_due=true`이다. 이 일정은 안내용이며 예정일 전 검사 시작을 서버에서 차단하지 않는다.
+
+#### Response `200`
+
+```json
+{
+  "last_completed_session_id": "8e9c9d9b-561f-4e66-977a-8cc31d7fd24d",
+  "last_completed_date": "2026-09-29",
+  "next_due_date": "2026-12-29",
+  "retest_due": false,
+  "timezone": "Asia/Seoul"
+}
+```
+
+완료된 전체 CIST 분석이 없으면 세 날짜·ID 필드는 `null`, `retest_due`는 `false`다. 분석이 `pending`·`processing`·`needs_retry`·`failed`인 세션은 마지막 완료 검사로 간주하지 않는다. 고령자 완료 화면은 `next_due_date`를, 홈 화면은 `retest_due`를 사용한다.
 
 #### 구현 권한·진행 규칙
 
