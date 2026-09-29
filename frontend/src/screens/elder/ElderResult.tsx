@@ -10,7 +10,7 @@ import { cistAi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { apiErrorMessage } from "@/api/errors";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
-import { Button, ErrorState, LoadingState, SentenceText as Text, SpeechBubble } from "@/components/ui";
+import { Button, ErrorState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
 import { withParticle } from "@/utils/format";
@@ -185,14 +185,6 @@ export default function ElderResultScreen() {
                   : "음성 주소를 새로 준비해 다시 분석할게요."}
                 side="below"
               />
-            </View>
-          ) : !(baseline ? aiAnalysis : result) ? (
-            <View style={styles.stateWrap}>
-              <LoadingState label="결과를 준비하고 있어요" />
-            </View>
-          ) : !resultSettled ? (
-            <View style={styles.stateWrap}>
-              <LoadingState label="대화를 살펴보고 있어요. 잠시만 기다려 주세요" />
             </View>
           ) : (
               <SpeechBubble
