@@ -209,6 +209,10 @@ public class CistAiAnalysisService {
     @Transactional
     public CistAiAnalysisResponse createAnalysis(UUID userId, UUID sessionId) {
         SessionEntity session = ownedCistSession(userId, sessionId);
+        // The result screen and recovery job can request creation together.
+        // Serialize their existing-analysis check on the session row.
+        sessionRepository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("세션을 찾을 수 없습니다."));
         CistAiAnalysisEntity existing = analysisRepository.findBySessionId(sessionId).orElse(null);
         if (existing != null) {
             return toResponse(existing);
@@ -608,11 +612,16 @@ public class CistAiAnalysisService {
                 continue;
             }
             CistAiAnalysisEntity analysis = analysisRepository.findBySessionId(candidate.getId()).orElse(null);
-            if (analysis != null && "completed".equals(analysis.getStatus())
-                    && !analysis.getUpdatedAt().isAfter(before)) {
-                return analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())
-                        ? analysis : null;
+            if (analysis == null || !"completed".equals(analysis.getStatus())) {
+                // A newer exam exists. Wait for its result instead of attaching
+                // this daily conversation to the previous CIST lineage.
+                return null;
             }
+            // The exam was finished before the daily conversation. Its AI job
+            // may complete later, so use the resulting baseline when retrying
+            // an initially missed daily analysis.
+            return analysis.getModelScore() != null && StringUtils.hasText(analysis.getFeatureSnapshot())
+                    ? analysis : null;
         }
         return null;
     }

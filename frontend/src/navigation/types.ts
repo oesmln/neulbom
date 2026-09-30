@@ -103,6 +103,7 @@ export type ElderMyPageStackParamList = {
   ElderMyPageMain: undefined;
   ElderPasswordChange: undefined;
   ElderAppSettings: undefined;
+  ElderGuardianInvite: undefined;
 };
 
 /**

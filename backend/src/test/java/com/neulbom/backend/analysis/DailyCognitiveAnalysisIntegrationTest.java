@@ -51,6 +51,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -106,12 +107,16 @@ class DailyCognitiveAnalysisIntegrationTest {
         AiServerContracts.FusionFeatures baselineFeatures = features("0.10", "0.20", "0.30", "0.40");
         var baselineSnapshot = featureSnapshot(fullQuestionResults(), new BigDecimal("0.41"), baselineFeatures);
         CistAiAnalysisEntity baselineAnalysis = completedAnalysis(
-                baselineSession.getId(), null, "0.41", baselineSnapshot, baselineEndedAt);
+                baselineSession.getId(), null, "0.41", baselineSnapshot,
+                currentDailyStartedAt.plusSeconds(60));
         analysisRepository.save(baselineAnalysis);
         CognitiveFeatureSnapshotEntity storedBaseline = baselineSnapshotService.saveBaselineSnapshot(
                 elder.getId(), baselineSession.getId(), baselineAnalysis.getAnalysisId(),
                 "cist-v1", AiServerContracts.FUSION_MODEL_VERSION, AiServerContracts.THRESHOLD_VERSION,
                 new BigDecimal("0.41"), objectMapper.writeValueAsString(baselineSnapshot));
+        assertThat(sessionRepository.findEndedDailySessionsMissingAnalysis(
+                now.plusSeconds(30), PageRequest.of(0, 100)))
+                .extracting(SessionEntity::getId).contains(currentDailySession.getId());
 
         AiServerContracts.FusionFeatures previousFeatures = features("0.11", "0.21", "0.31", "0.41");
         var previousSnapshot = featureSnapshot(fullQuestionResults(), new BigDecimal("0.52"), previousFeatures);
@@ -156,6 +161,9 @@ class DailyCognitiveAnalysisIntegrationTest {
         var accepted = analysisService.createDailyAnalysis(elder.getId(), currentDailySession.getId());
         assertThat(accepted.status()).isEqualTo("pending");
         assertThat(accepted.sessionId()).isEqualTo(currentDailySession.getId());
+        assertThat(sessionRepository.findEndedDailySessionsMissingAnalysis(
+                now.plusSeconds(30), PageRequest.of(0, 100)))
+                .extracting(SessionEntity::getId).doesNotContain(currentDailySession.getId());
         mockMvc.perform(post("/api/v1/sessions/{sessionId}/cist-ai/daily-analyses", currentDailySession.getId())
                         .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
                 .andExpect(status().isAccepted())
@@ -549,6 +557,12 @@ class DailyCognitiveAnalysisIntegrationTest {
                 AiServerContracts.QUESTION_SET_VERSION, AiServerContracts.FUSION_MODEL_VERSION,
                 AiServerContracts.THRESHOLD_VERSION, new BigDecimal("0.41"),
                 objectMapper.writeValueAsString(previousSnapshot));
+        assertThat(sessionRepository.findEndedDailySessionsMissingAnalysis(
+                daily.getEndedAt().plusSeconds(30), PageRequest.of(0, 100)))
+                .extracting(SessionEntity::getId).doesNotContain(daily.getId());
+        assertThatThrownBy(() -> analysisService.createDailyAnalysis(elder.getId(), daily.getId()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("완료된 CIST 기준 분석과 특징 스냅샷이 필요합니다.");
         CistAiAnalysisEntity legacyAnalysis = completedAnalysis(
                 legacyCist.getId(), null, "0.42", null, legacyCist.getEndedAt());
         legacyAnalysis.updateFeatureSnapshot(null);

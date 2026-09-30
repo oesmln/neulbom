@@ -189,7 +189,7 @@ public class GuardianService {
                 .toList());
         invitation.accept(elder.getId(), now);
         invitationRepository.save(invitation);
-        return toLinkResponse(null, link, scopes);
+        return toLinkResponse(invitation.getId(), link, scopes);
     }
 
     @Transactional

@@ -230,6 +230,9 @@ class CistRetestTrendFlowIntegrationTest {
     private SessionEntity endedSession(UUID userId, String type, Instant startedAt, Instant endedAt) {
         SessionEntity session = new SessionEntity(UUID.randomUUID(), userId, type,
                 "emotional_qa".equals(type) ? 7 : 17, "{}", false, startedAt);
+        if (!"emotional_qa".equals(type)) {
+            for (int index = 0; index < session.getTotalQuestions(); index++) session.recordAnswer();
+        }
         session.end(endedAt);
         return sessions.save(session);
     }
