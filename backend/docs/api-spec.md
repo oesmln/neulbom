@@ -208,7 +208,7 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | `POST` | `/sessions/{session_id}/cist-ai/recognition-plan` | Q11 기반 조건부 기억재인 문항 계획 | 필요 | 세션 사용자 | MVP |
 | `POST` | `/sessions/{session_id}/cist-ai/analyses` | 17문항 통합 AI 분석 생성 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/sessions/{session_id}/cist-ai/analyses` | 통합 AI 분석 상태 동기화·조회 | 필요 | 세션 사용자 | MVP |
-| `POST` | `/sessions/{session_id}/cist-ai/analyses/retry` | signed URL·응답 교체 분석 재시도 | 필요 | 세션 사용자 | MVP |
+| `POST` | `/sessions/{session_id}/cist-ai/analyses/retry` | signed URL·응답 교체 또는 `INTERNAL_ERROR` 실패 분석 재처리(새 signed URL 사용, 최대 2회) | 필요 | 세션 사용자 | MVP |
 | `POST` | `/sessions/{session_id}/cist-ai/daily-analyses` | 일상 CIST 2문항 부분 갱신 분석 생성 | 필요 | 세션 사용자 | MVP |
 | `GET` | `/sessions/{session_id}/cist-ai/daily-analyses` | 일상 인지 분석 상태 동기화·조회 | 필요 | 세션 사용자 | MVP |
 | `POST` | `/sessions/{session_id}/cist-ai/daily-analyses/retry` | 일상 인지 분석 재시도 | 필요 | 세션 사용자 | MVP |
@@ -1659,9 +1659,11 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 
 결과 화면의 조회와 별도로 서버가 `pending`·`processing` 상태인 전체 CIST 분석을 주기적으로 조회한다. 기본 간격은 이전 실행 종료 후 10초(`APP_CIST_ANALYSIS_SYNC_DELAY_MS`)이며 한 번에 오래된 분석부터 최대 100건을 처리한다. 일상 부분 갱신 분석은 별도 동기화 작업이 맡는다. 전체 CIST가 `completed`로 전환되면 같은 처리에서 기준 특징 스냅샷을 저장한다. 단, 스냅샷 계약 도입 전에 저장된 완료 결과는 `feature_snapshot=null`일 수 있다. 이 경우 검증된 기존 `model_score`와 위험 단계는 동기화해 보호자 추이에 표시하되 기준 스냅샷을 생성하지 않으며, 해당 CIST를 기준으로 한 일상 부분 갱신은 새 스냅샷이 있는 검사 전까지 생성하지 않는다. 개별 동기화 실패는 `analysis_id`, `session_id`, 예외 유형만 기록하고 다음 분석을 계속 처리한다. `APP_CIST_ANALYSIS_SYNC_ENABLED`로 이 작업을 제어하며 공통 `APP_SCHEDULER_ENABLED` 설정도 적용된다.
 
+같은 동기화 작업은 `INTERNAL_ERROR`로 실패하고 재처리 횟수가 0인 전체 CIST를 한 번 자동 재처리한다. 원래 답변의 녹음·응답 ID를 확인하고 새 signed URL로 전체 요청을 다시 작성한다. AI 서버는 기존 `analysis_id`를 유지하고 이전 시도를 이력에 남긴다.
+
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 
-저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
+`needs_retry`에서는 저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. `failed`와 `INTERNAL_ERROR`에서는 새 signed URL을 포함한 17문항 전체 요청으로 최대 두 번 재처리할 수 있다. `MODEL_UNAVAILABLE` 실패는 이 경로에서 재처리하지 않는다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
 
 #### 일상 문답의 부분 갱신 분석
 

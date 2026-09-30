@@ -386,7 +386,7 @@ GET /v1/analyses/{analysis_id}
 - `processing`: 처리 중
 - `needs_retry`: 백엔드 또는 사용자 조치 필요
 - `completed`: 분석 완료
-- `failed`: 재시도할 수 없는 실패
+- `failed`: 내부 오류 또는 모델 오류로 종료
 
 스냅샷 계약 도입 이전에 저장된 완료 결과는 `model_score`가 있어도
 `result.feature_snapshot`이 `null`일 수 있습니다. 조회 API는 해당 점수를 그대로
@@ -407,6 +407,15 @@ POST /v1/analyses/{analysis_id}/retry
 - `REPLACE_RESPONSE`: 새 녹음과 전사문으로 응답 교체
 
 한 분석에 URL 재발급과 응답 교체가 함께 필요한 혼합 재시도 항목도 지원합니다.
+
+`INTERNAL_ERROR`로 실패한 전체 CIST 분석은 백엔드가 기존 녹음의 signed URL을
+새로 발급한 전체 요청으로 다시 시작할 수 있습니다. 같은 `analysis_id`를 유지하며
+이전 시도는 이력에 남습니다. 백엔드는 실패 건을 한 번 자동 재처리하고, 고령자는
+결과 화면에서 한 번 더 요청할 수 있습니다.
+
+```text
+POST /v1/analyses/{analysis_id}/restart
+```
 
 ### 5. 일상 문답 인지 추이 분석
 
@@ -437,6 +446,7 @@ Authorization: Bearer {AI_SERVER_SERVICE_TOKEN}
 - recognition plan 생성
 - 분석 생성
 - 분석 재시도
+- 내부 오류 분석 재처리
 - 일상 인지 부분 갱신 분석 생성·재시도
 
 규칙:
@@ -494,7 +504,8 @@ URL 만료 또는 접근 실패 시 AI 서버는 다음 상태를 반환할 수 
 - `AUDIO_DOWNLOAD_FAILED`
 - `UNSUPPORTED_AUDIO_FORMAT`
 
-복구할 수 없는 모델 또는 내부 오류는 각각 `MODEL_UNAVAILABLE`, `INTERNAL_ERROR`로 `failed` 처리됩니다.
+`MODEL_UNAVAILABLE`은 재처리 대상이 아닙니다. `INTERNAL_ERROR`는
+새 음성 URL로 제한된 횟수만 재처리할 수 있습니다.
 
 ## 데이터 저장과 복구
 
@@ -534,5 +545,5 @@ SQLite 파일을 백업할 때는 AI 서버를 종료한 뒤 파일 또는 Docke
 - `model.safetensors`, `joblib` 모델 파일을 Git에 커밋하지 않습니다.
 - signed URL과 전사문을 로그에 기록하지 않습니다.
 - 운영에서는 Uvicorn worker를 1개로 유지합니다.
-- 현재 분석 처리 제한 시간은 300초입니다.
+- CPU 운영 환경의 분석 처리 제한 시간은 900초이며, 음성 URL 유효 시간은 30분입니다.
 - 모델 또는 임계값 변경 시 새로운 버전으로 계약과 결과를 보존합니다.
