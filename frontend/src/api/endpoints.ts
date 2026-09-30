@@ -426,6 +426,7 @@ export const cistAi = {
 
 export interface RecordingUpload {
   uri: string;
+  readBytes?: () => Promise<Uint8Array>;
   clientRecordingId: Uuid;
   userId: Uuid;
   purpose: RecordingPurpose;
@@ -439,6 +440,15 @@ export interface RecordingUpload {
 }
 
 export const recordings = {
+  deleteAllAudio(): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request("/recordings", { method: "DELETE" });
+  },
+
+  deleteAudio(recordingId: Uuid): Promise<void> {
+    if (USE_MOCK_API) return Promise.resolve();
+    return request(`/recordings/${recordingId}`, { method: "DELETE" });
+  },
   /**
    * `RecordingController` takes the audio as a `audio_file` part and everything
    * else as query parameters, so the payload is split accordingly.
@@ -478,7 +488,7 @@ export const recordings = {
       form.append("audio_file", {
         name: fileName,
         type: mimeType,
-        bytes: () => file.bytes(),
+        bytes: input.readBytes ?? (() => file.bytes()),
       } as unknown as Blob);
     }
     return uploadMultipart(

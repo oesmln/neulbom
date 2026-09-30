@@ -58,7 +58,7 @@
 | 세션 | 검사·정서 문답 시작, 조회, 종료 | `POST /sessions`, `GET/PATCH /sessions/{sessionId}` | [ ] |
 | 세션 | 세션 목록·공식 CIST 질문 조회·AI 정서 문답 질문 진행 | `GET /sessions`, `GET /questions/daily`, `POST /sessions/{sessionId}/questions/next` | [ ] |
 | 답변 | 문항 답변 저장 및 멱등성 | `POST /sessions/{sessionId}/answers` | [ ] |
-| 녹음 | 음성 multipart 업로드·상태 조회 | `POST/GET /recordings` | [x] (#61) |
+| 녹음 | 음성 multipart 업로드·상태 조회·서버 원본 삭제 | `POST/GET/DELETE /recordings` | [x] (#61, #245) |
 | 음성 출력 | Google TTS 합성·실제 재생·켜기/끄기 | `POST /speech/synthesize` | [x] (#91) |
 | 홈 | 고령자 대시보드 조회 | `GET /dashboard/{userId}` | [ ] |
 | 검사 결과 | 결과와 인지 추이 조회 | `GET /screenings/{sessionId}/result`, `GET /analysis/cognitive/{userId}/history` | [ ] |
