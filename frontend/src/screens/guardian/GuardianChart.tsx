@@ -11,6 +11,7 @@ import type { PeriodKey, ViewMode } from "@/utils/aiRiskTrend";
 import type { GuardianAiRiskTrendPoint } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
+import GuardianGameResults from "@/components/GuardianGameResults";
 import ElderSelector from "@/components/ElderSelector";
 import {
   Screen,
@@ -199,7 +200,7 @@ export default function GuardianChartScreen() {
                 </>
               ) : null}
             </View>
-            <Caption>AI 위험 신호 지수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.{viewMode === "all" ? " 일상 문답 추정점은 일부 문항만 갱신한 결과예요." : ""}</Caption>
+            <Caption>AI 위험 신호 지수를 0~100 눈금으로 표시했어요. 높을수록 추가 확인이 필요한 신호이며 진단 결과는 아닙니다.{viewMode === "all" ? " 일상 문답 추정점은 지남력·주의력 문항을 부분 갱신한 결과예요." : ""}</Caption>
             {visibleAiRiskPoints.length < 2 ? (
               <Caption style={{ marginTop: spacing.sm }}>표시된 점이 하나뿐이라 변화 추이는 판단할 수 없어요.</Caption>
             ) : null}
@@ -217,7 +218,7 @@ export default function GuardianChartScreen() {
           </View>
         )}
       </Card>
-
+      <GuardianGameResults key={selectedElderId} elderId={selectedElderId} />
     </Screen>
   );
 }

@@ -6,6 +6,8 @@ import {
   nextPeriodContainingBaseline,
   trendView,
 } from "../src/utils/aiRiskTrend.ts";
+import { riskBand, riskBoundaryLabel, thresholdsForPoints } from "../src/utils/riskBands.ts";
+import { gameDomain, gameResultSummary, recentGames } from "../src/utils/guardianGameResults.ts";
 
 function point(date, type, session, baseline = session, score = 0.4) {
   return {
@@ -101,4 +103,37 @@ test("재검사 후 일상 변화는 새 기준점의 추정치만 사용한다"
   assert.equal(view.previousCist?.session_id, "old");
   assert.equal(view.recentCist?.session_id, "new");
   assert.equal(view.recentDaily?.session_id, "latest");
+});
+
+test("저장된 모델 경계값을 0~100 눈금으로 표시하고 경계에서 다음 구간으로 넘어간다", () => {
+  const older = { ...point("2026-09-01", "full_cist", "old"), decision_threshold: 0.3,
+    review_threshold: 0.7, threshold_version: "old" };
+  const latest = { ...point("2026-09-10", "full_cist", "new"), decision_threshold: 0.38592870327757767,
+    review_threshold: 0.8061380697921943, threshold_version: "fusion-threshold-v2" };
+  const thresholds = thresholdsForPoints([latest, older]);
+  assert.equal(thresholds.version, "fusion-threshold-v2");
+  assert.equal(riskBoundaryLabel(thresholds.decision), "38.6");
+  assert.equal(riskBoundaryLabel(thresholds.review), "80.6");
+  assert.equal(riskBand(thresholds.decision - 0.0001, thresholds), "stable");
+  assert.equal(riskBand(thresholds.decision, thresholds), "monitoring_needed");
+  assert.equal(riskBand(thresholds.review, thresholds), "review_needed");
+});
+
+test("게임 기록은 기억력·언어력으로 분리하고 저장된 결과만 설명한다", () => {
+  const card = { game_result_id: "card", game_type: "image_match", score: 6,
+    matched_pairs: 6, attempt_count: 9, completed: true, played_at: "2026-09-09T00:00:00Z" };
+  const color = { ...card, game_result_id: "color", game_type: "color_match", score: 5,
+    matched_pairs: null, attempt_count: null, played_at: "2026-09-10T00:00:00Z" };
+  const word = { ...color, game_result_id: "word", game_type: "consonant", score: 7,
+    played_at: "2026-09-11T00:00:00Z" };
+  assert.equal(gameDomain("image_match"), "memory");
+  assert.equal(gameDomain("color_match"), "memory");
+  assert.equal(gameDomain("consonant"), "language");
+  assert.equal(gameDomain("word_match"), "language");
+  assert.equal(gameDomain("unknown"), null);
+  assert.deepEqual(recentGames([card, word, color], "memory", 1).map((r) => r.game_result_id), ["color"]);
+  assert.deepEqual(recentGames([card, word, color], "language", 3).map((r) => r.game_result_id), ["word"]);
+  assert.deepEqual(recentGames([], "memory", 1), []);
+  assert.equal(gameResultSummary(card), "6쌍 맞춤 · 9회 시도");
+  assert.equal(gameResultSummary({ ...word, completed: false }), "미완료");
 });
