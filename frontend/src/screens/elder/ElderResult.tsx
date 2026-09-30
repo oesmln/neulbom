@@ -334,7 +334,12 @@ const styles = StyleSheet.create({
   scheduleDivider: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: spacing.lg, marginBottom: spacing.md },
   scheduleDescription: { fontSize: fontSize.body, lineHeight: 23, color: colors.primaryDark },
 
-  footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: spacing.xl },
+  footer: {
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+  },
   retryAction: { paddingHorizontal: spacing.xl, gap: spacing.sm },
   retryError: { color: colors.destructive, textAlign: "center" },
 });
