@@ -276,13 +276,15 @@ export default function ElderCalendarScreen() {
                   style={[styles.diaryChoice, diary.diary_id === selectedDiary.diary_id && styles.diaryChoiceSelected]}
                 >
                   <Text style={styles.diaryChoiceTitle}>
-                    {parseIso(diary.written_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} · {diary.title ?? "일기"}
+                    {parseIso(diary.written_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })}
                   </Text>
                 </Pressable>
               )) : null}
               <View style={styles.entryHead}>
                 <Text style={styles.entryTitle}>
-                  {selectedDiary.title ?? "오늘의 이야기"}
+                  {selectedDiary.title && !["오늘의 이야기", "일기"].includes(selectedDiary.title.trim())
+                    ? selectedDiary.title
+                    : `${monthBase.getMonth() + 1}월 ${selectedDay}일의 일기`}
                 </Text>
                 <Text style={styles.entryMood}>
                   {moodEmoji(selectedDiary.mood, selectedDiary.mood_level)}
