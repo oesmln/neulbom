@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { ElderNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { game, newClientId, sessions } from "@/api";
+import { cistAi, game, newClientId, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
@@ -144,6 +144,12 @@ export default function ElderAiChatScreen() {
 
       if (isLast) {
         await sessions.end(sessionId);
+        // 서버도 세션 종료 트리거에서 부분 CIST 추정을 시작하지만, 그 트리거가 실패하면
+        // 경고 로그만 남고 조용히 누락된다. 같은 요청을 한 번 더 보내 일시적인 실패를
+        // 바로 만회한다. 이미 접수된 세션이면 서버가 기존 분석을 그대로 돌려준다.
+        // 결과를 기다리지 않으므로 대화 완료 화면 이동이 늦어지지 않고, 여기서도 실패하면
+        // 서버의 복구 스케줄러가 다시 접수한다.
+        void cistAi.createDailyAnalysis(sessionId).catch(() => undefined);
         restart();
         navigation.navigate("ElderResult", { sessionId });
         return;

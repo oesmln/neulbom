@@ -470,6 +470,21 @@ export interface CistAiAnalysisResponse {
   updated_at: IsoInstant;
 }
 
+/**
+ * 일상 문답 세션의 부분 CIST 추정 접수 상태. 점수와 위험 등급은 보호자 인지 추이에서만
+ * 노출하므로 여기에는 담지 않는다.
+ */
+export interface DailyCognitiveAnalysisResponse {
+  analysis_id: Uuid;
+  session_id: Uuid;
+  status: CistAiStatus;
+  retry_count: number;
+  retryable: boolean;
+  reason_code: string | null;
+  created_at: IsoInstant;
+  updated_at: IsoInstant;
+}
+
 export interface CistRetestScheduleResponse {
   last_completed_session_id: Uuid | null;
   last_completed_date: IsoDate | null;
