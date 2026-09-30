@@ -358,6 +358,11 @@ export default function ElderMyPageScreen() {
             label="앱 설정"
             onPress={() => elderNavigation.navigate("ElderAppSettings")}
           />
+          <SettingsRow
+            icon="mic-outline"
+            label="녹음 원본 관리"
+            onPress={() => elderNavigation.navigate("ElderRecordingSettings")}
+          />
 
           <View style={[styles.listRow, styles.listRowDivided]}>
             <View style={styles.listLeft}>
