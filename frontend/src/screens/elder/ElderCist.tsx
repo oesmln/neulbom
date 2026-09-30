@@ -190,10 +190,14 @@ export default function ElderCistScreen() {
         question_id: question.question_id,
         answer_text: isListenQuestion ? "listened" : undefined,
         recording_id: recordingId ?? undefined,
-        response_time_ms: Math.min(
-          responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
-          MAX_RESPONSE_TIME_MS,
-        ),
+        // 유창성 문항은 이름 대기 과제라 응답 지연이 의미 없고, 긴 답변 특성상
+        // 재녹음이 잦아 측정이 왜곡되기 쉬우므로 아예 보내지 않는다.
+        response_time_ms: question.question_code === "language_semantic_fluency"
+          ? undefined
+          : Math.min(
+            responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
+            MAX_RESPONSE_TIME_MS,
+          ),
         answered_at: new Date().toISOString(),
       });
 
