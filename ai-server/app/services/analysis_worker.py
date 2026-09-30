@@ -341,6 +341,10 @@ class SingleAnalysisWorker:
             self._repository.mark_failed(
                 analysis_id=analysis_id,
                 reason_code=reason_code,
+                retryable=(
+                    analysis.request_body.get("analysis_type")
+                    != "daily_partial_update"
+                ),
             )
         except Exception:
             logger.exception(

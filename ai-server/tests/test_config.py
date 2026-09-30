@@ -35,7 +35,7 @@ def test_default_settings() -> None:
     assert (
         settings
         .analysis_processing_timeout_seconds
-        == 300.0
+        == 900.0
     )
 
 

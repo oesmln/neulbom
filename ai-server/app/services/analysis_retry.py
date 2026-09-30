@@ -60,17 +60,19 @@ class AnalysisRetryService:
             )
         )
 
-        expected_items = (
-            self._load_expected_retry_items(
-                analysis,
+        if analysis.status == AnalysisStatus.FAILED:
+            self._validate_failed_retry_request(
+                analysis=analysis,
+                original_request=original_request,
+                retry_request=retry_request,
             )
-        )
-
-        self._validate_retry_request(
-            analysis=analysis,
-            retry_request=retry_request,
-            expected_items=expected_items,
-        )
+        else:
+            expected_items = self._load_expected_retry_items(analysis)
+            self._validate_retry_request(
+                analysis=analysis,
+                retry_request=retry_request,
+                expected_items=expected_items,
+            )
 
         updated_responses = (
             self._merge_response_items(
@@ -188,6 +190,17 @@ class AnalysisRetryService:
     def _validate_analysis_state(
         analysis: StoredAnalysis,
     ) -> None:
+        if analysis.status == AnalysisStatus.FAILED:
+            if (
+                analysis.reason_code in {"INTERNAL_ERROR", "MODEL_UNAVAILABLE"}
+                and not analysis.retry_items
+                and analysis.result_body is None
+            ):
+                return
+            raise AnalysisRetryValidationError(
+                "저장된 실패 분석은 전체 재시도할 수 없습니다.",
+            )
+
         if (
             analysis.status
             != AnalysisStatus.NEEDS_RETRY
@@ -207,6 +220,33 @@ class AnalysisRetryService:
             raise AnalysisRetryValidationError(
                 "저장된 분석의 재시도 상태가 "
                 "올바르지 않습니다.",
+            )
+
+    @staticmethod
+    def _validate_failed_retry_request(
+        *,
+        analysis: StoredAnalysis,
+        original_request: AnalysisCreateRequest,
+        retry_request: AnalysisRetryRequest,
+    ) -> None:
+        expected_codes = {
+            response.question_code
+            for response in original_request.responses
+            if isinstance(response, AdministeredQuestionResponse)
+        }
+        requested_codes = {
+            item.question_code for item in retry_request.items
+        }
+        if (
+            retry_request.reason_code != analysis.reason_code
+            or requested_codes != expected_codes
+            or any(
+                not isinstance(item, ReissueAudioUrlItem)
+                for item in retry_request.items
+            )
+        ):
+            raise AnalysisRetryValidationError(
+                "실패 분석은 모든 시행 문항의 음성 주소를 새로 발급해 재시도해야 합니다.",
             )
 
     @staticmethod

@@ -297,9 +297,12 @@ public class CistAiAnalysisService {
     @Transactional
     public CistAiAnalysisResponse retryAnalysis(UUID userId, UUID sessionId) {
         ownedCistSession(userId, sessionId);
-        CistAiAnalysisEntity entity = analysisRepository.findBySessionId(sessionId)
+        CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("CIST AI 분석을 찾을 수 없습니다."));
-        if (!"needs_retry".equals(entity.getStatus()) || !entity.isRetryable()) {
+        boolean failedRetry = "failed".equals(entity.getStatus())
+                && entity.getReasonCode() != null
+                && Set.of("INTERNAL_ERROR", "MODEL_UNAVAILABLE").contains(entity.getReasonCode());
+        if (!failedRetry && (!"needs_retry".equals(entity.getStatus()) || !entity.isRetryable())) {
             throw validation("현재 분석은 재시도 가능한 상태가 아닙니다.");
         }
         List<RetryItem> retryItems = readList(entity.getRetryItems(), new TypeReference<>() { });
@@ -307,40 +310,61 @@ public class CistAiAnalysisService {
         Map<UUID, AnswerEntity> latestAnswers = latestAnswers(sessionId);
         List<AnalysisRetryItem> requestItems = new ArrayList<>();
         Map<String, SubmittedResponse> updated = new LinkedHashMap<>(previous);
-        for (RetryItem retryItem : retryItems) {
-            QuestionEntity question = requiredQuestion(retryItem.questionCode());
-            AnswerEntity answer = latestAnswers.get(question.getId());
-            if (answer == null) {
-                throw validation("재시도 문항의 새 답변이 없습니다: " + retryItem.questionCode());
-            }
-            AdministeredQuestionResponse current = administered(question, answer);
-            SubmittedResponse before = previous.get(retryItem.questionCode());
-            if (before == null) {
+        if (failedRetry) {
+            if (previous.isEmpty()) {
                 throw validation("기존 분석 요청의 문항 식별자를 찾을 수 없습니다.");
             }
-            if ("REISSUE_AUDIO_URL".equals(retryItem.requiredAction())) {
+            for (Map.Entry<String, SubmittedResponse> entry : previous.entrySet()) {
+                QuestionEntity question = requiredQuestion(entry.getKey());
+                AnswerEntity answer = latestAnswers.get(question.getId());
+                if (answer == null) {
+                    throw validation("기존 분석 문항의 답변이 없습니다: " + entry.getKey());
+                }
+                AdministeredQuestionResponse current = administered(question, answer);
+                SubmittedResponse before = entry.getValue();
                 if (!before.recordingId().equals(current.recordingId())
                         || !before.responseId().equals(current.responseId())) {
-                    throw validation("URL 재발급은 기존 녹음·응답 ID를 유지해야 합니다.");
+                    throw validation("전체 재시도는 기존 녹음·응답 ID를 유지해야 합니다.");
                 }
                 requestItems.add(new AiServerContracts.ReissueAudioUrlItem(
-                        retryItem.questionCode(), current.recordingId(), current.responseId(), current.audio()));
-            } else if ("REPLACE_RESPONSE".equals(retryItem.requiredAction())) {
-                if (before.recordingId().equals(current.recordingId())
-                        || before.responseId().equals(current.responseId())) {
-                    throw validation("응답 교체는 새로운 녹음·응답 ID를 사용해야 합니다.");
+                        entry.getKey(), current.recordingId(), current.responseId(), current.audio()));
+            }
+        } else {
+            for (RetryItem retryItem : retryItems) {
+                QuestionEntity question = requiredQuestion(retryItem.questionCode());
+                AnswerEntity answer = latestAnswers.get(question.getId());
+                if (answer == null) {
+                    throw validation("재시도 문항의 새 답변이 없습니다: " + retryItem.questionCode());
                 }
-                requestItems.add(new AiServerContracts.ReplaceResponseItem(
-                        retryItem.questionCode(),
-                        current.variantId(),
-                        current.recordingId(),
-                        current.responseId(),
-                        current.audio(),
-                        current.stt(),
-                        current.timing()));
-                updated.put(retryItem.questionCode(), new SubmittedResponse(current.recordingId(), current.responseId()));
-            } else {
-                throw validation("지원하지 않는 분석 재시도 작업입니다.");
+                AdministeredQuestionResponse current = administered(question, answer);
+                SubmittedResponse before = previous.get(retryItem.questionCode());
+                if (before == null) {
+                    throw validation("기존 분석 요청의 문항 식별자를 찾을 수 없습니다.");
+                }
+                if ("REISSUE_AUDIO_URL".equals(retryItem.requiredAction())) {
+                    if (!before.recordingId().equals(current.recordingId())
+                            || !before.responseId().equals(current.responseId())) {
+                        throw validation("URL 재발급은 기존 녹음·응답 ID를 유지해야 합니다.");
+                    }
+                    requestItems.add(new AiServerContracts.ReissueAudioUrlItem(
+                            retryItem.questionCode(), current.recordingId(), current.responseId(), current.audio()));
+                } else if ("REPLACE_RESPONSE".equals(retryItem.requiredAction())) {
+                    if (before.recordingId().equals(current.recordingId())
+                            || before.responseId().equals(current.responseId())) {
+                        throw validation("응답 교체는 새로운 녹음·응답 ID를 사용해야 합니다.");
+                    }
+                    requestItems.add(new AiServerContracts.ReplaceResponseItem(
+                            retryItem.questionCode(),
+                            current.variantId(),
+                            current.recordingId(),
+                            current.responseId(),
+                            current.audio(),
+                            current.stt(),
+                            current.timing()));
+                    updated.put(retryItem.questionCode(), new SubmittedResponse(current.recordingId(), current.responseId()));
+                } else {
+                    throw validation("지원하지 않는 분석 재시도 작업입니다.");
+                }
             }
         }
         AnalysisRetryRequest request = new AnalysisRetryRequest(entity.getReasonCode(), requestItems);

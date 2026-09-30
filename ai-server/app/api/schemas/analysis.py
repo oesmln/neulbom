@@ -246,7 +246,7 @@ AnalysisRetryItem = Annotated[
 
 
 class AnalysisRetryRequest(APIModel):
-    reason_code: RetryReasonCode
+    reason_code: AnalysisReasonCode
     items: list[
         AnalysisRetryItem
     ] = Field(
@@ -1243,12 +1243,6 @@ class AnalysisStatusResponse(APIModel):
             return self
 
         if self.status == "failed":
-            if self.retryable:
-                raise ValueError(
-                    "failed 상태는 "
-                    "retryable=false여야 합니다.",
-                )
-
             if self.reason_code not in {
                 "MODEL_UNAVAILABLE",
                 "INTERNAL_ERROR",

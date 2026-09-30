@@ -116,6 +116,47 @@ def create_test_client(
     )
 
 
+def test_retries_legacy_failed_analysis_with_fresh_audio_urls(
+    tmp_path: Path,
+) -> None:
+    client, worker, repository, contracts = create_test_client(tmp_path)
+    payload = create_request_payload(contracts)
+    analysis_id = UUID(payload["analysis_id"])
+    assessment_id = UUID(payload["assessment_id"])
+    repository.create_pending(
+        analysis_id=analysis_id,
+        assessment_id=assessment_id,
+        request_body=payload,
+    )
+    repository.mark_processing(analysis_id)
+    repository.mark_failed(analysis_id=analysis_id, reason_code="INTERNAL_ERROR")
+    items = []
+    for response in payload["responses"]:
+        if response["administration_status"] != "administered":
+            continue
+        audio = deepcopy(response["audio"])
+        audio["signed_url"] += "&retry=1"
+        items.append({
+            "question_code": response["question_code"],
+            "retry_action": "REISSUE_AUDIO_URL",
+            "recording_id": response["recording_id"],
+            "response_id": response["response_id"],
+            "audio": audio,
+        })
+
+    response = client.post(
+        f"/v1/analyses/{analysis_id}/retry",
+        headers=headers(RETRY_KEY),
+        json={"reason_code": "INTERNAL_ERROR", "items": items},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["analysis_id"] == str(analysis_id)
+    assert repository.get(analysis_id).status == AnalysisStatus.PENDING
+    assert worker.enqueued_ids == [analysis_id]
+    assert len(repository.list_archived_attempts(analysis_id)) == 1
+
+
 def test_retries_existing_analysis(
     tmp_path: Path,
 ) -> None:

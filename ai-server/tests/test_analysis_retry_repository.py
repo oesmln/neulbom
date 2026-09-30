@@ -299,6 +299,39 @@ def test_preserves_multiple_retry_attempts(
     )
 
 
+def test_resumes_legacy_failed_analysis_and_preserves_history(
+    tmp_path: Path,
+) -> None:
+    repository = create_repository(tmp_path)
+    analysis_id = uuid4()
+    assessment_id = uuid4()
+    repository.create_pending(
+        analysis_id=analysis_id,
+        assessment_id=assessment_id,
+        request_body={"attempt": 1},
+    )
+    repository.mark_processing(analysis_id)
+    repository.mark_failed(analysis_id=analysis_id, reason_code="INTERNAL_ERROR")
+
+    resumed = repository.resume_with_request(
+        analysis_id=analysis_id,
+        updated_request_body={"attempt": 2},
+    )
+
+    assert resumed.analysis_id == analysis_id
+    assert resumed.status == AnalysisStatus.PENDING
+    assert resumed.request_body == {"attempt": 2}
+    history = repository.list_archived_attempts(analysis_id)
+    assert len(history) == 1
+    assert history[0].status == AnalysisStatus.FAILED
+    assert history[0].retryable is False
+    with pytest.raises(InvalidAnalysisStateError):
+        repository.resume_with_request(
+            analysis_id=analysis_id,
+            updated_request_body={"attempt": 3},
+        )
+
+
 def test_cannot_retry_pending_analysis(
     tmp_path: Path,
 ) -> None:
@@ -315,7 +348,7 @@ def test_cannot_retry_pending_analysis(
 
     with pytest.raises(
         InvalidAnalysisStateError,
-        match="needs_retry",
+        match="재시도",
     ):
         repository.resume_with_request(
             analysis_id=analysis_id,

@@ -117,12 +117,33 @@ export default function ElderHomeScreen() {
     [userId, isFocused],
     { enabled: !!userId && isFocused },
   );
+  const lastCistSessionId = retestSchedule?.last_completed_session_id;
+  const [analysisPolling, setAnalysisPolling] = React.useState(true);
+  const { data: lastCistAnalysis, loading: lastCistLoading } = useApi(
+    () => cistAi.getAnalysis(lastCistSessionId as string),
+    [lastCistSessionId, isFocused],
+    { enabled: !!lastCistSessionId && isFocused, intervalMs: analysisPolling ? 10000 : undefined },
+  );
+  React.useEffect(() => {
+    setAnalysisPolling(!!lastCistSessionId && (
+      lastCistAnalysis?.session_id !== lastCistSessionId
+      || ["pending", "processing"].includes(lastCistAnalysis.status)
+    ));
+  }, [lastCistSessionId, lastCistAnalysis]);
+  const showAnalysisRecovery = !lastCistLoading
+    && lastCistAnalysis?.session_id === lastCistSessionId && (
+      lastCistAnalysis?.status === "needs_retry"
+      || (lastCistAnalysis?.status === "failed"
+        && ["INTERNAL_ERROR", "MODEL_UNAVAILABLE"].includes(lastCistAnalysis.reason_code ?? ""))
+    );
 
   // 기준 검사를 한 번도 완료하지 않으면 `retest_due`는 계속 false다. 그 상태에서 카드를
   // 감추면 온보딩을 지나친 뒤로는 검사를 시작할 진입점이 남지 않으므로, 완료 이력이
   // 없을 때도 카드를 띄운다.
   const firstScreeningPending = !!retestSchedule && retestSchedule.last_completed_session_id === null;
-  const showScreeningCard = !!retestSchedule && (retestSchedule.retest_due || firstScreeningPending);
+  const showScreeningCard = !!retestSchedule
+    && (retestSchedule.retest_due || firstScreeningPending)
+    && !showAnalysisRecovery;
 
   React.useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
@@ -175,6 +196,28 @@ export default function ElderHomeScreen() {
 
           {error && !data ? (
             <ErrorState message={apiErrorMessage(error)} onRetry={reload} />
+          ) : null}
+
+          {showAnalysisRecovery ? (
+            <Card style={styles.retestCard} color={colors.secondary}>
+              <View style={styles.retestRow}>
+                <View style={styles.retestCopy}>
+                  <Text style={styles.retestTitle}>CIST 분석 다시 요청</Text>
+                  <Text style={styles.retestDescription}>
+                    검사는 끝났지만 AI 결과를 준비하지 못했어요. 이전 검사를 다시 분석할 수 있어요.
+                  </Text>
+                </View>
+                <Button
+                  label="분석 복구하기"
+                  size="sm"
+                  style={styles.retestButton}
+                  onPress={() => navigation.navigate("ElderResult", {
+                    sessionId: lastCistSessionId as string,
+                    mode: "baseline",
+                  })}
+                />
+              </View>
+            </Card>
           ) : null}
 
           {!retestLoading && !retestError && showScreeningCard ? (

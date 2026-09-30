@@ -369,17 +369,18 @@ async def retry_analysis(
                 },
             )
 
-        if (
-            stored.status
-            != AnalysisStatus.NEEDS_RETRY
-            or not stored.retryable
+        if not (
+            (stored.status == AnalysisStatus.NEEDS_RETRY and stored.retryable)
+            or (
+                stored.status == AnalysisStatus.FAILED
+                and stored.reason_code in {"INTERNAL_ERROR", "MODEL_UNAVAILABLE"}
+            )
         ):
             raise APIError(
                 status_code=409,
                 code="INVALID_ANALYSIS_STATE",
                 message=(
-                    "Only an analysis in the "
-                    "needs_retry state can be resumed."
+                    "Only a retryable analysis can be resumed."
                 ),
                 retryable=False,
                 details={

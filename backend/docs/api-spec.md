@@ -1682,6 +1682,8 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 
 저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
 
+전체 CIST 분석이 처리 시간 초과·모델 일시 장애 등으로 `failed`(`INTERNAL_ERROR` 또는 `MODEL_UNAVAILABLE`)가 되면 같은 재시도 API에서 기존 `analysis_id`를 유지한 채 모든 시행 문항의 음성 URL을 다시 발급해 전체 분석을 재접수한다. 이전 버전에서 `retryable=false`로 저장된 동일 실패도 수동 재시도가 가능하다. `pending`·`processing`·`completed`와 다른 실패 사유는 재접수하지 않는다. 중복 재시도는 상태 잠금으로 막고, 완료 후 기준 스냅샷 생성은 기존 결과 동기화 경로를 사용한다.
+
 #### 일상 문답의 부분 갱신 분석
 
 `emotional_qa` 세션 종료 후 `POST /sessions/{session_id}/cist-ai/daily-analyses`가 비동기 분석을 생성하고 `202`를 반환한다. `GET /sessions/{session_id}/cist-ai/daily-analyses`는 상태를 동기화하며, `needs_retry` 상태에서는 `POST /sessions/{session_id}/cist-ai/daily-analyses/retry`로 재시도한다. 세 API 모두 본인 세션을 확인하고, 생성·재시도 시에는 분석·음성 수집 동의를 재확인한다. 앱 응답은 `analysis_id`, `session_id`, `status`, `retry_count`, `retryable`, `reason_code`, `created_at`, `updated_at`만 포함한다.
