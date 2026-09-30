@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Pressable } from "react-native";
+import { View, StyleSheet, Pressable, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 
@@ -15,27 +15,16 @@ import {
   Screen,
   ScreenHeader,
   Card,
-  Button,
   Caption,
   Body,
+  EmptyState,
   ErrorState,
   LoadingState,
   SentenceText as Text,
 } from "@/components/ui";
 
-/**
- * Month calendar backed by `GET /calendar/{user_id}/activities` for the day
- * markers and `GET /diaries/{user_id}` for the entry shown underneath.
- *
- * Layout follows the Figma prototype (ElderCalendarScreen): a ‹ month › row,
- * a bordered grid where the selected day turns sage with a 📖, and a light-sage
- * entry card with the day's mood and a "전체 보기" toggle. The grid is built
- * from the real month, and a day without an entry stays blank instead of
- * borrowing a neighbour's mood.
- */
+/** 날짜를 고르고 일기 본문과 보호자 반응을 한 번씩 읽는 화면. */
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
-/** Entries longer than this start collapsed behind "전체 보기". */
-const COLLAPSE_AFTER = 90;
 
 function monthRange(base: Date) {
   const first = new Date(base.getFullYear(), base.getMonth(), 1);
@@ -55,6 +44,7 @@ function metadataMood(metadata: unknown): { mood: string | null; level: number |
 
 export default function ElderCalendarScreen() {
   const isFocused = useIsFocused();
+  const wide = useWindowDimensions().width >= 960;
   const { userId } = useApp();
   const today = React.useMemo(() => new Date(), []);
   const todayDate = isoDateOf(today);
@@ -72,40 +62,48 @@ export default function ElderCalendarScreen() {
 
   const [selected, setSelected] = React.useState<string | null>(todayDate);
   const [selectedDiaryId, setSelectedDiaryId] = React.useState<string | null>(null);
-  const [expanded, setExpanded] = React.useState(false);
 
   const calendar = useApi(
-    () => diariesApi.calendar(userId as string, fromDate, toDate),
+    async () => ({ owner: userId, month: fromDate, ...await diariesApi.calendar(userId as string, fromDate, toDate) }),
     [userId, fromDate, toDate, isFocused],
     { enabled: !!userId && isFocused },
   );
 
   const diaryList = useApi(
-    () => diariesApi.listForUser(userId as string, { fromDate, toDate, limit: 100 }),
+    async () => ({ owner: userId, month: fromDate, ...await diariesApi.listForUser(userId as string, { fromDate, toDate, limit: 100 }) }),
     [userId, fromDate, toDate, isFocused],
     { enabled: !!userId && isFocused, intervalMs: isFocused ? 5000 : undefined },
   );
 
+  const calendarData = calendar.data?.owner === userId && calendar.data?.month === fromDate ? calendar.data : null;
+  const diaryData = diaryList.data?.owner === userId && diaryList.data?.month === fromDate ? diaryList.data : null;
+
   /** date → mood, taken from the calendar activities. */
   const moodByDate = React.useMemo(() => {
     const map = new Map<string, string>();
-    for (const activity of calendar.data?.activities ?? []) {
+    for (const activity of calendarData?.activities ?? []) {
       if (activity.activity_type !== "diary") continue;
       const { mood, level } = metadataMood(activity.metadata);
-      map.set(activity.activity_date, moodEmoji(mood, level));
+      map.set(activity.activity_date, mood || level != null ? moodEmoji(mood, level) : "📖");
     }
     return map;
-  }, [calendar.data]);
+  }, [calendarData]);
 
   /** date → diaries, preserving every conversation on the selected day. */
   const diaryByDate = React.useMemo(() => {
     const map = new Map<string, DiaryListItem[]>();
-    for (const diary of diaryList.data?.diaries ?? []) {
-      const date = isoDateOf(parseIso(diary.written_at));
+    const seen = new Set<string>();
+    for (const diary of diaryData?.diaries ?? []) {
+      if (seen.has(diary.diary_id)) continue;
+      seen.add(diary.diary_id);
+      const writtenAt = Date.parse(diary.written_at);
+      if (!Number.isFinite(writtenAt)) continue;
+      const date = new Date(writtenAt + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      if (date < fromDate || date > toDate) continue;
       map.set(date, [...(map.get(date) ?? []), diary]);
     }
     return map;
-  }, [diaryList.data]);
+  }, [diaryData, fromDate, toDate]);
 
   const firstDayOffset = first.getDay();
   const daysInMonth = last.getDate();
@@ -121,7 +119,7 @@ export default function ElderCalendarScreen() {
   const selectedDiary = selectedDiaries.find((diary) => diary.diary_id === selectedDiaryId) ?? selectedDiaries[0];
   const selectedDay = selected ? Number(selected.slice(8, 10)) : null;
   const showGenerationStatus =
-    selected === todayDate && Boolean(diaryList.data) && !selectedDiary;
+    selected === todayDate && Boolean(diaryData) && !selectedDiary;
   const generation = useApi(
     () => diariesApi.generationStatus(userId as string, selected as string),
     [userId, selected],
@@ -134,9 +132,8 @@ export default function ElderCalendarScreen() {
     [selectedDiary?.diary_id, isFocused],
     { enabled: !!selectedDiary && isFocused },
   );
-  const selectedDetail = detail.data?.diary_id === selectedDiary?.diary_id ? detail.data : null;
+  const selectedDetail = detail.data?.diary_id === selectedDiary?.diary_id && detail.data?.user_id === userId ? detail.data : null;
   const content = selectedDetail?.content ?? "";
-  const collapsible = content.length > COLLAPSE_AFTER;
 
   const loading = calendar.loading || diaryList.loading;
   const error = calendar.error ?? diaryList.error;
@@ -145,18 +142,17 @@ export default function ElderCalendarScreen() {
     setMonthOffset((offset) => offset + delta);
     setSelected(null);
     setSelectedDiaryId(null);
-    setExpanded(false);
   };
 
   const selectDay = (date: string) => {
-    setSelected((current) => (current === date ? null : date));
+    setSelected(date);
     setSelectedDiaryId(null);
-    setExpanded(false);
   };
 
   return (
-    <Screen header={<ScreenHeader title={monthLabel} subtitle={`${diaryList.data?.total ?? 0}편 일기 작성`} />}>
-      {error && !calendar.data ? (
+    <Screen header={<ScreenHeader title="나의 일기" subtitle="하루의 이야기를 다시 읽어 보세요." />} background={colors.screenBackground}>
+      <View style={styles.container}>
+      {error ? (
         <ErrorState
           message={apiErrorMessage(error)}
           onRetry={() => {
@@ -166,11 +162,11 @@ export default function ElderCalendarScreen() {
         />
       ) : null}
 
-      {loading && !calendar.data ? <LoadingState /> : null}
+      {loading && !calendarData ? <LoadingState /> : null}
 
-      {calendar.data ? (
-        <>
-          {/* ‹ 2026년 9월 › — month navigation */}
+      {calendarData ? (
+        <View style={[styles.layout, wide && styles.wideLayout]}>
+          <View style={[styles.calendarColumn, wide && styles.wideCalendarColumn]}>
           <View style={styles.monthRow}>
             <Pressable
               onPress={() => moveMonth(-1)}
@@ -251,27 +247,42 @@ export default function ElderCalendarScreen() {
             </View>
           </Card>
 
-          {selected && selectedDiary ? (
-            // Light-sage entry card: "9월 8일의 일기" + mood, body, 전체 보기 toggle.
+          <View style={styles.legend}>
+            {[
+              ["😄", "아주 좋음"],
+              ["😊", "좋음"],
+              ["😐", "보통"],
+              ["😔", "힘듦"],
+            ].map(([emoji, label]) => (
+              <View key={label} style={styles.legendItem}>
+                <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                <Caption>{label}</Caption>
+              </View>
+            ))}
+          </View>
+          </View>
+          <View style={[styles.entryColumn, wide && styles.wideEntryColumn]}>
+          {!diaryData ? (
+            diaryList.error ? null : <LoadingState label="일기를 불러오는 중이에요" />
+          ) : selected && selectedDiary ? (
             <View style={styles.entryCard}>
-              <Text style={styles.entryTitle}>{selectedDiaries.length}편의 일기</Text>
-              {selectedDiaries.map((diary) => (
+              <Caption>{monthBase.getMonth() + 1}월 {selectedDay}일 · 일기 {selectedDiaries.length}편</Caption>
+              {selectedDiaries.length > 1 ? selectedDiaries.map((diary) => (
                 <Pressable
                   key={diary.diary_id}
-                  onPress={() => { setSelectedDiaryId(diary.diary_id); setExpanded(false); }}
+                  onPress={() => setSelectedDiaryId(diary.diary_id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: diary.diary_id === selectedDiary.diary_id }}
                   style={[styles.diaryChoice, diary.diary_id === selectedDiary.diary_id && styles.diaryChoiceSelected]}
                 >
                   <Text style={styles.diaryChoiceTitle}>
-                    {parseIso(diary.written_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} · {diary.title ?? "일기"}
+                    {parseIso(diary.written_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" })} · {diary.title ?? "일기"}
                   </Text>
-                  <Caption>{diary.preview ?? ""}</Caption>
                 </Pressable>
-              ))}
+              )) : null}
               <View style={styles.entryHead}>
                 <Text style={styles.entryTitle}>
-                  {monthBase.getMonth() + 1}월 {selectedDay}일의 일기
+                  {selectedDiary.title ?? "오늘의 이야기"}
                 </Text>
                 <Text style={styles.entryMood}>
                   {moodEmoji(selectedDiary.mood, selectedDiary.mood_level)}
@@ -283,17 +294,14 @@ export default function ElderCalendarScreen() {
                 <LoadingState label="일기를 불러오는 중이에요" />
               ) : (
                 <>
-                  <Text style={styles.entryBody} numberOfLines={collapsible && !expanded ? 3 : undefined}>
+                  <Text style={styles.entryBody}>
                     {content}
                   </Text>
-                  {collapsible ? (
-                    <Button
-                      label={expanded ? "접기" : "전체 보기"}
-                      onPress={() => setExpanded((value) => !value)}
-                      style={styles.entryAction}
-                    />
+                  {selectedDetail.reactions.length > 0 ? (
+                    <View style={styles.reactionSection}>
+                      <DiaryReactionList reactions={selectedDetail.reactions} grouped />
+                    </View>
                   ) : null}
-                  <DiaryReactionList reactions={selectedDetail.reactions} />
                 </>
               )}
             </View>
@@ -318,28 +326,26 @@ export default function ElderCalendarScreen() {
                 </Body>
               )}
             </Card>
-          ) : null}
-
-          <View style={styles.legend}>
-            {[
-              ["😄", "아주 좋음"],
-              ["😊", "좋음"],
-              ["😐", "보통"],
-              ["😔", "힘듦"],
-            ].map(([emoji, label]) => (
-              <View key={label} style={styles.legendItem}>
-                <Text style={{ fontSize: 14 }}>{emoji}</Text>
-                <Caption>{label}</Caption>
-              </View>
-            ))}
+          ) : (
+            <Card><EmptyState message="달력에서 읽고 싶은 날짜를 선택해 주세요." icon="calendar-outline" /></Card>
+          )}
           </View>
-        </>
+        </View>
       ) : null}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { width: "100%", maxWidth: 1160, alignSelf: "center" },
+  layout: { gap: spacing.xl },
+  wideLayout: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xxl },
+  calendarColumn: { width: "100%" },
+  wideCalendarColumn: { width: 350, flexShrink: 0 },
+  entryColumn: { width: "100%", minWidth: 0 },
+  wideEntryColumn: { flex: 1, width: undefined },
+  reactionSection: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.lg, marginTop: spacing.lg },
   monthRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -347,8 +353,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   monthButton: {
-    width: 36,
-    height: 36,
+    width: 48,
+    height: 48,
     borderRadius: radius.md,
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -369,7 +375,7 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: spacing.xs },
-  cell: { width: "14.2857%" },
+  cell: { width: "14.2857%", minHeight: 52 },
   dayInner: {
     alignItems: "center",
     gap: 2,
@@ -378,18 +384,17 @@ const styles = StyleSheet.create({
   },
   dayToday: { backgroundColor: colors.secondary },
   daySelected: { backgroundColor: colors.primary },
-  dayNum: { fontSize: 13, fontWeight: fontWeight.semibold, color: colors.foreground },
+  dayNum: { fontSize: fontSize.bodyLg, fontWeight: fontWeight.semibold, color: colors.foreground },
   mood: { fontSize: 12 },
   moodSpacer: { height: 14 },
 
   entryCard: {
-    marginTop: spacing.lg,
     padding: spacing.xl,
     gap: spacing.md,
     borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    backgroundColor: colors.secondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   entryHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   diaryChoice: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.card },
@@ -397,8 +402,7 @@ const styles = StyleSheet.create({
   diaryChoiceTitle: { fontSize: fontSize.body, fontWeight: fontWeight.semibold, color: colors.foreground },
   entryTitle: { fontSize: 16, fontWeight: fontWeight.bold, color: colors.foreground },
   entryMood: { fontSize: 22 },
-  entryBody: { fontSize: 14, lineHeight: 24, color: colors.mutedForeground },
-  entryAction: { marginTop: spacing.xs },
+  entryBody: { fontSize: fontSize.bodyLg, lineHeight: 28, color: colors.foreground },
 
   emptyCard: { marginTop: spacing.lg, alignItems: "center", gap: spacing.sm },
   emptyText: { textAlign: "center", color: colors.mutedForeground },
@@ -408,7 +412,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     flexDirection: "row",
     justifyContent: "center",
-    gap: spacing.lg,
+    gap: spacing.md,
+    flexWrap: "wrap",
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
 });
