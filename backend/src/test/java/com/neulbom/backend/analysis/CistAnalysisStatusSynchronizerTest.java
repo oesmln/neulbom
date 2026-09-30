@@ -6,6 +6,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +18,7 @@ import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
@@ -24,8 +28,35 @@ class CistAnalysisStatusSynchronizerTest {
     private final CistAiAnalysisRepository analysisRepository = mock(CistAiAnalysisRepository.class);
     private final SessionRepository sessionRepository = mock(SessionRepository.class);
     private final CistAiAnalysisService analysisService = mock(CistAiAnalysisService.class);
+    private final Clock clock = Clock.fixed(Instant.parse("2026-09-30T00:00:00Z"), ZoneOffset.UTC);
     private final CistAnalysisStatusSynchronizer synchronizer =
-            new CistAnalysisStatusSynchronizer(analysisRepository, sessionRepository, analysisService);
+            new CistAnalysisStatusSynchronizer(analysisRepository, sessionRepository, analysisService, clock);
+
+    @Test
+    void retriesMissingAnalysisCreationAndContinuesAfterOneFailure(CapturedOutput output) {
+        SessionEntity first = mock(SessionEntity.class);
+        SessionEntity second = mock(SessionEntity.class);
+        UUID firstSessionId = UUID.randomUUID();
+        UUID secondSessionId = UUID.randomUUID();
+        UUID firstUserId = UUID.randomUUID();
+        UUID secondUserId = UUID.randomUUID();
+        when(first.getId()).thenReturn(firstSessionId);
+        when(first.getUserId()).thenReturn(firstUserId);
+        when(second.getId()).thenReturn(secondSessionId);
+        when(second.getUserId()).thenReturn(secondUserId);
+        when(sessionRepository.findEndedCistSessionsMissingAnalysis(
+                clock.instant().minusSeconds(30), PageRequest.of(0, 100)))
+                .thenReturn(List.of(first, second));
+        when(analysisService.createAnalysis(firstUserId, firstSessionId))
+                .thenThrow(new IllegalStateException("sensitive provider detail"));
+
+        synchronizer.createMissingAnalyses();
+
+        verify(analysisService).createAnalysis(firstUserId, firstSessionId);
+        verify(analysisService).createAnalysis(secondUserId, secondSessionId);
+        assertThat(output).contains("session_id=" + firstSessionId, "reason=IllegalStateException");
+        assertThat(output).doesNotContain("sensitive provider detail");
+    }
 
     @Test
     void synchronizesEveryInFlightFullCistAnalysisAndContinuesAfterFailure(CapturedOutput output) {

@@ -69,8 +69,10 @@ app:
     daily-report-cron: ${APP_DAILY_REPORT_CRON:0 5 0 * * *}
     daily-cognitive-sync-enabled: ${APP_DAILY_COGNITIVE_SYNC_ENABLED:true}
     daily-cognitive-sync-delay-ms: ${APP_DAILY_COGNITIVE_SYNC_DELAY_MS:5000}
+    daily-cognitive-recovery-delay-ms: ${APP_DAILY_COGNITIVE_RECOVERY_DELAY_MS:60000}
     cist-analysis-sync-enabled: ${APP_CIST_ANALYSIS_SYNC_ENABLED:true}
     cist-analysis-sync-delay-ms: ${APP_CIST_ANALYSIS_SYNC_DELAY_MS:10000}
+    cist-analysis-recovery-delay-ms: ${APP_CIST_ANALYSIS_RECOVERY_DELAY_MS:60000}
   diary:
     # 정서 문답 종료 즉시 세션별 일기를 만든다. 실패한 세션은 복구 작업에서 재시도한다.
     generate-on-session-end: ${DIARY_GENERATE_ON_SESSION_END:true}

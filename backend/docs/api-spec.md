@@ -1347,7 +1347,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 
 ### 6.10 `GET /cist/retest-schedule` - CIST 재검사 일정
 
-로그인한 사용자 본인의 전체 CIST(`cist`·`baseline`·`onboarding`) 중 세션이 종료되고 AI 분석이 `completed`된 가장 최근 검사를 기준으로 계산한다. 일상 문답의 부분 갱신 추정치는 기준일을 변경하지 않는다. 검사 완료일은 세션 종료 시각의 `Asia/Seoul` 날짜이며, 다음 예정일은 그 날짜에 달력상 3개월을 더한 날이다. 예정일 당일부터 `retest_due=true`이다. 이 일정은 안내용이며 예정일 전 검사 시작을 서버에서 차단하지 않는다.
+로그인한 사용자 본인의 전체 CIST(`cist`·`baseline`·`onboarding`) 중 모든 예정 문항에 답하고 세션이 종료된 가장 최근 검사를 기준으로 계산한다. AI 분석의 완료 여부는 재검사 예정일에 영향을 주지 않는다. 일상 문답의 부분 갱신 추정치도 기준일을 변경하지 않는다. 검사 완료일은 세션 종료 시각의 `Asia/Seoul` 날짜이며, 다음 예정일은 그 날짜에 달력상 3개월을 더한 날이다. 예정일 당일부터 `retest_due=true`이다. 이 일정은 안내용이며 예정일 전 검사 시작을 서버에서 차단하지 않는다.
 
 #### Response `200`
 
@@ -1361,7 +1361,7 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 }
 ```
 
-완료된 전체 CIST 분석이 없으면 세 날짜·ID 필드는 `null`, `retest_due`는 `false`다. 분석이 `pending`·`processing`·`needs_retry`·`failed`인 세션은 마지막 완료 검사로 간주하지 않는다. 고령자 완료 화면은 `next_due_date`를, 홈 화면은 `retest_due`를 사용한다.
+예정 문항을 모두 마치고 종료된 전체 CIST 세션이 없으면 세 날짜·ID 필드는 `null`, `retest_due`는 `false`다. AI 분석이 `pending`·`processing`·`needs_retry`·`failed`이거나 분석 기록이 아직 없어도 검사 일정은 세션 종료일을 기준으로 제공한다. 고령자 완료 화면은 `next_due_date`와 3개월 안내를, 홈 화면은 `retest_due`를 사용한다.
 
 #### 구현 권한·진행 규칙
 
@@ -1659,6 +1659,8 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 
 결과 화면의 조회와 별도로 서버가 `pending`·`processing` 상태인 전체 CIST 분석을 주기적으로 조회한다. 기본 간격은 이전 실행 종료 후 10초(`APP_CIST_ANALYSIS_SYNC_DELAY_MS`)이며 한 번에 오래된 분석부터 최대 100건을 처리한다. 일상 부분 갱신 분석은 별도 동기화 작업이 맡는다. 전체 CIST가 `completed`로 전환되면 같은 처리에서 기준 특징 스냅샷을 저장한다. 단, 스냅샷 계약 도입 전에 저장된 완료 결과는 `feature_snapshot=null`일 수 있다. 이 경우 검증된 기존 `model_score`와 위험 단계는 동기화해 보호자 추이에 표시하되 기준 스냅샷을 생성하지 않으며, 해당 CIST를 기준으로 한 일상 부분 갱신은 새 스냅샷이 있는 검사 전까지 생성하지 않는다. 개별 동기화 실패는 `analysis_id`, `session_id`, 예외 유형만 기록하고 다음 분석을 계속 처리한다. `APP_CIST_ANALYSIS_SYNC_ENABLED`로 이 작업을 제어하며 공통 `APP_SCHEDULER_ENABLED` 설정도 적용된다.
 
+검사 화면은 전체 CIST 세션 종료 후 분석 생성을 요청한다. 최초 요청에서 분석 기록이 저장되지 않은 경우, 완료된 recognition plan과 모든 예정 문항의 답변이 있는 종료 세션을 서버 복구 작업이 다시 찾는다. 기본 60초 간격(`APP_CIST_ANALYSIS_RECOVERY_DELAY_MS`)이며 종료 후 30초가 지난 세션을 한 번에 최대 100건 처리한다. 복구 실패 로그에는 세션 ID와 예외 유형만 기록한다.
+
 #### `POST /sessions/{session_id}/cist-ai/analyses/retry`
 
 저장된 `retry_items`를 사용해 혼합 재시도를 구성한다. `REISSUE_AUDIO_URL`은 기존 `recording_id`, `response_id`를 유지하고 URL만 재발급한다. `REPLACE_RESPONSE`는 같은 문항에 새로 저장된 녹음과 답변 ID를 사용한다. 최초 분석과 각 논리적 재시도는 서로 다른 멱등 키를 사용한다.
@@ -1666,6 +1668,8 @@ AI 서버의 최신 상태를 조회해 백엔드 DB와 동기화한다. 상태�
 #### 일상 문답의 부분 갱신 분석
 
 `emotional_qa` 세션 종료 후 `POST /sessions/{session_id}/cist-ai/daily-analyses`가 비동기 분석을 생성하고 `202`를 반환한다. `GET /sessions/{session_id}/cist-ai/daily-analyses`는 상태를 동기화하며, `needs_retry` 상태에서는 `POST /sessions/{session_id}/cist-ai/daily-analyses/retry`로 재시도한다. 세 API 모두 본인 세션을 확인하고, 생성·재시도 시에는 분석·음성 수집 동의를 재확인한다. 앱 응답은 `analysis_id`, `session_id`, `status`, `retry_count`, `retryable`, `reason_code`, `created_at`, `updated_at`만 포함한다.
+
+일상 세션 종료 시 최신 CIST 분석이 아직 처리 중이면 이전 CIST로 되돌아가지 않고 최초 생성을 보류한다. 기준 CIST 세션이 일상 세션 시작 전에 종료됐고 나중에 특징 스냅샷이 저장되면, 서버는 분석 기록이 없는 종료된 일상 세션을 기본 60초 간격(`APP_DAILY_COGNITIVE_RECOVERY_DELAY_MS`)으로 다시 시도한다. 각 복구 작업은 종료 후 30초가 지난 세션을 한 번에 최대 100건 처리한다. 기준점은 CIST AI 결과 확정 시각이 아닌 검사 세션 종료 순서로 선택한다.
 
 AI 서버에는 지남력 1문항·주의력 1문항의 음성 URL·STT·응답 시간과 `baseline_analysis_id`, `baseline_model_score`, `input_snapshot`을 전달한다. 첫 일상 분석은 최신 완료 전체 CIST의 `feature_snapshot`을, 다음 분석은 같은 기준 계보의 직전 완료 일상 분석 `output_snapshot`을 입력으로 사용한다. 새 전체 CIST가 완료되면 새 계보를 시작한다. 결과의 `estimated_model_score`, `score_delta_from_baseline`, `score_delta_from_previous`, `output_snapshot`은 참고용 부분 갱신 추정치이며 전체 CIST 검사 결과를 대체하지 않는다. 상세 계약은 [`일상 인지 추이 분석 계약`](../../docs/daily-cognitive-trend-contract.md)과 AI 서버 OpenAPI를 따른다.
 

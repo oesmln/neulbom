@@ -39,6 +39,7 @@ import com.neulbom.backend.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -146,13 +147,19 @@ class CistAiAnalysisIntegrationTest {
                 sessionRepository.findById(session.getId()).orElseThrow().getTotalQuestions()).isEqualTo(14);
 
         session.end(now.plusSeconds(60));
-        sessionRepository.save(session);
+        sessionRepository.saveAndFlush(session);
+        org.assertj.core.api.Assertions.assertThat(sessionRepository.findEndedCistSessionsMissingAnalysis(
+                now.plusSeconds(90), PageRequest.of(0, 100)))
+                .extracting(SessionEntity::getId).contains(session.getId());
 
         mockMvc.perform(post("/api/v1/sessions/{sessionId}/cist-ai/analyses", session.getId())
                         .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("pending"))
                 .andExpect(jsonPath("$.session_id").value(session.getId().toString()));
+        org.assertj.core.api.Assertions.assertThat(sessionRepository.findEndedCistSessionsMissingAnalysis(
+                now.plusSeconds(90), PageRequest.of(0, 100)))
+                .extracting(SessionEntity::getId).doesNotContain(session.getId());
 
         ArgumentCaptor<AnalysisCreateRequest> captor = ArgumentCaptor.forClass(AnalysisCreateRequest.class);
         verify(aiServerClient).createAnalysis(anyString(), captor.capture());
@@ -413,6 +420,7 @@ class CistAiAnalysisIntegrationTest {
                 250,
                 answeredAt,
                 answeredAt));
+        session.recordAnswer();
     }
 
     private ReplacementRecording saveReplacementRecording(

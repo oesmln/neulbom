@@ -39,7 +39,22 @@ class CistRetestScheduleIntegrationTest {
     @Autowired private CistAiAnalysisRepository analyses;
 
     @Test
-    void scheduleUsesOnlyLatestCompletedFullCistAndResetsAfterRetest() throws Exception {
+    void finishedExamHasThreeMonthScheduleBeforeAiAnalysisIsCreated() throws Exception {
+        UUID userId = saveUser();
+        LocalDate examDate = LocalDate.now(BUSINESS_ZONE);
+        SessionEntity exam = endedSession(userId, "baseline",
+                examDate.atTime(12, 0).atZone(BUSINESS_ZONE).toInstant());
+
+        mockMvc.perform(get("/api/v1/cist/retest-schedule")
+                        .with(jwt().jwt(token -> token.subject(userId.toString()).claim("role", "elder"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.last_completed_session_id").value(exam.getId().toString()))
+                .andExpect(jsonPath("$.next_due_date").value(examDate.plusMonths(3).toString()))
+                .andExpect(jsonPath("$.retest_due").value(false));
+    }
+
+    @Test
+    void scheduleUsesLatestFinishedCistEvenWhileAiAnalysisIsPending() throws Exception {
         UUID userId = saveUser();
         UUID otherUserId = saveUser();
         LocalDate today = LocalDate.now(BUSINESS_ZONE);
@@ -54,42 +69,35 @@ class CistRetestScheduleIntegrationTest {
         saveAnalysis(daily, "completed");
         SessionEntity pendingRetest = endedSession(userId, "baseline",
                 today.minusDays(1).atTime(12, 0).atZone(BUSINESS_ZONE).toInstant());
-        CistAiAnalysisEntity pending = saveAnalysis(pendingRetest, "pending");
+        saveAnalysis(pendingRetest, "pending");
 
-        mockMvc.perform(get("/api/v1/cist/retest-schedule")
-                        .with(jwt().jwt(token -> token.subject(userId.toString()).claim("role", "elder"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.last_completed_session_id").value(oldCist.getId().toString()))
-                .andExpect(jsonPath("$.last_completed_date").value(oldDate.toString()))
-                .andExpect(jsonPath("$.next_due_date").value(oldDate.plusMonths(3).toString()))
-                .andExpect(jsonPath("$.retest_due").value(true))
-                .andExpect(jsonPath("$.timezone").value("Asia/Seoul"));
-
-        complete(pending);
-        analyses.save(pending);
         mockMvc.perform(get("/api/v1/cist/retest-schedule")
                         .with(jwt().jwt(token -> token.subject(userId.toString()).claim("role", "elder"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.last_completed_session_id").value(pendingRetest.getId().toString()))
                 .andExpect(jsonPath("$.last_completed_date").value(today.minusDays(1).toString()))
                 .andExpect(jsonPath("$.next_due_date").value(today.minusDays(1).plusMonths(3).toString()))
-                .andExpect(jsonPath("$.retest_due").value(false));
+                .andExpect(jsonPath("$.retest_due").value(false))
+                .andExpect(jsonPath("$.timezone").value("Asia/Seoul"));
     }
 
     @Test
-    void emptyScheduleDoesNotTreatPendingOrFailedAnalysesAsCompleted() throws Exception {
+    void failedAiAnalysisDoesNotEraseScheduleAndIncompleteExamDoesNotResetIt() throws Exception {
         UUID userId = saveUser();
         SessionEntity pending = endedSession(userId, "cist", Instant.now().minusSeconds(7200));
         SessionEntity failed = endedSession(userId, "onboarding", Instant.now().minusSeconds(3600));
         saveAnalysis(pending, "pending");
         saveAnalysis(failed, "failed");
+        SessionEntity incomplete = new SessionEntity(UUID.randomUUID(), userId, "cist", 17,
+                "{}", false, Instant.now().minusSeconds(1800));
+        incomplete.end(Instant.now().minusSeconds(1200));
+        sessions.save(incomplete);
 
         mockMvc.perform(get("/api/v1/cist/retest-schedule")
                         .with(jwt().jwt(token -> token.subject(userId.toString()).claim("role", "elder"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.last_completed_session_id").value(org.hamcrest.Matchers.nullValue()))
-                .andExpect(jsonPath("$.last_completed_date").value(org.hamcrest.Matchers.nullValue()))
-                .andExpect(jsonPath("$.next_due_date").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.last_completed_session_id").value(failed.getId().toString()))
+                .andExpect(jsonPath("$.next_due_date").isNotEmpty())
                 .andExpect(jsonPath("$.retest_due").value(false));
         mockMvc.perform(get("/api/v1/cist/retest-schedule"))
                 .andExpect(status().isUnauthorized());
@@ -102,9 +110,9 @@ class CistRetestScheduleIntegrationTest {
                 LocalDate.of(2026, 1, 31).atTime(23, 30).atZone(BUSINESS_ZONE).toInstant());
         saveAnalysis(session, "completed");
 
-        CistRetestScheduleService beforeDue = new CistRetestScheduleService(sessions, analyses,
+        CistRetestScheduleService beforeDue = new CistRetestScheduleService(sessions,
                 Clock.fixed(Instant.parse("2026-04-29T14:59:00Z"), ZoneOffset.UTC));
-        CistRetestScheduleService onDue = new CistRetestScheduleService(sessions, analyses,
+        CistRetestScheduleService onDue = new CistRetestScheduleService(sessions,
                 Clock.fixed(Instant.parse("2026-04-29T15:00:00Z"), ZoneOffset.UTC));
         assertThat(beforeDue.getSchedule(userId).nextDueDate()).isEqualTo(LocalDate.of(2026, 4, 30));
         assertThat(beforeDue.getSchedule(userId).retestDue()).isFalse();
@@ -122,6 +130,9 @@ class CistRetestScheduleIntegrationTest {
     private SessionEntity endedSession(UUID userId, String type, Instant endedAt) {
         SessionEntity session = new SessionEntity(UUID.randomUUID(), userId, type, 17, "{}", false,
                 endedAt.minusSeconds(600));
+        if (!"emotional_qa".equals(type)) {
+            for (int index = 0; index < session.getTotalQuestions(); index++) session.recordAnswer();
+        }
         session.end(endedAt);
         return sessions.save(session);
     }
