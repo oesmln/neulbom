@@ -11,7 +11,7 @@ import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
-import { USE_MOCK_API } from "@/api/config";
+import { APP_TIMEZONE, USE_MOCK_API } from "@/api/config";
 import type { SessionResponse, Uuid } from "@/api/types";
 import { colors, spacing, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, LoadingState, ScreenHeader, SentenceText as Text, SpeechBubble } from "@/components/ui";
@@ -19,6 +19,7 @@ import Memoi3D from "@/components/Memoi3D";
 import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 import { DEFAULT_CHARACTER_NAME, memoiForLevel } from "@/components/memoiCharacters";
 import { withParticle } from "@/utils/format";
+import { AI_CHAT_INTRO_LINE, AI_CHAT_RESTART_LINE } from "./aiChatGreetings";
 
 /**
  * AI emotional Q&A — the daily conversation, answered by voice.
@@ -33,10 +34,6 @@ import { withParticle } from "@/utils/format";
  * window is still timed from text length, while answers are recorded, uploaded,
  * and attached to the saved answer through `recording_id`.
  */
-const INTRO_LINE = "오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
-// 오늘 문답을 이미 마친 날 다시 들어오면 완료 인사로 맞는다.
-const DONE_LINE = "대화 즐거웠어요. 내일 또 이야기해요.";
-
 /** Example answers for the serverless preview. These are not speech transcripts. */
 const SAMPLE_ANSWERS = [
   "오늘은 좀 피곤하긴 한데 괜찮아요.",
@@ -64,11 +61,13 @@ export default function ElderAiChatScreen() {
   });
 
   // 오늘 문답 완료 여부는 대시보드 today_tasks로 판단한다. 조회 실패나 미완료면
-  // 기존 인사를 유지한다.
+  // 첫 대화 인사를 유지한다.
   const dashboard = useApi(() => reports.dashboard(userId as string), [userId, isFocused], {
     enabled: !!userId && isFocused,
   });
-  const doneToday = (dashboard.data?.today_tasks ?? []).some(
+  const [completedAt, setCompletedAt] = React.useState<Date | null>(null);
+  const seoulDay = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
+  const doneToday = (completedAt !== null && seoulDay(completedAt) === seoulDay(new Date())) || (dashboard.data?.today_tasks ?? []).some(
     (task) => task.task_type === "emotional_qa" && task.status === "completed",
   );
   const companionModel = memoiForLevel(character.data?.level);
@@ -108,7 +107,8 @@ export default function ElderAiChatScreen() {
 
   // The character only mouths the question itself; once it has been answered it
   // goes back to resting until the next one arrives.
-  const spokenLine = phase === "intro" ? (doneToday ? DONE_LINE : INTRO_LINE) : answered ? null : question?.content ?? null;
+  const introLine = doneToday ? AI_CHAT_RESTART_LINE : AI_CHAT_INTRO_LINE;
+  const spokenLine = phase === "intro" ? introLine : answered ? null : question?.content ?? null;
   const voice = useSpeechPlayback(spokenLine);
 
   React.useEffect(() => {
@@ -178,6 +178,8 @@ export default function ElderAiChatScreen() {
 
       if (isLast) {
         await sessions.end(sessionId);
+        // 결과 화면에서 돌아올 때 대시보드 재조회가 끝나기 전에도 재시작 인사를 띄운다.
+        setCompletedAt(new Date());
         // 서버도 세션 종료 트리거에서 부분 CIST 추정을 시작하지만, 그 트리거가 실패하면
         // 경고 로그만 남고 조용히 누락된다. 같은 요청을 한 번 더 보내 일시적인 실패를
         // 바로 만회한다. 이미 접수된 세션이면 서버가 기존 분석을 그대로 돌려준다.
@@ -209,7 +211,7 @@ export default function ElderAiChatScreen() {
             spinnerColor={colors.primary}
             style={{ width: 220 }}
           />
-          <SpeechBubble text={doneToday ? DONE_LINE : INTRO_LINE} side="below" />
+          <SpeechBubble text={introLine} side="below" />
           <View style={styles.introVoiceToggle}>
             <VoicePlaybackButton
               enabled={voice.enabled}
