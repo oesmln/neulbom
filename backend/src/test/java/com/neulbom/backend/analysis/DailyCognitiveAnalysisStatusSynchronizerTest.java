@@ -4,6 +4,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +14,7 @@ import java.util.UUID;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageRequest;
 
 class DailyCognitiveAnalysisStatusSynchronizerTest {
 
@@ -44,10 +48,32 @@ class DailyCognitiveAnalysisStatusSynchronizerTest {
                 .thenThrow(new IllegalStateException("provider unavailable"));
 
         new DailyCognitiveAnalysisStatusSynchronizer(
-                analysisRepository, sessionRepository, analysisService)
+                analysisRepository, sessionRepository, analysisService, Clock.systemUTC())
                 .synchronizeInFlightAnalyses();
 
         verify(analysisService).refreshDailyAnalysis(firstUserId, firstSessionId);
         verify(analysisService).refreshDailyAnalysis(secondUserId, secondSessionId);
+    }
+
+    @Test
+    void retriesEndedDailySessionAfterBaselineBecomesAvailable() {
+        CistAiAnalysisRepository analysisRepository = mock(CistAiAnalysisRepository.class);
+        SessionRepository sessionRepository = mock(SessionRepository.class);
+        CistAiAnalysisService analysisService = mock(CistAiAnalysisService.class);
+        Clock clock = Clock.fixed(Instant.parse("2026-09-30T00:00:00Z"), ZoneOffset.UTC);
+        SessionEntity session = mock(SessionEntity.class);
+        UUID sessionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(session.getId()).thenReturn(sessionId);
+        when(session.getUserId()).thenReturn(userId);
+        when(sessionRepository.findEndedDailySessionsMissingAnalysis(
+                clock.instant().minusSeconds(30), PageRequest.of(0, 100)))
+                .thenReturn(List.of(session));
+
+        new DailyCognitiveAnalysisStatusSynchronizer(
+                analysisRepository, sessionRepository, analysisService, clock)
+                .createMissingAnalyses();
+
+        verify(analysisService).createDailyAnalysis(userId, sessionId);
     }
 }

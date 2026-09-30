@@ -4,11 +4,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.neulbom.backend.analysis.api.CistRetestScheduleResponse;
 import com.neulbom.backend.session.SessionEntity;
@@ -22,12 +19,10 @@ public class CistRetestScheduleService {
     private static final Set<String> FULL_CIST_TYPES = Set.of("cist", "baseline", "onboarding");
 
     private final SessionRepository sessions;
-    private final CistAiAnalysisRepository analyses;
     private final Clock clock;
 
-    public CistRetestScheduleService(SessionRepository sessions, CistAiAnalysisRepository analyses, Clock clock) {
+    public CistRetestScheduleService(SessionRepository sessions, Clock clock) {
         this.sessions = sessions;
-        this.analyses = analyses;
         this.clock = clock;
     }
 
@@ -36,25 +31,16 @@ public class CistRetestScheduleService {
         var completedSessions = sessions.findAllByUserIdOrderByStartedAtDesc(userId).stream()
                 .filter(session -> FULL_CIST_TYPES.contains(session.getSessionType()))
                 .filter(session -> SessionEntity.ENDED.equals(session.getStatus()) && session.getEndedAt() != null)
+                .filter(session -> session.getTotalQuestions() > 0
+                        && session.getAnsweredCount() >= session.getTotalQuestions())
                 .toList();
         if (completedSessions.isEmpty()) {
             return emptySchedule();
         }
-        Map<UUID, CistAiAnalysisEntity> analysisBySession = analyses.findAllBySessionIdIn(
-                        completedSessions.stream().map(SessionEntity::getId).toList()).stream()
-                .collect(Collectors.toMap(CistAiAnalysisEntity::getSessionId, Function.identity()));
         SessionEntity latest = completedSessions.stream()
-                .filter(session -> {
-                    CistAiAnalysisEntity analysis = analysisBySession.get(session.getId());
-                    return analysis != null && "completed".equals(analysis.getStatus())
-                            && analysis.getModelScore() != null;
-                })
                 .max(Comparator.comparing(SessionEntity::getEndedAt)
                         .thenComparing(session -> session.getId().toString()))
-                .orElse(null);
-        if (latest == null) {
-            return emptySchedule();
-        }
+                .orElseThrow();
         LocalDate completedDate = latest.getEndedAt().atZone(BUSINESS_ZONE).toLocalDate();
         LocalDate nextDueDate = completedDate.plusMonths(3);
         LocalDate today = LocalDate.now(clock.withZone(BUSINESS_ZONE));

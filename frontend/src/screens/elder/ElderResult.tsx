@@ -13,7 +13,6 @@ import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
-import { withParticle } from "@/utils/format";
 
 /**
  * What the elder sees after a session — and deliberately not a score.
@@ -87,16 +86,10 @@ export default function ElderResultScreen() {
   } = useApi(
     () => cistAi.getRetestSchedule(),
     [sessionId],
-    { enabled: !!sessionId && baseline && aiAnalysis?.status === "completed" },
+    { enabled: !!sessionId && baseline },
   );
   const [retrying, setRetrying] = React.useState(false);
   const [retryError, setRetryError] = React.useState<string | null>(null);
-
-  // 초기 검사는 분석이 끝나야 결과가 나오지만, 정서 문답은 응답을 받은 시점이
-  // 곧 마무리다.
-  const resultSettled = baseline
-    ? aiAnalysis?.status === "completed" || aiAnalysis?.status === "failed"
-    : !!result;
 
   React.useEffect(() => {
     if (!baseline || !aiAnalysis) return;
@@ -104,8 +97,9 @@ export default function ElderResultScreen() {
   }, [aiAnalysis, baseline]);
 
   React.useEffect(() => {
-    if (baseline && resultSettled) void completeBaseline();
-  }, [baseline, completeBaseline, resultSettled]);
+    // The CIST session has ended before this screen opens; AI can finish later.
+    if (baseline && sessionId) void completeBaseline();
+  }, [baseline, completeBaseline, sessionId]);
 
   const replacementQuestionCodes = (aiAnalysis?.retry_items ?? [])
     .filter((item) => item.required_action === "REPLACE_RESPONSE")
@@ -143,6 +137,8 @@ export default function ElderResultScreen() {
   const message =
     baseline && aiAnalysis?.status === "failed"
       ? "결과를 준비하지 못했어요. 잠시 후 다시 시도해 주세요."
+      : baseline && ["pending", "processing"].includes(aiAnalysis?.status ?? "")
+        ? "검사는 끝났어요. AI 결과를 분석하고 있어요. 완료되면 보호자 화면에서도 확인할 수 있어요."
       : baseline && aiAnalysis?.status === "completed" && aiAnalysis.risk_level
         ? RISK_MESSAGES[aiAnalysis.risk_level]
         : result?.result_status === "failed"
@@ -172,7 +168,9 @@ export default function ElderResultScreen() {
           ) : (baseline ? aiError : error) && !(baseline ? aiAnalysis : result) ? (
             <View style={styles.stateWrap}>
               <ErrorState
-                message={apiErrorMessage(baseline ? aiError : error)}
+                message={baseline && aiError?.status === 404
+                  ? "검사는 끝났지만 AI 분석이 아직 시작되지 않았어요. 다시 요청해 주세요."
+                  : apiErrorMessage(baseline ? aiError : error)}
                 onRetry={baseline ? () => void requestAnalysis() : reload}
               />
               {baseline && retryError ? <Text style={styles.retryError}>{retryError}</Text> : null}
@@ -189,7 +187,7 @@ export default function ElderResultScreen() {
           ) : (
               <SpeechBubble
                 text={baseline
-                  ? message || `이제 ${withParticle(companionName, "과", "와")} 매일 편하게 이야기할 수 있어요.`
+                  ? message || "검사는 끝났어요. AI 결과를 확인하고 있어요."
                   : result?.result_status === "completed"
                     ? `${userName ? `${userName}님, ` : ""}${message}`
                     : `${userName ? `${userName}님, ` : ""}오늘 대화가 잘 마무리됐어요.`}
@@ -198,7 +196,7 @@ export default function ElderResultScreen() {
           )}
         </View>
 
-        {baseline && aiAnalysis?.status === "completed" ? (
+        {baseline ? (
           <View style={styles.scheduleCard}>
             <View style={styles.scheduleHeading}>
               <View style={styles.scheduleIcon}>

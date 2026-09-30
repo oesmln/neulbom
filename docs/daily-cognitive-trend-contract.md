@@ -19,7 +19,7 @@
   → 이후 일상 분석: S0′ 입력 → 새 계보 시작
 ```
 
-백엔드는 일상 세션 시작 전에 완료된 최신 전체 CIST를 `baseline_analysis_id`로 선택한다. 이 분석에 특징 스냅샷이 없으면 이전 CIST의 스냅샷으로 되돌아가지 않고 일상 부분 갱신을 생성하지 않는다. 같은 기준 분석에 연결된 직전 완료 일상 분석이 있으면 그 `feature_snapshot`을 `input_snapshot`으로 사용하고, 없으면 기준 분석의 스냅샷을 사용한다. 새 전체 CIST가 완료되면 이후 세션은 새 기준에 연결되며 이전 계보의 일상 스냅샷을 이어받지 않는다. 기존 기준·일상 결과는 덮어쓰지 않는다. 같은 세션의 분석 생성은 기존 분석을 반환한다.
+백엔드는 일상 세션 시작 전에 **검사 세션이 종료된** 최신 전체 CIST의 완료된 AI 분석을 `baseline_analysis_id`로 선택한다. CIST AI 분석이 일상 세션 시작 이후에 완료돼도 해당 일상 세션의 분석을 나중에 생성할 수 있다. 최신 CIST 분석이 아직 처리 중이거나 특징 스냅샷이 없으면 이전 CIST의 스냅샷으로 되돌아가지 않고 일상 부분 갱신을 기다리거나 생성하지 않는다. 같은 기준 분석에 연결된 직전 완료 일상 분석이 있으면 그 `feature_snapshot`을 `input_snapshot`으로 사용하고, 없으면 기준 분석의 스냅샷을 사용한다. 새 전체 CIST 검사가 끝나면 이후 세션은 새 기준에 연결되며 이전 계보의 일상 스냅샷을 이어받지 않는다. 기존 기준·일상 결과는 덮어쓰지 않는다. 같은 세션의 분석 생성은 기존 분석을 반환한다.
 
 AI 서버는 두 문항의 AST·KcELECTRA·오답·응답 지연 특징만 입력 스냅샷에서 교체하고, 전체 Fusion 입력을 재집계해 `output_snapshot`을 만든다. `estimated_model_score`는 이 부분 갱신 벡터의 모델 출력이다. `baseline_model_score`는 해당 전체 CIST의 점수, `input_model_score`는 입력 스냅샷의 점수다.
 
@@ -40,7 +40,7 @@ score_delta_from_previous = estimated_model_score - input_model_score
 
 내부 생성 요청에는 `analysis_type=daily_partial_update`, `analysis_id`, `session_id`, `baseline_analysis_id`, 계약·STT 버전, 검사 날짜·시간대, `baseline_model_score`, `input_snapshot`, 시행 문항 응답 2개가 포함된다. AI 서버는 비동기로 `202`를 반환한다. 상태는 `pending`, `processing`, `needs_retry`, `completed`, `failed`이며 `completed`일 때만 `result_type=daily_partial_estimate`, 두 변화량, `updated_question_codes`, `output_snapshot`을 포함한 결과가 존재한다. 재시도는 동일 `analysis_id`를 유지하며 `REISSUE_AUDIO_URL` 또는 `REPLACE_RESPONSE` 규칙을 사용한다. 생성·재시도에는 논리 작업별 `Idempotency-Key`를 사용한다.
 
-백엔드는 세션 종료 후 분석을 자동 시작하고 진행 중 상태를 서버에서 동기화한다. 앱 API는 분석 ID·상태·재시도 여부 등 **상태만** 반환하며 모델 점수나 스냅샷을 고령자 화면에 직접 노출하지 않는다. 일상 `output_snapshot`과 AI 원본 결과는 백엔드의 분석 기록에 보존한다.
+백엔드는 일상 세션 종료 후 분석을 자동 시작하고 진행 중 상태를 서버에서 동기화한다. 종료 시점에 기준 CIST 스냅샷이 아직 없으면, 스냅샷이 준비된 뒤 분석 기록이 없는 일상 세션을 복구 작업에서 다시 시도한다. 전체 CIST는 검사 화면에서 분석 생성을 요청하며, 최초 생성 요청이 누락된 종료 세션을 서버 복구 작업에서 다시 찾는다. 앱 API는 분석 ID·상태·재시도 여부 등 **상태만** 반환하며 모델 점수나 스냅샷을 고령자 화면에 직접 노출하지 않는다. 일상 `output_snapshot`과 AI 원본 결과는 백엔드의 분석 기록에 보존한다.
 
 ## 표시 및 통합 범위
 
