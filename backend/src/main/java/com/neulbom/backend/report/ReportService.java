@@ -334,7 +334,16 @@ public class ReportService {
         Instant sevenDaysAgo = now.minus(Duration.ofDays(7));
         List<SessionEntity> sessions = sessionRepository.findAllByUserIdOrderByStartedAtDesc(elderId);
         AiRiskTrendData aiRiskTrend = aiRiskTrendData(elderId, sessions, fromDate, toDate);
-        long sessionCount = sessions.stream().filter(session -> session.getStartedAt().isAfter(sevenDaysAgo)).count();
+        // 지표는 "최근 7일 중 대화를 완료한 날짜 수"로 표시된다(분모 7, 단위 일).
+        // 세션 개수를 그대로 세면 게임·CIST 검사와 이탈해 남은 세션까지 포함되어 7을
+        // 넘는 값이 나오므로, 완료된 정서 문답이 있는 날짜만 하루로 집계한다.
+        long sessionCount = sessions.stream()
+                .filter(session -> "emotional_qa".equals(session.getSessionType()))
+                .filter(session -> SessionEntity.ENDED.equals(session.getStatus()))
+                .filter(session -> session.getStartedAt().isAfter(sevenDaysAgo))
+                .map(session -> session.getStartedAt().atZone(BUSINESS_ZONE).toLocalDate())
+                .distinct()
+                .count();
         long gameCount = gameResultRepository.countByUserIdAndPlayedAtBetweenAndCompletedTrue(elderId, sevenDaysAgo, now);
         List<GuardianReportResponse.Alert> alerts = notificationRepository.findAllByRecipientUserIdAndCreatedAtAfterOrderByCreatedAtDesc(elderId, sevenDaysAgo).stream()
                 .filter(notification -> List.of("caution", "danger").contains(notification.getSeverity()))
