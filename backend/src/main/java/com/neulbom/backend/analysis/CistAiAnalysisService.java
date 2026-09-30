@@ -137,6 +137,28 @@ public class CistAiAnalysisService {
         this.clock = clock;
     }
 
+    @Transactional(readOnly = true)
+    public void prefetchClipForAnswer(UUID answerId) {
+        AnswerEntity answer = answerRepository.findById(answerId).orElse(null);
+        if (answer == null || answer.getRecordingId() == null || !aiServerClient.isConfigured()) {
+            return;
+        }
+        SessionEntity session = sessionRepository.findById(answer.getSessionId()).orElse(null);
+        if (session == null || !Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())) {
+            return;
+        }
+        QuestionEntity question = questionRepository.findById(answer.getQuestionId()).orElse(null);
+        if (question == null) {
+            return;
+        }
+        AdministeredQuestionResponse response = administered(question, answer);
+        if (!"success".equals(response.stt().status())) {
+            return;
+        }
+        aiServerClient.prefetchCistClip(new AiServerContracts.ClipPrefetchRequest(
+                AiServerContracts.QUESTION_SET_VERSION, response));
+    }
+
     @Transactional
     public RecognitionPlanResponse createRecognitionPlan(UUID userId, UUID sessionId) {
         SessionEntity session = ownedCistSession(userId, sessionId);

@@ -64,6 +64,16 @@ public class AiServerClient {
         return execute(() -> post("/v1/analyses", idempotencyKey, body, AnalysisAcceptedResponse.class));
     }
 
+    public AiServerContracts.ClipPrefetchAcceptedResponse prefetchCistClip(
+            AiServerContracts.ClipPrefetchRequest body
+    ) {
+        return execute(() -> post(
+                "/v1/cist-clips/prefetch",
+                body.response().recordingId().toString(),
+                body,
+                AiServerContracts.ClipPrefetchAcceptedResponse.class));
+    }
+
     public AnalysisStatusResponse getAnalysis(UUID analysisId) {
         return execute(() -> restClient.get()
                 .uri(uri("/v1/analyses/" + analysisId))

@@ -65,6 +65,7 @@ class CistAiAnalysisIntegrationTest {
     @Autowired private RecordingRepository recordingRepository;
     @Autowired private TranscriptRepository transcriptRepository;
     @Autowired private AnswerRepository answerRepository;
+    @Autowired private CistAiAnalysisService cistAiAnalysisService;
     @Autowired private CistAiAnalysisRepository analysisRepository;
     @Autowired private CognitiveFeatureSnapshotRepository featureSnapshotRepository;
 
@@ -109,6 +110,15 @@ class CistAiAnalysisIntegrationTest {
                     recording.getFileSizeBytes(),
                     null);
         });
+        when(aiServerClient.isConfigured()).thenReturn(true);
+        AnswerEntity firstAnswer = answerRepository.findAllBySessionIdOrderByAnsweredAtAsc(session.getId()).get(0);
+        cistAiAnalysisService.prefetchClipForAnswer(firstAnswer.getId());
+        ArgumentCaptor<AiServerContracts.ClipPrefetchRequest> clipCaptor =
+                ArgumentCaptor.forClass(AiServerContracts.ClipPrefetchRequest.class);
+        verify(aiServerClient).prefetchCistClip(clipCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(clipCaptor.getValue().questionSetVersion()).isEqualTo("cist-v1");
+        org.assertj.core.api.Assertions.assertThat(clipCaptor.getValue().response().recordingId())
+                .isEqualTo(firstAnswer.getRecordingId());
         when(aiServerClient.createRecognitionPlan(any(UUID.class), anyString(), any()))
                 .thenAnswer(invocation -> {
                     UUID assessmentId = invocation.getArgument(0);
