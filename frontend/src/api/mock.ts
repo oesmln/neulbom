@@ -211,7 +211,10 @@ export function mockDashboard(userId: Uuid): DashboardResponse {
 
 /* ── character & xp ─────────────────────────────────────────────────────── */
 
-const MOCK_LEVEL_MINIMUMS = [0, 100, 300, 600, 1_000] as const;
+const MOCK_LEVEL_MINIMUMS = [0, 100, 300, 600, 1_000, 1_500] as const;
+const MOCK_MAX_LEVEL = MOCK_LEVEL_MINIMUMS.length;
+// 백엔드 V22와 동일: Lv.5와 Lv.6은 최종 외형 "star"를 공유한다.
+const MOCK_STAGES = ["egg", "puppy", "sprout", "flower", "star", "star"] as const;
 const MOCK_DAILY_XP_CAP = 100;
 let mockXpCurrent = 210;
 let mockXpAwardedToday = 33;
@@ -247,11 +250,11 @@ function mockLevelFor(xp: number): number {
 }
 
 function mockGoalFor(level: number): number {
-  return level >= 5 ? MOCK_LEVEL_MINIMUMS[4] : MOCK_LEVEL_MINIMUMS[level];
+  return level >= MOCK_MAX_LEVEL ? MOCK_LEVEL_MINIMUMS[MOCK_MAX_LEVEL - 1] : MOCK_LEVEL_MINIMUMS[level];
 }
 
 function mockStageFor(level: number): string {
-  return ["egg", "puppy", "sprout", "flower", "star"][Math.max(0, Math.min(4, level - 1))];
+  return MOCK_STAGES[Math.max(0, Math.min(MOCK_MAX_LEVEL - 1, level - 1))];
 }
 
 function awardMockXp(amount: number, reason: string, title: string, eventId: string): number {
@@ -328,7 +331,7 @@ export function mockCharacter(userId: Uuid): CharacterResponse {
     level,
     stage: mockStageFor(level),
     stage_index: level,
-    stage_count: 5,
+    stage_count: MOCK_MAX_LEVEL,
     xp_current: mockXpCurrent,
     xp_goal: goal,
     xp_remaining: Math.max(0, goal - mockXpCurrent),
@@ -409,7 +412,7 @@ const guardianNotifications: NotificationResponse[] = [
     type: "score_drop",
     severity: "warning",
     status_label: null,
-    data: null,
+    data: { target: "chart" },
     is_read: false,
     read_at: null,
     created_at: new Date(Date.now() - 3600_000).toISOString(),
@@ -421,7 +424,7 @@ const guardianNotifications: NotificationResponse[] = [
     type: "screening_completed",
     severity: "info",
     status_label: null,
-    data: null,
+    data: { target: "screening_result", session_id: MOCK_SESSION_ID },
     is_read: true,
     read_at: daysAgo(0).toISOString(),
     created_at: daysAgo(0).toISOString(),
@@ -433,7 +436,7 @@ const guardianNotifications: NotificationResponse[] = [
     type: "diary_created",
     severity: "info",
     status_label: null,
-    data: null,
+    data: { target: "record" },
     is_read: true,
     read_at: daysAgo(1).toISOString(),
     created_at: daysAgo(1).toISOString(),
@@ -445,7 +448,7 @@ const guardianNotifications: NotificationResponse[] = [
     type: "appointment_reminder",
     severity: "info",
     status_label: null,
-    data: null,
+    data: { target: "centers" },
     is_read: true,
     read_at: daysAgo(2).toISOString(),
     created_at: daysAgo(2).toISOString(),
@@ -489,13 +492,13 @@ export function mockMarkAllRead(role: Role): number {
 /* ── diaries & calendar ─────────────────────────────────────────────────── */
 
 const DIARY_SEED: { ago: number; mood: string; level: number; content: string }[] = [
-  { ago: 0, mood: "good", level: 4, content: "손주가 놀러 와서 즐거웠다. 기억력 게임도 같이 했다." },
-  { ago: 1, mood: "neutral", level: 3, content: "비가 와서 산책은 못 했지만 AI 문답을 했다." },
-  { ago: 2, mood: "good", level: 5, content: "경로당에서 친구들과 이야기를 많이 나눴다." },
-  { ago: 3, mood: "good", level: 4, content: "아침에 텃밭을 돌봤다. 상추가 잘 자라고 있다." },
-  { ago: 4, mood: "neutral", level: 3, content: "병원에 다녀왔다. 별다른 이상은 없다고 했다." },
-  { ago: 5, mood: "good", level: 5, content: "며느리가 반찬을 가져다줬다. 고마웠다." },
-  { ago: 6, mood: "good", level: 4, content: "오랜만에 옛날 사진을 꺼내 보았다." },
+  { ago: 0, mood: "good", level: 4, content: "오늘은 손주가 놀러 와서 집이 오랜만에 시끌시끌했다. 같이 카드 뒤집기 놀이를 했는데 내가 두 판이나 이겼다. 저녁에 손주가 돌아가고 나니 집이 조용해서 조금 허전했지만, 마음은 하루 종일 따뜻했다." },
+  { ago: 1, mood: "neutral", level: 3, content: "아침부터 비가 와서 산책은 나가지 못했다. 대신 창가에 앉아 빗소리를 들으며 커피를 한 잔 마셨다. 별일 없는 하루였지만 그런대로 괜찮았다." },
+  { ago: 2, mood: "good", level: 5, content: "경로당에 나가서 친구들과 오랜만에 실컷 웃었다. 옛날 동네 이야기가 나와서 시간 가는 줄 몰랐다. 집에 오는 길에 붕어빵도 하나 사 먹었다. 오늘은 참 기분 좋은 날이다." },
+  { ago: 3, mood: "good", level: 4, content: "아침 일찍 텃밭에 나가 물을 주었다. 상추가 제법 자라서 며칠 뒤면 뜯어 먹을 수 있을 것 같다. 흙을 만지고 있으면 마음이 편해진다." },
+  { ago: 4, mood: "neutral", level: 3, content: "오전에 병원에 다녀왔다. 의사 선생님이 별다른 이상은 없다고 해서 마음이 놓였다. 돌아오는 버스가 오래 안 와서 조금 피곤했다." },
+  { ago: 5, mood: "good", level: 5, content: "며느리가 반찬을 잔뜩 가져다주었다. 내가 좋아하는 멸치볶음도 있어서 저녁을 맛있게 먹었다. 바쁠 텐데 챙겨 주는 마음이 고마웠다." },
+  { ago: 6, mood: "good", level: 4, content: "오랜만에 서랍 속 옛날 사진을 꺼내 보았다. 젊었을 때 남편이랑 바다에 갔던 사진이 나와서 한참을 들여다봤다. 그때 생각이 나서 웃음이 났다." },
 ];
 
 export function mockDiaries(): DiariesResponse {
@@ -581,6 +584,63 @@ const EMOTIONAL_QUESTIONS: string[] = [
   "오늘 하루 중 가장 기뻤던 순간이 언제였나요?",
   "내일 기대되는 일이나 하고 싶은 것이 있으신가요?",
 ];
+
+/* ── mock STT: 녹음 id → 문항 id → 문항에 맞는 전사 텍스트 ───────────────── */
+
+const mockRecordingQuestions = new Map<Uuid, Uuid | undefined>();
+
+export function rememberMockRecordingQuestion(recordingId: Uuid, questionId?: Uuid) {
+  mockRecordingQuestions.set(recordingId, questionId);
+}
+
+const EMOTIONAL_ANSWERS: string[] = [
+  "오늘은 기분이 참 좋아요. 아침에 볕이 좋아서 산책도 다녀왔어요.",
+  "된장찌개에 밥 한 그릇 든든하게 먹었어요.",
+  "손주가 전화해서 안부를 물어봐 준 게 제일 기억에 남아요.",
+  "경로당에서 친구들이랑 이야기 나눌 때 제일 기뻤어요.",
+  "내일은 텃밭에 나가서 상추를 좀 뜯어 올까 해요.",
+];
+
+const WEEKDAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+
+function cistAnswerFor(code: string, content: string): string {
+  const now = new Date();
+  switch (code) {
+    case "orientation_year": return `${now.getFullYear()}년`;
+    case "orientation_month": return `${now.getMonth() + 1}월`;
+    case "orientation_day": return `${now.getDate()}일`;
+    case "orientation_weekday": return WEEKDAYS[now.getDay()];
+    case "orientation_place": return "우리 집 거실이에요";
+    case "memory_registration_first":
+    case "memory_registration_second":
+    case "memory_delayed_free_recall":
+      return "민수는 자전거를 타고 공원에 가서 11시부터 야구를 했습니다";
+    case "attention_digit_span_4":
+    case "attention_digit_span_5": {
+      const digits = content.match(/\d/g) ?? [];
+      return digits.join(", ");
+    }
+    case "attention_word_reverse": return "산강수금";
+    case "memory_recognition_person": return "민수요";
+    case "memory_recognition_transport": return "자전거요";
+    case "memory_recognition_place": return "공원이요";
+    case "memory_recognition_time": return "11시요";
+    case "memory_recognition_activity": return "야구요";
+    case "language_semantic_fluency": return "사과, 배, 포도, 감, 상추, 배추, 당근, 오이, 호박";
+    default: return "";
+  }
+}
+
+/** 문항에 맞는 그럴듯한 전사 결과. 문항을 모르면 빈 문자열(화면이 재녹음 안내로 처리). */
+export function mockTranscriptFor(recordingId: Uuid): string {
+  const questionId = mockRecordingQuestions.get(recordingId);
+  if (!questionId) return "";
+  const cist = CIST_QUESTIONS.findIndex((_, i) => fixedId("99999999", i + 1) === questionId);
+  if (cist >= 0) return cistAnswerFor(CIST_QUESTIONS[cist].code, CIST_QUESTIONS[cist].content);
+  const emo = EMOTIONAL_QUESTIONS.findIndex((_, i) => fixedId("ffffffff", i + 1) === questionId);
+  if (emo >= 0) return EMOTIONAL_ANSWERS[emo] ?? "";
+  return "";
+}
 
 export function mockDailyQuestions(sessionType: SessionType): QuestionsResponse {
   if (sessionType === "emotional_qa") {
@@ -793,7 +853,7 @@ export function mockElders(): EldersResponse {
         link_id: fixedId("77777777", 1),
         status: "active",
         access_scope: ["screening", "summary", "diary", "activity"],
-        consent_status: "granted",
+        consent_status: "agreed",
         latest_display_score: 24,
         latest_score_max: 30,
         latest_score_rate: 0.8,
@@ -933,25 +993,56 @@ export function mockNearbyCenters(
   return { centers, total: centers.length, provider_status: "ok" };
 }
 
-export function mockHistory(): HistoryResponse {
-  const weekly = [22, 23, 21, 24, 24, 25];
+/** 시연용 1년치 검사 이력 시드: 주 1회, 완만한 상승 추세에 두 달 전쯤 일시 하락. */
+const HISTORY_SEED_WEEKS = 52;
+function historySeedScore(weeksAgo: number): number {
+  const base = 20 + ((HISTORY_SEED_WEEKS - weeksAgo) / HISTORY_SEED_WEEKS) * 5;
+  const wobble = Math.round(Math.sin(weeksAgo * 1.7) * 1.2);
+  const dip = weeksAgo >= 6 && weeksAgo <= 8 ? -2 : 0;
+  return Math.max(17, Math.min(28, Math.round(base + wobble + dip)));
+}
+
+export function mockHistory(
+  params: { fromDate?: string; toDate?: string; aggregation?: string } = {},
+): HistoryResponse {
+  const from = params.fromDate ? new Date(params.fromDate) : daysAgo(HISTORY_SEED_WEEKS * 7);
+  const to = params.toDate ? new Date(params.toDate) : new Date();
+  to.setHours(23, 59, 59, 999);
+  const spanDays = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000));
+  const monthly = spanDays > 100; // 3개월까지는 주 단위, 그 이상은 월 단위
+  const weekly = Array.from({ length: HISTORY_SEED_WEEKS + 1 }, (_, i) => {
+    const weeksAgo = HISTORY_SEED_WEEKS - i;
+    return { at: daysAgo(weeksAgo * 7), score: historySeedScore(weeksAgo) };
+  }).filter((r) => r.at >= from && r.at <= to);
+  let series = weekly;
+  if (monthly) {
+    const byMonth = new Map<string, { at: Date; score: number }[]>();
+    for (const r of weekly) {
+      const key = `${r.at.getFullYear()}-${r.at.getMonth()}`;
+      byMonth.set(key, [...(byMonth.get(key) ?? []), r]);
+    }
+    series = [...byMonth.values()].map((rs) => ({
+      at: rs[rs.length - 1].at,
+      score: Math.round(rs.reduce((sum, r) => sum + r.score, 0) / rs.length),
+    }));
+  }
   return {
-    records: weekly.map((score, i) => ({
+    records: series.map((r, i) => ({
       analysis_id: fixedId("88888888", i + 1),
       session_id: MOCK_SESSION_ID,
-      screening_reference_score: score,
-      display_score: score,
+      screening_reference_score: r.score,
+      display_score: r.score,
       score_max: 30,
-      score_rate: score / 30,
-      label: "stable",
-      risk_level: "low",
+      score_rate: r.score / 30,
+      label: r.score >= 24 ? "stable" : "watch",
+      risk_level: r.score >= 24 ? "low" : "medium",
       domain_scores: { memory: 4, attention: -2, language: 1, visuospatial: 3 },
-      trend: "improving",
-      score_delta: i === 0 ? undefined : score - weekly[i - 1],
-      analyzed_at: daysAgo((weekly.length - 1 - i) * 7).toISOString(),
+      trend: i > 0 && r.score < series[i - 1].score ? "declining" : "improving",
+      score_delta: i === 0 ? undefined : r.score - series[i - 1].score,
+      analyzed_at: r.at.toISOString(),
     })),
-    total: weekly.length,
-    aggregation: "weekly",
-    sample_sufficient: true,
+    total: series.length,
+    aggregation: monthly ? "monthly" : "weekly",
+    sample_sufficient: series.length >= 3,
   };
 }

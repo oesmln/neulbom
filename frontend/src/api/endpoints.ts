@@ -422,8 +422,10 @@ export const recordings = {
    */
   async upload(input: RecordingUpload): Promise<RecordingUploadResponse> {
     if (USE_MOCK_API) {
+      const recordingId = newClientId();
+      mock.rememberMockRecordingQuestion(recordingId, input.questionId);
       return {
-        recording_id: newClientId(),
+        recording_id: recordingId,
         client_recording_id: input.clientRecordingId,
         purpose: input.purpose,
         sync_status: "server_uploaded",
@@ -473,7 +475,7 @@ export const recordings = {
       return Promise.resolve({
         transcript_id: newClientId(),
         recording_id: recordingId,
-        transcript: "음성 답변이 텍스트로 변환됐어요.",
+        transcript: mock.mockTranscriptFor(recordingId),
         duration_sec: null,
         confidence: null,
         language: "ko",
@@ -501,7 +503,9 @@ export const reports = {
     userId: Uuid,
     params: { limit?: number; fromDate?: IsoDate; toDate?: IsoDate; aggregation?: string } = {},
   ): Promise<HistoryResponse> {
-    if (USE_MOCK_API) return Promise.resolve(mock.mockHistory());
+    if (USE_MOCK_API) {
+      return Promise.resolve(mock.mockHistory({ fromDate: params.fromDate, toDate: params.toDate, aggregation: params.aggregation }));
+    }
     return request(`/analysis/cognitive/${userId}/history`, {
       query: {
         limit: params.limit,

@@ -128,13 +128,24 @@ export default function GuardianChartScreen() {
   // Oldest first so the line reads left to right. Records without a score are
   // dropped rather than plotted at zero — a zero point reads as "very low",
   // which is the opposite of "not measured".
-  const points: TrendPoint[] = [...history.data.records]
+  const points: (TrendPoint & { at?: string })[] = [...history.data.records]
     .sort((a, b) => (a.analyzed_at ?? "").localeCompare(b.analyzed_at ?? ""))
     .flatMap((record) => {
       const score = scoreOf(record);
       if (score === null) return [];
-      return [{ label: record.analyzed_at ? monthDayLabel(record.analyzed_at) : "", score }];
+      return [{ at: record.analyzed_at ?? "", label: "", score }];
     });
+
+  // 눈금 단위는 기간에 맞춘다: 3개월은 주 단위(격주 표기), 6개월은 매월, 1년은 격월.
+  const labelEvery = period === "3m" ? 3 : period === "6m" ? 1 : 2;
+  points.forEach((p, i) => {
+    if (!p.at) return;
+    const last = points.length - 1;
+    // 마지막 점은 항상 표기하고, 그와 겹치는 직전 눈금은 건너뛴다.
+    const showLabel = i === last || (i % labelEvery === 0 && last - i >= 2);
+    p.label = !showLabel ? "" : period === "3m" ? monthDayLabel(p.at) : `${new Date(p.at).getMonth() + 1}월`;
+  });
+  const insufficient = points.length < 3;
 
   const delta = points.length >= 2 ? points[points.length - 1].score - points[0].score : null;
   const run = decliningRun(points);
@@ -174,6 +185,8 @@ export default function GuardianChartScreen() {
 
       {points.length === 0 ? (
         <EmptyState message="아직 분석된 검사가 없어요." icon="bar-chart-outline" />
+      ) : insufficient ? (
+        <EmptyState message={`${periodLabel} 동안의 기록이 부족해요. 검사를 더 진행하면 추이를 보여드릴게요.`} icon="bar-chart-outline" />
       ) : (
         <>
           <Card style={{ marginTop: spacing.lg }}>

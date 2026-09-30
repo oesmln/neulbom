@@ -80,6 +80,36 @@ export default function GuardianNotificationsScreen() {
     }
   };
 
+  /** 알림이 가리키는 화면으로 이동. payload `data.target`이 우선, 없으면 type으로 판단. */
+  const openNotification = (n: NotificationResponse) => {
+    if (!n.is_read) void markRead(n.notification_id);
+    const data = (n.data ?? {}) as { target?: string; session_id?: Uuid };
+    const byType: Record<string, string> = {
+      score_drop: "chart",
+      screening_completed: "screening_result",
+      diary_created: "record",
+      appointment_reminder: "centers",
+    };
+    const target = data.target ?? byType[n.type];
+    switch (target) {
+      case "screening_result":
+        if (data.session_id) navigation.navigate("GuardianScreeningResult", { sessionId: data.session_id });
+        else navigation.navigate("GuardianTabs", { screen: "GuardianDashboard" });
+        return;
+      case "chart":
+        navigation.navigate("GuardianTabs", { screen: "GuardianChart" });
+        return;
+      case "record":
+        navigation.navigate("GuardianTabs", { screen: "GuardianRecord" });
+        return;
+      case "centers":
+        navigation.navigate("GuardianCounselingCenters");
+        return;
+      default:
+        return;
+    }
+  };
+
   const hasUnread = items.some((n) => !n.is_read);
 
   const header = (
@@ -123,7 +153,7 @@ export default function GuardianNotificationsScreen() {
           return (
             <Pressable
               key={n.notification_id}
-              onPress={() => void markRead(n.notification_id)}
+              onPress={() => openNotification(n)}
               accessibilityRole="button"
               accessibilityLabel={`${n.title}. ${n.body}`}
             >
