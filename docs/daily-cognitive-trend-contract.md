@@ -46,7 +46,9 @@ score_delta_from_previous = estimated_model_score - input_model_score
 
 백엔드는 완료된 전체 CIST 분석 중 특징 스냅샷이 있는 결과를 `cognitive_feature_snapshots`에 기준 스냅샷으로 저장하고, 종료된 일상 문답 세션의 부분 갱신 결과를 `daily_cognitive_estimates`에 저장한다. 진행 중인 분석 상태는 서버에서 동기화한다. 일상 분석은 동의, 녹음·STT, 완료된 CIST 기준 스냅샷 등 앞 절의 조건을 충족해야 생성되므로, 모든 일상 문답에서 추정점이 생기는 것은 아니다.
 
-보호자 `GET /analysis/cognitive/{user_id}/history`와 `GET /guardian/{guardian_id}/report`는 완료된 전체 CIST 결과와 저장된 일상 추정치를 `ai_risk_trend_points[]`에 반환한다. 각 점에는 서울 시간 기준 `date`, 0~1의 `risk_score`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`가 있다. 기존 전체 CIST 중 스냅샷 저장 이전에 생성된 점의 `baseline_snapshot_id`는 `null`일 수 있다. 프론트엔드는 `risk_score × 100`을 반올림한 **0~100 위험 신호 지수**로 표시하며 발병 확률이나 공식 CIST 30점 점수로 표현하지 않는다.
+보호자 `GET /analysis/cognitive/{user_id}/history`와 `GET /guardian/{guardian_id}/report`는 완료된 전체 CIST 결과와 저장된 일상 추정치를 `ai_risk_trend_points[]`에 반환한다. 각 점에는 서울 시간 기준 `date`, 0~1의 `risk_score`, `risk_level`, `decision_threshold`, `review_threshold`, `threshold_version`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`가 있다. 일상 추정점의 경계값은 동일 버전의 기준 CIST 결과를 따른다. 과거 기록에 경계값이 없을 수 있다. 기존 전체 CIST 중 스냅샷 저장 이전에 생성된 점의 `baseline_snapshot_id`는 `null`일 수 있다. 프론트엔드는 `risk_score × 100`을 반올림한 **0~100 위험 신호 지수**로 표시하며 발병 확률이나 공식 CIST 30점 점수로 표현하지 않는다.
+
+보호자 그래프는 해당 분석에 저장된 두 경계값을 0~100 눈금으로 변환해 `안정적`·`꾸준한 관찰`·`확인 필요` 구간을 서로 다른 색과 숫자로 표시한다. 현재 계약의 경계는 약 38.6과 80.6이다. 경계값이 없는 옛 기록은 현재 `fusion-threshold-v2` 계약 값을 표시용 기본값으로 사용한다. CIST 점은 전체 검사 기준점이고, 일상 점은 지남력·주의력 문항만 부분 갱신한 추정이다. 보호자에게 제공하는 기억력·언어력 게임 결과는 별도의 활동 기록이며 위험 신호 지수에 합산하지 않는다.
 
 ### 조회 기간과 이전 기준점
 
