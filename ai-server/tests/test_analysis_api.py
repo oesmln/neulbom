@@ -56,6 +56,17 @@ class FakeWorker:
         )
 
 
+class FakeClipWorker:
+    is_running = True
+
+    def __init__(self) -> None:
+        self.requests = []
+
+    async def enqueue(self, request) -> bool:
+        self.requests.append(request)
+        return True
+
+
 def create_test_client(
     tmp_path: Path,
 ) -> tuple[
@@ -84,6 +95,7 @@ def create_test_client(
             contract_bundle=contracts,
             analysis_repository=repository,
             analysis_worker=worker,
+            clip_prefetch_worker=FakeClipWorker(),
         )
     )
 
@@ -251,6 +263,28 @@ def headers(
             idempotency_key
         ),
     }
+
+
+def test_prefetch_accepts_one_cist_clip_and_validates_variant(tmp_path: Path) -> None:
+    client, _, _, contracts = create_test_client(tmp_path)
+    payload = create_request_payload(contracts)
+    response_input = next(
+        item for item in payload["responses"]
+        if item["question_code"] == "orientation_year"
+    )
+    body = {"question_set_version": "cist-v1", "response": response_input}
+
+    accepted = client.post("/v1/cist-clips/prefetch", headers=headers(), json=body)
+    assert accepted.status_code == 202
+    assert accepted.json() == {
+        "recording_id": response_input["recording_id"], "status": "accepted",
+    }
+
+    invalid = client.post(
+        "/v1/cist-clips/prefetch", headers=headers(),
+        json={**body, "response": {**response_input, "variant_id": "wrong"}},
+    )
+    assert invalid.status_code == 422
 
 
 def test_creates_pending_analysis(

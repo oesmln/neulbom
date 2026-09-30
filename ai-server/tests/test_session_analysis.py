@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from app.api.schemas.analysis import (
+    ClipPrefetchRequest,
     DailyAnalysisResult,
 )
 
@@ -33,6 +34,7 @@ from app.inference.fusion import (
 from app.repositories.analysis import (
     SQLiteAnalysisRepository,
 )
+from app.repositories.clip_features import SQLiteClipFeatureRepository, feature_key
 from app.services.analysis_worker import (
     AnalysisCompleted,
     AnalysisNeedsRetry,
@@ -125,6 +127,7 @@ class FakeVadService:
 
 
 class FakeAstService:
+    model_version = "final_ast_core4_epoch6_3seed_ensemble"
     def __init__(self) -> None:
         self.received_codes: tuple[
             str,
@@ -182,6 +185,7 @@ class FakeAstService:
 
 
 class FakeKcElectraService:
+    model_version = "final_kcelectra_service_352clips_seed_ensemble_v1"
     def __init__(self) -> None:
         self.received_codes: tuple[
             str,
@@ -480,6 +484,7 @@ def create_processor(
     *,
     downloader=None,
     vad_service=None,
+    clip_repository=None,
 ):
     ast_service = FakeAstService()
     kcelectra_service = (
@@ -504,6 +509,7 @@ def create_processor(
         audio_preprocessor=(
             fake_preprocess_audio
         ),
+        clip_repository=clip_repository,
     )
 
     return (
@@ -730,6 +736,99 @@ def test_completes_full_session_pipeline(
             fusion_service.received_features
             is not None
         )
+
+    asyncio.run(scenario())
+
+
+def test_clip_cache_key_invalidates_changed_transcript_and_model() -> None:
+    base = dict(
+        recording_id=str(uuid4()),
+        question_code="orientation_year",
+        variant_id="orientation-year-fixed-v1",
+        question_set_version="cist-v1",
+        raw_transcript="2026년",
+        audio_sha256=None,
+        ast_model_version="ast-v1",
+        kcelectra_model_version="kcelectra-v1",
+    )
+    first = feature_key(**base)
+    assert first == feature_key(**base)
+    assert first != feature_key(**{**base, "raw_transcript": "2025년"})
+    assert first != feature_key(**{**base, "ast_model_version": "ast-v2"})
+
+
+def test_prefetched_clip_is_reused_and_missing_clips_are_inferred(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        contracts = load_contracts()
+        body = create_request_body(contracts)
+        analysis = create_stored_analysis(tmp_path, body)
+        repository = SQLiteClipFeatureRepository(tmp_path / "analyses.sqlite3")
+        downloader = FakeDownloader()
+        processor, ast_service, kcelectra_service, _ = create_processor(
+            contracts, downloader=downloader, clip_repository=repository,
+        )
+        response = next(
+            item for item in body["responses"]
+            if item["question_code"] == "orientation_year"
+        )
+        prefetch = ClipPrefetchRequest.model_validate({
+            "question_set_version": "cist-v1", "response": response,
+        })
+        await processor.prefetch_clip(prefetch)
+        assert downloader.call_count == 1
+        persisted = SQLiteClipFeatureRepository(tmp_path / "analyses.sqlite3")
+        key = feature_key(
+            recording_id=str(prefetch.response.recording_id),
+            question_code=prefetch.response.question_code,
+            variant_id=prefetch.response.variant_id,
+            question_set_version="cist-v1",
+            raw_transcript=prefetch.response.stt.raw_transcript or "",
+            audio_sha256=prefetch.response.audio.sha256,
+            ast_model_version=ast_service.model_version,
+            kcelectra_model_version=kcelectra_service.model_version,
+        )
+        assert persisted.get(key) is not None
+        await processor.prefetch_clip(prefetch)
+        assert downloader.call_count == 1
+
+        outcome = await processor.process(analysis)
+        assert isinstance(outcome, AnalysisCompleted)
+        assert "orientation_year" not in ast_service.received_codes
+        assert "orientation_year" not in kcelectra_service.received_codes
+        assert len(outcome.result_body["feature_snapshot"]["ast_question_features"]) == 12
+
+    asyncio.run(scenario())
+
+
+def test_failed_prefetch_falls_back_to_full_analysis(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        contracts = load_contracts()
+        body = create_request_body(contracts)
+        analysis = create_stored_analysis(tmp_path, body)
+        downloader = FakeDownloader(
+            failure_call=1,
+            failure=AudioDownloadError(
+                reason_code=AudioDownloadReason.AUDIO_DOWNLOAD_FAILED,
+                message="temporary",
+                retryable=True,
+            ),
+        )
+        processor, ast_service, _, _ = create_processor(
+            contracts, downloader=downloader,
+            clip_repository=SQLiteClipFeatureRepository(tmp_path / "analyses.sqlite3"),
+        )
+        prefetch = ClipPrefetchRequest.model_validate({
+            "question_set_version": "cist-v1",
+            "response": next(
+                item for item in body["responses"]
+                if item["question_code"] == "orientation_year"
+            ),
+        })
+        with pytest.raises(AudioDownloadError):
+            await processor.prefetch_clip(prefetch)
+        outcome = await processor.process(analysis)
+        assert isinstance(outcome, AnalysisCompleted)
+        assert "orientation_year" in ast_service.received_codes
 
     asyncio.run(scenario())
 

@@ -202,6 +202,16 @@ class AnalysisCreateRequest(APIModel):
     )
 
 
+class ClipPrefetchRequest(APIModel):
+    question_set_version: QuestionSetVersion
+    response: AdministeredQuestionResponse
+
+
+class ClipPrefetchAcceptedResponse(APIModel):
+    recording_id: UUID
+    status: Literal["accepted"]
+
+
 class AnalysisAcceptedResponse(APIModel):
     analysis_id: UUID
     assessment_id: UUID

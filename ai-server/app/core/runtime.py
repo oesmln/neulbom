@@ -25,12 +25,14 @@ from app.inference.artifacts import (
 from app.repositories.analysis import (
     SQLiteAnalysisRepository,
 )
+from app.repositories.clip_features import SQLiteClipFeatureRepository
 from app.services.analysis_runtime import (
     LazySessionAnalysisProcessor,
 )
 from app.services.analysis_worker import (
     SingleAnalysisWorker,
 )
+from app.services.clip_prefetch import ClipPrefetchWorker
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,7 @@ class RuntimeState:
     analysis_worker: (
         SingleAnalysisWorker | None
     ) = None
+    clip_prefetch_worker: ClipPrefetchWorker | None = None
     analysis_runtime_error: str | None = None
 
     @property
@@ -75,6 +78,7 @@ async def lifespan(
     settings = get_settings()
     audio_client = None
     worker: SingleAnalysisWorker | None = None
+    clip_worker: ClipPrefetchWorker | None = None
 
     try:
         runtime_state.contract_bundle = (
@@ -144,6 +148,7 @@ async def lifespan(
                     settings.analysis_db_path,
                 )
             )
+            clip_repository = SQLiteClipFeatureRepository(settings.analysis_db_path)
             recovered_analysis_ids = (
                 repository.recover_incomplete()
             )
@@ -159,8 +164,10 @@ async def lifespan(
                     artifacts_dir=(
                         settings.artifacts_dir
                     ),
+                    clip_repository=clip_repository,
                 )
             )
+            clip_worker = ClipPrefetchWorker(processor)
             worker = SingleAnalysisWorker(
                 repository=repository,
                 processor=processor,
@@ -171,6 +178,7 @@ async def lifespan(
             )
 
             await worker.start()
+            await clip_worker.start()
 
             for analysis_id in (
                 recovered_analysis_ids
@@ -197,6 +205,7 @@ async def lifespan(
             runtime_state.analysis_worker = (
                 worker
             )
+            runtime_state.clip_prefetch_worker = clip_worker
         except Exception as error:
             runtime_state.analysis_runtime_error = (
                 str(error)
@@ -209,6 +218,8 @@ async def lifespan(
     try:
         yield
     finally:
+        if clip_worker is not None:
+            await clip_worker.stop()
         if worker is not None:
             await worker.stop()
 
@@ -216,5 +227,6 @@ async def lifespan(
             await audio_client.aclose()
 
         runtime_state.analysis_worker = None
+        runtime_state.clip_prefetch_worker = None
         runtime_state.analysis_repository = None
         runtime_state.contract_bundle = None

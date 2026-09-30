@@ -67,6 +67,10 @@ class KcElectraInferenceResult:
 
 
 class KcElectraInferenceService:
+    @property
+    def model_version(self) -> str:
+        return self._model_version
+
     def __init__(
         self,
         *,
