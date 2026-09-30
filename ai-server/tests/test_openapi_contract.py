@@ -97,6 +97,20 @@ EXPECTED_OPERATIONS = {
             },
         ),
     ),
+    (
+        "/v1/analyses/"
+        "{analysis_id}/restart"
+    ): OperationExpectation(
+        method="post",
+        operation_id="restartAnalysis",
+        success_status="202",
+        request_schema="AnalysisCreateRequest",
+        response_schemas=frozenset(
+            {
+                "AnalysisAcceptedResponse",
+            },
+        ),
+    ),
     "/v1/daily-cognitive-analyses": (
         OperationExpectation(
             method="post",
@@ -363,6 +377,11 @@ def test_required_api_parameters_are_present(
             )
         ]["post"],
     )
+    restart_parameters = _parameter_names(
+        runtime_openapi["paths"][
+            "/v1/analyses/{analysis_id}/restart"
+        ]["post"],
+    )
     daily_create_parameters = (
         _parameter_names(
             runtime_openapi["paths"][
@@ -396,6 +415,10 @@ def test_required_api_parameters_are_present(
         "analysis_id",
     }
     assert retry_parameters == {
+        "analysis_id",
+        "Idempotency-Key",
+    }
+    assert restart_parameters == {
         "analysis_id",
         "Idempotency-Key",
     }
@@ -635,7 +658,7 @@ def test_processing_timeout_matches_contract(
     assert operation[
         "x-processing-timeout-ms"
     ] == configured_timeout_ms
-    assert configured_timeout_ms == 300_000
+    assert configured_timeout_ms == 900_000
 
 
 def _collect_references(

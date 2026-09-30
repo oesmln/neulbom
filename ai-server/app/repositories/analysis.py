@@ -128,6 +128,7 @@ class AnalysisRepository(Protocol):
             str,
             Any,
         ],
+        expected_status: AnalysisStatus = AnalysisStatus.NEEDS_RETRY,
     ) -> StoredAnalysis:
         ...
 
@@ -252,6 +253,7 @@ class SQLiteAnalysisRepository:
             str,
             Any,
         ],
+        expected_status: AnalysisStatus = AnalysisStatus.NEEDS_RETRY,
     ) -> StoredAnalysis:
         try:
             serialized_request = (
@@ -296,12 +298,9 @@ class SQLiteAnalysisRepository:
                     "분석 작업을 찾을 수 없습니다.",
                 )
 
-            if (
-                row["status"]
-                != AnalysisStatus.NEEDS_RETRY.value
-            ):
+            if row["status"] != expected_status.value:
                 raise InvalidAnalysisStateError(
-                    "needs_retry 상태의 분석만 "
+                    f"{expected_status.value} 상태의 분석만 "
                     "재시도할 수 있습니다: "
                     f"status={row['status']}",
                 )
@@ -371,12 +370,13 @@ class SQLiteAnalysisRepository:
                     result_body = NULL,
                     updated_at = ?
                 WHERE analysis_id = ?
-                  AND status = 'needs_retry'
+                  AND status = ?
                 """,
                 (
                     serialized_request,
                     timestamp,
                     str(analysis_id),
+                    expected_status.value,
                 ),
             )
 

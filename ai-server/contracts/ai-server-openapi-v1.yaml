@@ -156,7 +156,7 @@ paths:
         must contain all 17 cist-v1 question codes exactly once. Unselected Q12-Q16
         items must be included with administration_status=not_applicable.
       x-timeout-ms: 5000
-      x-processing-timeout-ms: 300000
+      x-processing-timeout-ms: 900000
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -224,6 +224,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/analyses/{analysis_id}/restart:
+    post:
+      tags:
+        - Analyses
+      operationId: restartAnalysis
+      summary: Restart a failed internal-error analysis
+      description: >-
+        Reuses the analysis_id and assessment_id with newly signed audio URLs.
+        Only a failed analysis with reason_code=INTERNAL_ERROR can be restarted.
+        The previous attempt is retained in analysis attempt history.
+      x-timeout-ms: 5000
+      x-processing-timeout-ms: 900000
+      parameters:
+        - $ref: '#/components/parameters/AnalysisId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisCreateRequest'
+      responses:
+        '202':
+          description: Failed analysis restarted with fresh input URLs
+          headers:
+            Location:
+              description: Status resource for this analysis
+              schema:
+                type: string
+            Retry-After:
+              description: Recommended initial polling delay in seconds
+              schema:
+                type: integer
+                const: 2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+
   /v1/analyses/{analysis_id}/retry:
     post:
       tags:
@@ -286,7 +337,7 @@ paths:
         returns an estimated screening trend result. This is not an independent CIST
         assessment, diagnosis, or clinical probability.
       x-timeout-ms: 5000
-      x-processing-timeout-ms: 300000
+      x-processing-timeout-ms: 900000
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:

@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         32 * 1024 * 1024
     )
     analysis_processing_timeout_seconds: float = (
-        300.0
+        900.0
     )
 
     @field_validator(

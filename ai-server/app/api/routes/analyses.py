@@ -301,6 +301,122 @@ async def create_analysis(
     )
 
 @router.post(
+    "/analyses/{analysis_id}/restart",
+    response_model=AnalysisAcceptedResponse,
+    status_code=202,
+    operation_id="restartAnalysis",
+)
+async def restart_analysis(
+    analysis_id: UUID,
+    request_body: AnalysisCreateRequest,
+    idempotency_key: Annotated[
+        IdempotencyKey,
+        Header(alias="Idempotency-Key"),
+    ],
+    repository: Annotated[
+        AnalysisRepository,
+        Depends(get_analysis_repository),
+    ],
+    worker: Annotated[
+        SingleAnalysisWorker,
+        Depends(get_analysis_worker),
+    ],
+    completeness_service: Annotated[
+        AssessmentCompletenessService,
+        Depends(get_completeness_service),
+    ],
+    idempotency_service: Annotated[
+        IdempotencyService,
+        Depends(get_analysis_idempotency_service),
+    ],
+) -> JSONResponse:
+    async def operation() -> StoredHttpResponse:
+        stored = repository.get(analysis_id)
+        if stored is None:
+            raise APIError(
+                status_code=404,
+                code="ANALYSIS_NOT_FOUND",
+                message="The requested analysis does not exist.",
+                retryable=False,
+                details={"analysis_id": str(analysis_id)},
+            )
+        if (
+            stored.status != AnalysisStatus.FAILED
+            or stored.reason_code != "INTERNAL_ERROR"
+            or stored.result_body is not None
+        ):
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message="Only a failed internal-error analysis can be restarted.",
+                retryable=False,
+                details={"analysis_id": str(analysis_id), "status": stored.status.value},
+            )
+        if (
+            request_body.analysis_id != analysis_id
+            or request_body.assessment_id != stored.assessment_id
+        ):
+            raise APIError(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message="Analysis identifiers do not match the stored job.",
+                retryable=False,
+                details={"fields": ["analysis_id", "assessment_id"]},
+            )
+        try:
+            completeness_service.validate(request_body)
+        except AssessmentCompletenessError as error:
+            raise APIError(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message="Assessment question composition is incomplete or inconsistent.",
+                retryable=False,
+                details={"fields": ["responses", "recognition_plan"]},
+            ) from error
+        try:
+            resumed = repository.resume_with_request(
+                analysis_id=analysis_id,
+                updated_request_body=request_body.model_dump(mode="json"),
+                expected_status=AnalysisStatus.FAILED,
+            )
+        except InvalidAnalysisStateError as error:
+            raise APIError(
+                status_code=409,
+                code="INVALID_ANALYSIS_STATE",
+                message="The analysis state changed before restart.",
+                retryable=True,
+                details={"analysis_id": str(analysis_id)},
+            ) from error
+        await worker.enqueue(analysis_id)
+        accepted = AnalysisAcceptedResponse(
+            analysis_id=resumed.analysis_id,
+            assessment_id=resumed.assessment_id,
+            status="pending",
+            created_at=resumed.created_at,
+        )
+        return StoredHttpResponse(
+            status_code=202,
+            body=accepted.model_dump(mode="json"),
+            headers={
+                "Location": f"/v1/analyses/{analysis_id}",
+                "Retry-After": "2",
+            },
+        )
+
+    execution = await idempotency_service.execute_async(
+        scope=f"analysis-restart:{analysis_id}",
+        idempotency_key=idempotency_key,
+        request_body=request_body.model_dump(mode="json"),
+        operation=operation,
+    )
+    return JSONResponse(
+        status_code=execution.response.status_code,
+        content=execution.response.body,
+        headers=execution.response.headers,
+    )
+
+
+@router.post(
     "/analyses/{analysis_id}/retry",
     response_model=AnalysisAcceptedResponse,
     status_code=202,
