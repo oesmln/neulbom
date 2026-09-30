@@ -156,7 +156,7 @@ paths:
         must contain all 17 cist-v1 question codes exactly once. Unselected Q12-Q16
         items must be included with administration_status=not_applicable.
       x-timeout-ms: 5000
-      x-processing-timeout-ms: 300000
+      x-processing-timeout-ms: 900000
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -286,7 +286,7 @@ paths:
         returns an estimated screening trend result. This is not an independent CIST
         assessment, diagnosis, or clinical probability.
       x-timeout-ms: 5000
-      x-processing-timeout-ms: 300000
+      x-processing-timeout-ms: 900000
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
