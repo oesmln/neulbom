@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { ElderNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
-import { cistAi, game, newClientId, sessions } from "@/api";
+import { cistAi, game, newClientId, reports, sessions } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { useAnswerRecording } from "@/hooks/useAnswerRecording";
 import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
@@ -34,6 +34,8 @@ import { withParticle } from "@/utils/format";
  * and attached to the saved answer through `recording_id`.
  */
 const INTRO_LINE = "오늘 하루 어떠셨어요? 편하게 이야기해 주세요.";
+// 오늘 문답을 이미 마친 날 다시 들어오면 완료 인사로 맞는다.
+const DONE_LINE = "대화 즐거웠어요. 내일 또 이야기해요.";
 
 /** Example answers for the serverless preview. These are not speech transcripts. */
 const SAMPLE_ANSWERS = [
@@ -60,6 +62,15 @@ export default function ElderAiChatScreen() {
   const character = useApi(() => game.character(userId as string), [userId, isFocused], {
     enabled: !!userId && isFocused,
   });
+
+  // 오늘 문답 완료 여부는 대시보드 today_tasks로 판단한다. 조회 실패나 미완료면
+  // 기존 인사를 유지한다.
+  const dashboard = useApi(() => reports.dashboard(userId as string), [userId, isFocused], {
+    enabled: !!userId && isFocused,
+  });
+  const doneToday = (dashboard.data?.today_tasks ?? []).some(
+    (task) => task.task_type === "emotional_qa" && task.status === "completed",
+  );
   const companionModel = memoiForLevel(character.data?.level);
 
   const [phase, setPhase] = React.useState<"intro" | "chat">("intro");
@@ -97,7 +108,7 @@ export default function ElderAiChatScreen() {
 
   // The character only mouths the question itself; once it has been answered it
   // goes back to resting until the next one arrives.
-  const spokenLine = phase === "intro" ? INTRO_LINE : answered ? null : question?.content ?? null;
+  const spokenLine = phase === "intro" ? (doneToday ? DONE_LINE : INTRO_LINE) : answered ? null : question?.content ?? null;
   const voice = useSpeechPlayback(spokenLine);
 
   React.useEffect(() => {
@@ -198,7 +209,7 @@ export default function ElderAiChatScreen() {
             spinnerColor={colors.primary}
             style={{ width: 220 }}
           />
-          <SpeechBubble text={INTRO_LINE} side="below" />
+          <SpeechBubble text={doneToday ? DONE_LINE : INTRO_LINE} side="below" />
           <View style={styles.introVoiceToggle}>
             <VoicePlaybackButton
               enabled={voice.enabled}
