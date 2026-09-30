@@ -13,6 +13,7 @@ import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
 import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
+import { AI_CHAT_DONE_LINE } from "./aiChatGreetings";
 
 /**
  * What the elder sees after a session — and deliberately not a score.
@@ -51,7 +52,7 @@ export default function ElderResultScreen() {
   const route = useRoute<RouteProp<ElderStackParamList, "ElderResult">>();
   const sessionId = route.params?.sessionId ?? null;
   const mode = route.params?.mode ?? "daily";
-  const { userName, characterName, completeBaseline } = useApp();
+  const { characterName, completeBaseline } = useApp();
   const companionName = characterName?.trim() || DEFAULT_CHARACTER_NAME;
   const baseline = mode === "baseline";
   const [aiPolling, setAiPolling] = React.useState(baseline);
@@ -166,7 +167,7 @@ export default function ElderResultScreen() {
           />
 
           {!sessionId ? (
-            <SpeechBubble text="오늘 대화가 잘 마무리됐어요." side="below" />
+            <SpeechBubble text={baseline ? "검사가 끝났어요." : AI_CHAT_DONE_LINE} side="below" />
           ) : (baseline ? aiError : error) && !(baseline ? aiAnalysis : result) ? (
             <View style={styles.stateWrap}>
               <ErrorState
@@ -190,9 +191,9 @@ export default function ElderResultScreen() {
               <SpeechBubble
                 text={baseline
                   ? message || "검사는 끝났어요. AI 결과를 확인하고 있어요."
-                  : result?.result_status === "completed"
-                    ? `${userName ? `${userName}님, ` : ""}${message}`
-                    : `${userName ? `${userName}님, ` : ""}오늘 대화가 잘 마무리됐어요.`}
+                  : result?.result_status === "failed" || result?.result_type === "insufficient_data"
+                    ? message
+                    : AI_CHAT_DONE_LINE}
                 side="below"
               />
           )}

@@ -124,6 +124,7 @@
 - [x] 홈 탭 복귀 시 대시보드를 다시 조회해 오늘 문답 완료 상태와 캐릭터 레벨을 갱신한다. (#178)
 - [ ] 하단 탭 — AI 대화 / 일기 / **홈(중앙 돌출)** / 게임 / 마이
 - [ ] AI 정서 문답 `POST /sessions` (`emotional_qa`) — intro → chat → loading → 결과
+- [x] 문답 종료 직후에는 완료 인사를, 같은 날 새 대화를 시작할 때는 재시작 인사를 화면과 음성에 맞춰 표시한다. (#287)
 - [ ] 대화 내역 `GET /sessions`, `GET /sessions/{id}/answers`
 - [ ] 달력·일기 `GET /calendar/{user_id}/activities`, `GET /diaries/{user_id}`
       날짜별 감정 이모지, 일기 상세, 음성 일기 추가
