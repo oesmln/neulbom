@@ -1666,6 +1666,8 @@ CIST 분석에서는 요청의 `question_id`가 전사문에 연결된 녹음의
 
 Q11(`memory_delayed_free_recall`) 답변의 녹음·STT 결과로 recognition plan을 생성한다. 성공 응답의 `recalled_units`, `next_question_codes`, `q11_result`를 저장하며 같은 세션에서 다시 호출하면 저장된 결과를 반환한다. AI 서버 호출에는 서비스 Bearer Token과 해당 논리 작업 전용 `Idempotency-Key`를 사용한다.
 
+CIST·초기 기준 검사 답변이 저장되면 백엔드는 커밋 후 `POST /v1/cist-clips/prefetch`로 해당 녹음의 클립 특징 추출을 비동기 요청한다. 요청에는 `question_set_version`과 기존 `AdministeredQuestionResponse` 형식의 단일 답변을 사용한다. AI 서버는 `recording_id`·문항/전사·모델 버전별 AST·KcELECTRA 특징을 기존 `analyses.sqlite3`에 저장한다. 선분석 요청 실패나 캐시 누락은 답변 저장을 취소하지 않으며 최종 전체 분석에서 누락된 클립만 계산한다. 선분석은 결과 시간을 줄이기 위한 작업으로 60초 내 완료를 보장하지 않는다.
+
 #### `POST /sessions/{session_id}/cist-ai/analyses`
 
 종료된 CIST 세션에 대해 비동기 분석을 생성한다. 요청은 `cist-v1`의 17개 `question_code`를 정확히 한 번씩 포함하고, recognition plan에서 선택되지 않은 Q12~Q16은 `not_applicable`로 전송한다. 응답은 `202 Accepted`이며 백엔드가 생성한 `analysis_id`와 최초 상태를 반환한다.
