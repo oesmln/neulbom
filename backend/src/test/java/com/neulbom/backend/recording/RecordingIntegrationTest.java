@@ -10,13 +10,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
 import com.neulbom.backend.common.id.UuidGenerator;
 import com.neulbom.backend.common.exception.EmptyTranscriptException;
+import com.neulbom.backend.common.exception.ExternalServiceUnavailableException;
 import com.neulbom.backend.analysis.integration.SpeechToTextClient;
+import com.neulbom.backend.analysis.integration.aiserver.AiAudioUrlSigner;
 import com.neulbom.backend.session.SessionEntity;
 import com.neulbom.backend.session.SessionRepository;
 import com.neulbom.backend.user.UserEntity;
@@ -31,16 +34,23 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.ai-server.audio-public-base-url=https://audio.test",
+        "app.ai-server.audio-signing-secret=test-audio-signing-secret-at-least-32-bytes-long",
+        "app.ai-server.signed-url-ttl=10m"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class RecordingIntegrationTest {
@@ -61,6 +71,12 @@ class RecordingIntegrationTest {
 
     @Autowired
     private RecordingRepository recordingRepository;
+
+    @MockitoSpyBean
+    private RecordingStorage recordingStorage;
+
+    @Autowired
+    private AiAudioUrlSigner audioUrlSigner;
 
     @Autowired
     private UuidGenerator uuidGenerator;
@@ -147,11 +163,21 @@ class RecordingIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         UUID id = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
                 .readTree(body).get("recording_id").asText());
+        RecordingEntity recording = recordingRepository.findById(id).orElseThrow();
+        Path storedFile = Path.of("build/test-uploads").resolve(recording.getStorageKey());
+        org.assertj.core.api.Assertions.assertThat(Files.exists(storedFile)).isTrue();
+        URI signedUrl = audioUrlSigner.issue(recording).signedUrl();
+        mockMvc.perform(get(signedUrl))
+                .andExpect(status().isOk());
 
         mockMvc.perform(delete("/api/v1/recordings/{recordingId}", id).with(jwtFor(other)))
                 .andExpect(status().isForbidden());
+        org.assertj.core.api.Assertions.assertThat(Files.exists(storedFile)).isTrue();
         mockMvc.perform(delete("/api/v1/recordings/{recordingId}", id).with(jwtFor(owner)))
                 .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(Files.exists(storedFile)).isFalse();
+        mockMvc.perform(get(signedUrl))
+                .andExpect(status().isGone());
         mockMvc.perform(get("/api/v1/recordings/{recordingId}", id).with(jwtFor(owner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
@@ -171,14 +197,56 @@ class RecordingIntegrationTest {
         UserEntity other = saveUser("recording-bulk-other");
         UUID ownerRecording = uploadDiary(owner);
         UUID otherRecording = uploadDiary(other);
+        Path ownerFile = Path.of("build/test-uploads")
+                .resolve(recordingRepository.findById(ownerRecording).orElseThrow().getStorageKey());
+        Path otherFile = Path.of("build/test-uploads")
+                .resolve(recordingRepository.findById(otherRecording).orElseThrow().getStorageKey());
+        org.assertj.core.api.Assertions.assertThat(Files.exists(ownerFile)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(Files.exists(otherFile)).isTrue();
 
         mockMvc.perform(delete("/api/v1/recordings").with(jwtFor(owner)))
                 .andExpect(status().isNoContent());
 
+        org.assertj.core.api.Assertions.assertThat(Files.exists(ownerFile)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(Files.exists(otherFile)).isTrue();
         mockMvc.perform(get("/api/v1/recordings/{recordingId}", ownerRecording).with(jwtFor(owner)))
                 .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
         mockMvc.perform(get("/api/v1/recordings/{recordingId}", otherRecording).with(jwtFor(other)))
                 .andExpect(jsonPath("$.audio_deleted_at").isEmpty());
+    }
+
+    @Test
+    void bulkDeletionKeepsSuccessfulRemovalsAndCanRetryFailedFiles() throws Exception {
+        UserEntity owner = saveUser("recording-bulk-partial-owner");
+        UUID failedRecording = uploadDiary(owner);
+        UUID successfulRecording = uploadDiary(owner);
+        Path failedFile = Path.of("build/test-uploads")
+                .resolve(recordingRepository.findById(failedRecording).orElseThrow().getStorageKey());
+        Path successfulFile = Path.of("build/test-uploads")
+                .resolve(recordingRepository.findById(successfulRecording).orElseThrow().getStorageKey());
+
+        doThrow(new ExternalServiceUnavailableException("테스트에서 파일 삭제를 일시적으로 실패시켰습니다."))
+                .when(recordingStorage).delete(recordingRepository.findById(failedRecording)
+                        .orElseThrow().getStorageKey());
+
+        mockMvc.perform(delete("/api/v1/recordings").with(jwtFor(owner)))
+                .andExpect(status().isServiceUnavailable());
+
+        org.assertj.core.api.Assertions.assertThat(Files.exists(failedFile)).isTrue();
+        org.assertj.core.api.Assertions.assertThat(Files.exists(successfulFile)).isFalse();
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", failedRecording).with(jwtFor(owner)))
+                .andExpect(jsonPath("$.audio_deleted_at").isEmpty());
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", successfulRecording).with(jwtFor(owner)))
+                .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
+
+        doCallRealMethod().when(recordingStorage).delete(recordingRepository.findById(failedRecording)
+                .orElseThrow().getStorageKey());
+        mockMvc.perform(delete("/api/v1/recordings").with(jwtFor(owner)))
+                .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(Files.exists(failedFile)).isFalse();
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", failedRecording).with(jwtFor(owner)))
+                .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
     }
 
     @Test

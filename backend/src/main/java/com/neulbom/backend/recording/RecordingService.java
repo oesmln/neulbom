@@ -24,6 +24,7 @@ import com.neulbom.backend.user.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -169,10 +170,20 @@ public class RecordingService {
         deleteStoredAudio(recording);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void deleteAllAudioForUser(UUID userId) {
+        RuntimeException firstFailure = null;
         for (RecordingEntity recording : recordingRepository.findByUserIdAndAudioDeletedAtIsNull(userId)) {
-            deleteStoredAudio(recording);
+            try {
+                deleteStoredAudio(recording);
+            } catch (RuntimeException exception) {
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
     }
 
