@@ -247,14 +247,20 @@ export default function ElderResultScreen() {
           </Text>
         </View>
 
-        {baseline && aiAnalysis?.status === "needs_retry" ? (
+        {baseline && (
+          aiAnalysis?.status === "needs_retry" ||
+          (aiAnalysis?.status === "failed" &&
+            aiAnalysis.reason_code === "INTERNAL_ERROR" &&
+            aiAnalysis.retry_count < 2)
+        ) ? (
           <View style={styles.retryAction}>
             {retryError ? <Text style={styles.retryError}>{retryError}</Text> : null}
             <Button
-              label={replacementQuestionCodes.length > 0 ? "필요한 답변 다시 녹음" : "분석 다시 요청"}
+              label={aiAnalysis?.status === "needs_retry" && replacementQuestionCodes.length > 0
+                ? "필요한 답변 다시 녹음" : "분석 다시 요청"}
               disabled={retrying}
               onPress={() => {
-                if (replacementQuestionCodes.length > 0) {
+                if (aiAnalysis?.status === "needs_retry" && replacementQuestionCodes.length > 0) {
                   navigation.replace("ElderCist", { sessionId: sessionId as string, retryQuestionCodes: replacementQuestionCodes });
                 } else {
                   void retryAnalysis();
