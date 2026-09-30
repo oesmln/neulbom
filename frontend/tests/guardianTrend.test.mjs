@@ -28,6 +28,17 @@ function history(points, prior = null) {
   };
 }
 
+test("오늘 범위는 서울 기준 하루이고, 전체 범위는 시작이 없다", () => {
+  const now = new Date("2026-09-29T16:00:00Z");
+  assert.deepEqual(dateRangeInSeoul(0, now), {
+    fromDate: "2026-09-30", toDate: "2026-09-30",
+  });
+  assert.deepEqual(dateRangeInSeoul(null, now), {
+    fromDate: undefined, toDate: "2026-09-30",
+  });
+  assert.equal(nextPeriodContainingBaseline("today", "2026-09-10", now), "1m");
+});
+
 test("1개월 날짜 범위는 서울 날짜와 월말을 따른다", () => {
   const beforeSeoulMidnight = new Date("2026-09-29T14:59:00Z");
   const afterSeoulMidnight = new Date("2026-09-29T15:01:00Z");

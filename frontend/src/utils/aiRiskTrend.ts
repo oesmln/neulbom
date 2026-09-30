@@ -1,11 +1,14 @@
 import type { GuardianAiRiskTrendPoint, HistoryResponse } from "@/api/types";
 
+// 좁은 기간에서 넓은 기간 순서를 유지한다. `nextPeriodContainingBaseline`이 이
+// 순서를 따라 기준점이 들어올 때까지 다음 기간으로 넓힌다. `months`가 0이면 서울
+// 기준 오늘 하루, null이면 전체 기간이다.
 export const PERIODS = [
+  { key: "today", label: "오늘", months: 0 },
   { key: "1m", label: "1개월", months: 1 },
   { key: "3m", label: "3개월", months: 3 },
-  { key: "6m", label: "6개월", months: 6 },
   { key: "1y", label: "1년", months: 12 },
-  { key: "all", label: "전체", months: 0 },
+  { key: "all", label: "전체", months: null },
 ] as const;
 
 export type PeriodKey = (typeof PERIODS)[number]["key"];
@@ -13,9 +16,11 @@ export type ViewMode = "all" | "cist";
 
 const SEOUL_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-export function dateRangeInSeoul(months: number, now: Date = new Date()) {
+export function dateRangeInSeoul(months: number | null, now: Date = new Date()) {
   const today = new Date(now.getTime() + SEOUL_OFFSET_MS);
-  if (months === 0) return { fromDate: undefined, toDate: today.toISOString().slice(0, 10) };
+  const toDate = today.toISOString().slice(0, 10);
+  if (months === null) return { fromDate: undefined, toDate };
+  if (months === 0) return { fromDate: toDate, toDate };
   const year = today.getUTCFullYear();
   const month = today.getUTCMonth();
   const day = today.getUTCDate();
@@ -71,8 +76,8 @@ export function nextPeriodContainingBaseline(
   baselineDate: string,
   now: Date = new Date(),
 ): PeriodKey {
-  const selectedMonths = PERIODS.find((item) => item.key === currentPeriod)?.months ?? 6;
-  const wider = PERIODS.find((item) => item.months > selectedMonths
-    && (dateRangeInSeoul(item.months, now).fromDate ?? "") <= baselineDate);
+  const currentIndex = PERIODS.findIndex((item) => item.key === currentPeriod);
+  const wider = PERIODS.slice(currentIndex + 1).find((item) =>
+    item.months === null || (dateRangeInSeoul(item.months, now).fromDate ?? "") <= baselineDate);
   return wider?.key ?? "all";
 }
