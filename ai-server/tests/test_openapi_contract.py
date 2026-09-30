@@ -635,7 +635,7 @@ def test_processing_timeout_matches_contract(
     assert operation[
         "x-processing-timeout-ms"
     ] == configured_timeout_ms
-    assert configured_timeout_ms == 300_000
+    assert configured_timeout_ms == 900_000
 
 
 def _collect_references(

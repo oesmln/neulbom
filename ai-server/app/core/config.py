@@ -67,8 +67,11 @@ class Settings(BaseSettings):
     max_audio_download_bytes: int = (
         32 * 1024 * 1024
     )
+    # 전체 CIST 1회 처리가 운영 환경에서 187~273초 걸린다. 처리 단계만 제한하고 큐
+    # 대기는 제외하므로, 발화가 긴 실제 녹음까지 여유를 두려면 한도가 그보다 넉넉해야
+    # 한다. 300초로는 처리 시간이 그대로 한도에 닿아 INTERNAL_ERROR로 잘린다.
     analysis_processing_timeout_seconds: float = (
-        300.0
+        900.0
     )
 
     @field_validator(
