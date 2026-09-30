@@ -32,6 +32,7 @@ import {
   SentenceText as Text,
 } from "@/components/ui";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
+import ElderSelector from "@/components/ElderSelector";
 
 /**
  * 전문의 상담 예약 — `GET /counseling/centers`.
@@ -331,6 +332,7 @@ export default function GuardianCounselingCentersScreen() {
         />
       }
     >
+      <ElderSelector />
       <View style={{ gap: spacing.md }}>
         <Dropdown
           label="시 / 도"

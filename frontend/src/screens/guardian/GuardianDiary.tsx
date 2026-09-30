@@ -10,6 +10,7 @@ import { apiErrorMessage, guardianAccessErrorMessage } from "@/api/errors";
 import { isoDateOf, moodEmoji, parseIso } from "@/utils/format";
 import { DIARY_REACTIONS, type DiaryReactionType } from "@/utils/diaryReactions";
 import DiaryReactionList from "@/components/DiaryReactionList";
+import ElderSelector from "@/components/ElderSelector";
 import type { DiaryListItem, Uuid } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import {
@@ -216,6 +217,7 @@ export default function GuardianDiaryScreen() {
 
   return (
     <Screen header={header}>
+      <ElderSelector />
       <View style={styles.monthRow}>
         <Pressable
           onPress={() => shiftMonth(-1)}

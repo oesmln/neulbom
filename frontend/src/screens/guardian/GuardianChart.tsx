@@ -11,6 +11,7 @@ import type { PeriodKey, ViewMode } from "@/utils/aiRiskTrend";
 import type { GuardianAiRiskTrendPoint } from "@/api/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
+import ElderSelector from "@/components/ElderSelector";
 import {
   Screen,
   ScreenHeader,
@@ -114,6 +115,7 @@ export default function GuardianChartScreen() {
 
   return (
     <Screen header={header}>
+      <ElderSelector />
       <Card>
         <Body style={{ fontWeight: fontWeight.semibold, marginBottom: spacing.md }}>
           AI 인지 위험 신호 추이
