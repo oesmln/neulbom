@@ -1,6 +1,7 @@
 package com.neulbom.backend.config;
 
 import java.net.URI;
+import java.util.Base64;
 import java.util.Locale;
 
 import org.springframework.beans.factory.InitializingBean;
@@ -13,6 +14,8 @@ import org.springframework.util.StringUtils;
 public class ProductionSecurityValidator implements InitializingBean {
 
     static final String DEFAULT_JWT_SECRET = "local-only-change-this-jwt-secret-key-please";
+    static final String DEFAULT_RECORDING_ENCRYPTION_KEY =
+            "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
     private final JwtProperties jwtProperties;
     private final AiServerProperties aiServerProperties;
@@ -52,6 +55,7 @@ public class ProductionSecurityValidator implements InitializingBean {
         if ("local".equalsIgnoreCase(storageProperties.type())) {
             throw unsafe("운영 환경에서는 로컬 파일 저장소를 사용할 수 없습니다.");
         }
+        validateRecordingEncryptionKey(storageProperties.encryptionKey());
         if ("persistent-volume".equalsIgnoreCase(storageProperties.type())) {
             if (!StringUtils.hasText(storageProperties.localRoot())
                     || !java.nio.file.Path.of(storageProperties.localRoot()).isAbsolute()) {
@@ -73,6 +77,19 @@ public class ProductionSecurityValidator implements InitializingBean {
                     || "*".equals(origin.trim())) {
                 throw unsafe("운영 CORS origin은 공개 HTTPS 주소만 허용합니다: " + origin);
             }
+        }
+    }
+
+    private void validateRecordingEncryptionKey(String encodedKey) {
+        if (!StringUtils.hasText(encodedKey) || DEFAULT_RECORDING_ENCRYPTION_KEY.equals(encodedKey.trim())) {
+            throw unsafe("RECORDING_ENCRYPTION_KEY에 운영용 암호화 키를 설정해야 합니다.");
+        }
+        try {
+            if (Base64.getDecoder().decode(encodedKey.trim()).length != 32) {
+                throw unsafe("RECORDING_ENCRYPTION_KEY는 Base64로 인코딩한 32바이트 키여야 합니다.");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw unsafe("RECORDING_ENCRYPTION_KEY는 올바른 Base64 값이어야 합니다.");
         }
     }
 

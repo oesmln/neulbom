@@ -487,6 +487,9 @@ public class AnalysisService {
                 throw new ExternalServiceUnavailableException("업로드된 녹음 파일을 읽을 수 없습니다.");
             }
         }
+        if (recording.isAudioDeleted()) {
+            throw new ApiException(HttpStatus.GONE, "원본 녹음이 삭제되었습니다.", "새 답변을 녹음해 주세요.");
+        }
         RecordingStorage.StoredAudio stored = recordingStorage.load(recording.getStorageKey());
         return new SpeechToTextClient.AudioFile(stored.content(), stored.filename(), recording.getMimeType());
     }

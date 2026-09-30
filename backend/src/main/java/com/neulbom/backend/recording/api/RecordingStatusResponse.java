@@ -19,6 +19,7 @@ public record RecordingStatusResponse(
         UUID acousticAnalysisId,
         UUID cognitiveAnalysisId,
         String errorMessage,
-        Instant updatedAt
+        Instant updatedAt,
+        Instant audioDeletedAt
 ) {
 }

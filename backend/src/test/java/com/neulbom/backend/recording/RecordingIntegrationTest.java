@@ -2,6 +2,7 @@ package com.neulbom.backend.recording;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -57,6 +58,9 @@ class RecordingIntegrationTest {
 
     @Autowired
     private TranscriptRepository transcriptRepository;
+
+    @Autowired
+    private RecordingRepository recordingRepository;
 
     @Autowired
     private UuidGenerator uuidGenerator;
@@ -124,6 +128,87 @@ class RecordingIntegrationTest {
 
         Path storedRoot = Path.of("build/test-uploads/recordings");
         org.assertj.core.api.Assertions.assertThat(Files.list(storedRoot).findAny()).isPresent();
+    }
+
+    @Test
+    void onlyOwnerCanDeleteOriginalAudioAndDeletedAudioCannotBeReuploaded() throws Exception {
+        UserEntity owner = saveUser("recording-delete-owner");
+        UserEntity other = saveUser("recording-delete-other");
+        UUID clientRecordingId = UUID.randomUUID();
+        String recordedAt = Instant.now().minusSeconds(1).toString();
+        String body = mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("delete.wav"))
+                        .with(jwtFor(owner))
+                        .param("client_recording_id", clientRecordingId.toString())
+                        .param("user_id", owner.getId().toString())
+                        .param("purpose", "diary")
+                        .param("recorded_at", recordedAt))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(body).get("recording_id").asText());
+
+        mockMvc.perform(delete("/api/v1/recordings/{recordingId}", id).with(jwtFor(other)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/v1/recordings/{recordingId}", id).with(jwtFor(owner)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", id).with(jwtFor(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
+        mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("delete.wav"))
+                        .with(jwtFor(owner))
+                        .param("client_recording_id", clientRecordingId.toString())
+                        .param("user_id", owner.getId().toString())
+                        .param("purpose", "diary")
+                        .param("recorded_at", recordedAt))
+                .andExpect(status().isGone());
+    }
+
+    @Test
+    void bulkDeletionOnlyRemovesAuthenticatedUsersOriginalAudio() throws Exception {
+        UserEntity owner = saveUser("recording-bulk-owner");
+        UserEntity other = saveUser("recording-bulk-other");
+        UUID ownerRecording = uploadDiary(owner);
+        UUID otherRecording = uploadDiary(other);
+
+        mockMvc.perform(delete("/api/v1/recordings").with(jwtFor(owner)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", ownerRecording).with(jwtFor(owner)))
+                .andExpect(jsonPath("$.audio_deleted_at").isNotEmpty());
+        mockMvc.perform(get("/api/v1/recordings/{recordingId}", otherRecording).with(jwtFor(other)))
+                .andExpect(jsonPath("$.audio_deleted_at").isEmpty());
+    }
+
+    @Test
+    void withdrawingAccountRemovesStoredOriginalAudio() throws Exception {
+        UserEntity owner = saveUser("recording-withdraw-owner");
+        UUID id = uploadDiary(owner);
+        Path storedFile = Path.of("build/test-uploads")
+                .resolve(recordingRepository.findById(id).orElseThrow().getStorageKey());
+        org.assertj.core.api.Assertions.assertThat(Files.exists(storedFile)).isTrue();
+
+        mockMvc.perform(delete("/api/v1/users/me").with(jwtFor(owner)))
+                .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(Files.exists(storedFile)).isFalse();
+        org.assertj.core.api.Assertions.assertThat(recordingRepository.findById(id).orElseThrow().isAudioDeleted())
+                .isTrue();
+    }
+
+    private UUID uploadDiary(UserEntity user) throws Exception {
+        String body = mockMvc.perform(multipart("/api/v1/recordings")
+                        .file(wavFile("bulk.wav"))
+                        .with(jwtFor(user))
+                        .param("client_recording_id", UUID.randomUUID().toString())
+                        .param("user_id", user.getId().toString())
+                        .param("purpose", "diary")
+                        .param("recorded_at", Instant.now().minusSeconds(1).toString()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(body).get("recording_id").asText());
     }
 
     @Test

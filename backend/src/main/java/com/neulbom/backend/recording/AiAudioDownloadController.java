@@ -4,9 +4,11 @@ import java.util.UUID;
 
 import com.neulbom.backend.analysis.integration.aiserver.AiAudioUrlSigner;
 import com.neulbom.backend.common.exception.ResourceNotFoundException;
+import com.neulbom.backend.common.exception.ApiException;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +43,9 @@ public class AiAudioDownloadController {
         signer.verify(recordingId, expiresAt, signature);
         RecordingEntity recording = recordingRepository.findById(recordingId)
                 .orElseThrow(() -> new ResourceNotFoundException("녹음 파일을 찾을 수 없습니다."));
+        if (recording.isAudioDeleted()) {
+            throw new ApiException(HttpStatus.GONE, "원본 녹음이 삭제되었습니다.", "이 음성 URL은 더 이상 사용할 수 없습니다.");
+        }
         RecordingStorage.StoredAudio audio = recordingStorage.load(recording.getStorageKey());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())

@@ -86,6 +86,9 @@ app:
     type: ${FILE_STORAGE_TYPE:local}
     local-root: ${FILE_STORAGE_LOCAL_ROOT:./uploads}
     bucket: ${FILE_STORAGE_BUCKET:neulbom-local}
+    # Local-only convenience key. ProductionSecurityValidator rejects this fallback.
+    encryption-key: ${RECORDING_ENCRYPTION_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+    retention-days: ${RECORDING_RETENTION_DAYS:30}
     max-file-size: ${APP_MAX_UPLOAD_SIZE:25MB}
     allowed-mime-types: ${APP_ALLOWED_MIME_TYPES:audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/webm}
     allowed-extensions: ${APP_ALLOWED_FILE_EXTENSIONS:wav,mp3,m4a,webm}

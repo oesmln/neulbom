@@ -43,6 +43,7 @@ import com.neulbom.backend.user.RefreshTokenEntity;
 import com.neulbom.backend.user.RefreshTokenRepository;
 import com.neulbom.backend.user.UserEntity;
 import com.neulbom.backend.user.UserRepository;
+import com.neulbom.backend.recording.RecordingService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -55,6 +56,7 @@ public class AuthService {
     private static final Duration EMAIL_VERIFICATION_TTL = Duration.ofHours(24);
 
     private final UserRepository userRepository;
+    private final RecordingService recordingService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
@@ -74,6 +76,7 @@ public class AuthService {
 
     public AuthService(
             UserRepository userRepository,
+            RecordingService recordingService,
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             EmailVerificationTokenRepository emailVerificationTokenRepository,
@@ -92,6 +95,7 @@ public class AuthService {
             @Value("${app.security.email-verification-required:false}") boolean emailVerificationRequired
     ) {
         this.userRepository = userRepository;
+        this.recordingService = recordingService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.emailVerificationTokenRepository = emailVerificationTokenRepository;
@@ -391,6 +395,7 @@ public class AuthService {
             return;
         }
         Instant now = jwtTokenService.now();
+        recordingService.deleteAllAudioForUser(user.getId());
         user.withdraw(now);
         revokeAllRefreshTokens(user.getId(), now);
         passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(user.getId())

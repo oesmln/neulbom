@@ -95,6 +95,7 @@ public class RecordingService {
             if (!existing.getUserId().equals(user.getId())) {
                 throw new AccessDeniedException("다른 사용자의 녹음 ID입니다.");
             }
+            requireAudioAvailable(existing);
             return toUploadResponse(existing, true);
         }
 
@@ -120,7 +121,7 @@ public class RecordingService {
                 sessionId,
                 questionId,
                 storageKey,
-                truncate(audioFile.getOriginalFilename(), 255),
+                null,
                 metadata(audioFile),
                 audioFile.getContentType(),
                 audioFile.getSize(),
@@ -151,7 +152,38 @@ public class RecordingService {
                 null,
                 null,
                 null,
-                recording.getUpdatedAt());
+                recording.getUpdatedAt(),
+                recording.getAudioDeletedAt());
+    }
+
+    @Transactional
+    public void deleteAudio(UUID authenticatedUserId, UUID recordingId) {
+        RecordingEntity recording = recordingRepository.findById(recordingId)
+                .orElseThrow(() -> new ResourceNotFoundException("녹음 정보를 찾을 수 없습니다."));
+        if (!authenticatedUserId.equals(recording.getUserId())) {
+            throw new AccessDeniedException("본인의 녹음만 삭제할 수 있습니다.");
+        }
+        if (recording.isAudioDeleted()) {
+            return;
+        }
+        deleteStoredAudio(recording);
+    }
+
+    @Transactional
+    public void deleteAllAudioForUser(UUID userId) {
+        for (RecordingEntity recording : recordingRepository.findByUserIdAndAudioDeletedAtIsNull(userId)) {
+            deleteStoredAudio(recording);
+        }
+    }
+
+    @Transactional
+    public boolean deleteExpiredAudio(UUID recordingId, Instant cutoff) {
+        RecordingEntity recording = recordingRepository.findById(recordingId).orElse(null);
+        if (recording == null || recording.isAudioDeleted() || !recording.getRecordedAt().isBefore(cutoff)) {
+            return false;
+        }
+        deleteStoredAudio(recording);
+        return true;
     }
 
     private UserEntity activeElder(UUID userId) {
@@ -228,6 +260,21 @@ public class RecordingService {
         guardianAccessService.requireAccess(authenticatedUserId, recording.getUserId(), scope);
     }
 
+    private void requireAudioAvailable(RecordingEntity recording) {
+        if (recording.isAudioDeleted()) {
+            throw new ApiException(
+                    HttpStatus.GONE,
+                    "원본 녹음이 삭제되었습니다.",
+                    "새 답변을 녹음해 주세요.");
+        }
+    }
+
+    private void deleteStoredAudio(RecordingEntity recording) {
+        recordingStorage.delete(recording.getStorageKey());
+        recording.markAudioDeleted(clock.instant());
+        recordingRepository.save(recording);
+    }
+
     private RecordingUploadResponse toUploadResponse(RecordingEntity recording, boolean deduplicated) {
         return new RecordingUploadResponse(
                 recording.getId(),
@@ -249,10 +296,4 @@ public class RecordingService {
         }
     }
 
-    private String truncate(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength);
-    }
 }
