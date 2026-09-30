@@ -39,11 +39,11 @@ function riskChange(first: GuardianAiRiskTrendPoint, last: GuardianAiRiskTrendPo
 export default function GuardianChartScreen() {
   const isFocused = useIsFocused();
   const { userId, selectedElderId } = useApp();
-  const [period, setPeriod] = React.useState<PeriodKey>("6m");
+  const [period, setPeriod] = React.useState<PeriodKey>("3m");
   const [viewMode, setViewMode] = React.useState<ViewMode>("all");
 
   const dateRange = React.useMemo(() => {
-    const months = PERIODS.find((item) => item.key === period)?.months ?? 6;
+    const months = PERIODS.find((item) => item.key === period)?.months ?? null;
     return dateRangeInSeoul(months);
   }, [period]);
 
