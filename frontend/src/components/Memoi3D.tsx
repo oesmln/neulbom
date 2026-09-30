@@ -242,14 +242,33 @@ function MemoiModel({
 
 /* ----------------------------------------------------------- error boundary */
 
+const GL_RETRY_LIMIT = 2;
+const GL_RETRY_DELAY_MS = 4000;
+
 class GLBoundary extends React.Component<
   { children: React.ReactNode; fallback: React.ReactNode },
   { failed: boolean }
 > {
   state = { failed: false };
+  private attempts = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   static getDerivedStateFromError() {
     return { failed: true };
+  }
+
+  componentDidCatch() {
+    // 일시적인 GL 오류(컨텍스트 재생성 등)는 잠시 뒤 다시 그리면 살아난다.
+    // 반복 실패는 기기 문제로 보고 대체 이미지에 머문다.
+    if (this.attempts >= GL_RETRY_LIMIT) return;
+    this.attempts += 1;
+    this.retryTimer = setTimeout(() => {
+      this.setState({ failed: false });
+    }, GL_RETRY_DELAY_MS);
+  }
+
+  componentWillUnmount() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
   }
 
   render() {
@@ -290,6 +309,9 @@ export default function Memoi3D({
   style?: StyleProp<ViewStyle>;
 }) {
   const [ready, setReady] = useState(false);
+  // 마지막으로 화면에 올라간 캐릭터. 레벨 변경 등으로 캐릭터가 바뀌면 새 GLB가
+  // 준비될 때까지 이 모델을 계속 보여줘 빈 화면 깜빡임을 없앤다.
+  const [settled, setSettled] = useState(character);
 
   const shapes = useMemo(
     () => (mouthSet ? [mouthSet.shapes.eu, mouthSet.shapes.o, mouthSet.shapes.e] : []),
@@ -320,12 +342,13 @@ export default function Memoi3D({
   const handleReady = useCallback(
     (framingMs: number) => {
       setReady(true);
+      setSettled(character);
       if (__DEV__) {
         const total = Date.now() - startedAt.current;
         console.log(`[Memoi3D] ${character.id} ready in ${total}ms (framing ${framingMs}ms)`);
       }
     },
-    [character.id],
+    [character],
   );
 
   useEffect(() => {
@@ -379,10 +402,21 @@ export default function Memoi3D({
               key={character.id}
               character={character}
               spin={spin}
-              visible={activeId === character.id}
+              visible={activeId === character.id && ready}
               onReady={handleReady}
             />
           </Suspense>
+          {settled.id !== character.id ? (
+            <Suspense fallback={null}>
+              <MemoiModel
+                key={settled.id}
+                character={settled}
+                spin={spin}
+                visible={!ready}
+                onReady={noop}
+              />
+            </Suspense>
+          ) : null}
           {shapes.map((shape) => (
             <Suspense key={shape.id} fallback={null}>
               <MemoiModel
@@ -396,7 +430,7 @@ export default function Memoi3D({
         </Canvas>
       </GLBoundary>
 
-      {ready ? null : (
+      {ready || settled.id !== character.id ? null : (
         <View style={[StyleSheet.absoluteFill, styles.centre]} pointerEvents="none">
           <ActivityIndicator size="large" color={spinnerColor} />
         </View>
