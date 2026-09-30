@@ -2314,7 +2314,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 ]
 ```
 
-`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 전체 CIST AI 분석과 저장된 일상 부분 갱신 추정치를 분석 완료 시각순으로 포함한다. 각 점은 `date`(`Asia/Seoul`), 저장된 `risk_score`(0~1), `risk_level`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`를 제공한다. 기준 스냅샷 저장 전의 기존 전체 CIST 점은 `baseline_snapshot_id`가 `null`일 수 있다. 같은 날짜의 여러 점을 평균 내지 않는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다.
+`ai_risk_trend_points[]`는 `cist`·`baseline`·`onboarding` 세션에서 완료된 전체 CIST AI 분석과 저장된 일상 부분 갱신 추정치를 분석 완료 시각순으로 포함한다. 각 점은 `date`(`Asia/Seoul`), 저장된 `risk_score`(0~1), `risk_level`, `decision_threshold`, `review_threshold`, `threshold_version`, `point_type`(`full_cist` 또는 `daily_partial_estimate`), `is_estimated`, `analyzed_at`, `session_id`, `baseline_session_id`, `baseline_snapshot_id`를 제공한다. 두 경계값은 해당 전체 CIST 결과에 저장된 모델 계약 값이다. 일상 추정점은 동일한 `threshold_version`의 기준 CIST 경계값을 사용한다. 옛 결과에 경계값이 없거나 버전이 일치하지 않으면 경계값은 `null`일 수 있다. 기준 스냅샷 저장 전의 기존 전체 CIST 점은 `baseline_snapshot_id`가 `null`일 수 있다. 같은 날짜의 여러 점을 평균 내지 않는다. 동일 세션의 재조회·재시도는 한 점만 만든다. 이 위험 점수는 높을수록 추가 확인이 필요한 신호이며, 기존 `trend_points[]`의 0~30 인지 점수와 합산하거나 같은 축에 그리지 않는다.
 
 `from_date`·`to_date`를 지정하면 `ai_risk_trend_points[]`에는 서울 시간 기준 조회 기간 안의 점만 포함한다. `prior_cist_baseline`은 `from_date` 이전에 완료된 전체 CIST 중 가장 최근 점을 동일한 필드 구조로 별도 반환한다. 기간 안에 CIST 검사가 없어도 이전 검사가 있으면 이 필드를 반환하며, 기간 밖 점을 추이 배열에 추가하지 않는다. 재검사 뒤 일상 추정 점의 `baseline_snapshot_id`와 `baseline_session_id`는 새 전체 CIST 기준점을 가리킨다. `risk_score`는 모델 점수이며 발병 확률을 뜻하지 않는다.
 

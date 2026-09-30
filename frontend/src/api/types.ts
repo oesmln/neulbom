@@ -638,6 +638,9 @@ export interface GuardianAiRiskTrendPoint {
   date: IsoDate;
   risk_score: number;
   risk_level: string | null;
+  decision_threshold: number | null;
+  review_threshold: number | null;
+  threshold_version: string | null;
   point_type: "full_cist" | "daily_partial_estimate";
   is_estimated: boolean;
   analyzed_at: IsoInstant;

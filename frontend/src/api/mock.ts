@@ -279,7 +279,18 @@ const mockXpRecords: XpHistoryItem[] = [
   earned_at: daysAgo(Number(ago)).toISOString(),
 }));
 
-const mockGameRecords: GameHistoryItem[] = [];
+const mockGameRecords: GameHistoryItem[] = [
+  {
+    game_result_id: fixedId("dddddddd", 1), game_type: "image_match", score: 6,
+    matched_pairs: 6, attempt_count: 9, duration_sec: 84, restarted_count: 0,
+    completed: true, cognitive_index: 73, xp_earned: 13, played_at: daysAgo(1).toISOString(),
+  },
+  {
+    game_result_id: fixedId("dddddddd", 2), game_type: "consonant", score: 7,
+    matched_pairs: null, attempt_count: null, duration_sec: 112, restarted_count: 0,
+    completed: true, cognitive_index: 78, xp_earned: 13, played_at: daysAgo(2).toISOString(),
+  },
+];
 const mockGameResults = new Map<Uuid, GameResultResponse>();
 
 function mockLevelFor(xp: number): number {
@@ -1087,24 +1098,32 @@ export function mockGuardianReport(): GuardianReportResponse {
     ai_risk_trend_points: [
       {
         date: isoDate(daysAgo(75)), risk_score: 0.42, risk_level: "monitoring_needed",
+        decision_threshold: 0.38592870327757767, review_threshold: 0.8061380697921943,
+        threshold_version: "fusion-threshold-v2",
         point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(75).toISOString(),
         session_id: fixedId("33333333", 1), baseline_session_id: fixedId("33333333", 1),
         baseline_snapshot_id: fixedId("99999999", 1),
       },
       {
         date: isoDate(daysAgo(60)), risk_score: 0.38, risk_level: "stable",
+        decision_threshold: 0.38592870327757767, review_threshold: 0.8061380697921943,
+        threshold_version: "fusion-threshold-v2",
         point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(60).toISOString(),
         session_id: fixedId("33333333", 2), baseline_session_id: fixedId("33333333", 1),
         baseline_snapshot_id: fixedId("99999999", 1),
       },
       {
         date: isoDate(daysAgo(40)), risk_score: 0.35, risk_level: "stable",
+        decision_threshold: 0.38592870327757767, review_threshold: 0.8061380697921943,
+        threshold_version: "fusion-threshold-v2",
         point_type: "full_cist", is_estimated: false, analyzed_at: daysAgo(40).toISOString(),
         session_id: fixedId("33333333", 3), baseline_session_id: fixedId("33333333", 3),
         baseline_snapshot_id: fixedId("99999999", 3),
       },
       {
         date: isoDate(daysAgo(0)), risk_score: 0.32, risk_level: "stable",
+        decision_threshold: 0.38592870327757767, review_threshold: 0.8061380697921943,
+        threshold_version: "fusion-threshold-v2",
         point_type: "daily_partial_estimate", is_estimated: true, analyzed_at: daysAgo(0).toISOString(),
         session_id: fixedId("33333333", 4), baseline_session_id: fixedId("33333333", 3),
         baseline_snapshot_id: fixedId("99999999", 3),

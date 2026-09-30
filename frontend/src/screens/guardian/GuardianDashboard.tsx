@@ -11,6 +11,8 @@ import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
+import GuardianGameResults from "@/components/GuardianGameResults";
+import { riskBand, riskBandLabel, thresholdsForPoints } from "@/utils/riskBands";
 import ElderSelector from "@/components/ElderSelector";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import {
@@ -33,7 +35,7 @@ import {
  * A link that is not consented to yet comes back as a 403, and the spec asks
  * for an explanation instead of an empty dashboard.
  *
- * Card order is the design's: 피보호자 현황 → 경보 → 지표 → 추이 → 최근 일기.
+ * Card order: 피보호자 현황 → 경보 → 지표 → 추이 → 게임 → 최근 일기.
  */
 const WEEKLY_TARGET_SESSIONS = 7;
 const RECENT_DIARY_LIMIT = 3;
@@ -145,11 +147,13 @@ export default function GuardianDashboardScreen() {
   const elderItems = elders.data?.elders ?? [];
   const aiRiskPoints = data.ai_risk_trend_points ?? [];
   const latestAiRisk = [...aiRiskPoints].sort((a, b) => a.analyzed_at.localeCompare(b.analyzed_at)).at(-1);
+  const latestBand = latestAiRisk ? riskBand(latestAiRisk.risk_score, thresholdsForPoints(aiRiskPoints)) : null;
   const alert = data.recent_alerts[0] ?? null;
 
   // A missing `activity_summary7d` means the week has not been aggregated, not
   // that participation was zero — so the count is left unknown rather than 0.
   const sessions7d = data.activity_summary7d?.session_count ?? null;
+  const games7d = data.activity_summary7d?.game_count ?? null;
 
   return (
     <Screen header={header}>
@@ -198,10 +202,10 @@ export default function GuardianDashboardScreen() {
             color={guardian.blue}
           />
           <Indicator
-            label="최근 AI 위험 신호 지수"
-            value={latestAiRisk ? String(Math.round(latestAiRisk.risk_score * 100)) : "—"}
-            unit={latestAiRisk ? "0~100 눈금" : undefined}
-            color={latestAiRisk ? guardian.blue : colors.mutedForeground}
+            label="게임 참여"
+            value={games7d === null ? "—" : String(games7d)}
+            unit={games7d === null ? undefined : "회"}
+            color={games7d === null ? colors.mutedForeground : guardian.blue}
           />
         </View>
       </Card>
@@ -219,14 +223,31 @@ export default function GuardianDashboardScreen() {
           </Pressable>
         </View>
         {aiRiskPoints.length > 0 ? (
-          <AiRiskTrendChart points={aiRiskPoints} compact />
+          <>
+            <View style={styles.riskSummary}>
+              <Text style={styles.riskValue}>{Math.round(latestAiRisk!.risk_score * 100)}<Text style={styles.riskScale}> / 100</Text></Text>
+              {latestBand ? (
+                <View style={[styles.riskBadge, { backgroundColor: latestBand === "stable" ? colors.secondary : latestBand === "review_needed" ? colors.destructiveLight : colors.warningLight }]}>
+                  <Text style={[styles.riskBadgeText, { color: latestBand === "stable" ? colors.primaryDark : latestBand === "review_needed" ? colors.destructive : colors.warning }]}>
+                    {riskBandLabel(latestBand)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+            <AiRiskTrendChart points={aiRiskPoints.slice(-6)} compact />
+          </>
         ) : (
           <Body style={{ marginTop: spacing.md }}>아직 분석된 인지 위험 신호가 없어요.</Body>
         )}
-        <Caption>AI 위험 신호 지수는 0~100 눈금이며 진단 결과가 아닙니다. 일상 문답 값은 CIST 기준점에서 추정합니다.</Caption>
+        <Caption>일상 문답은 CIST 기준점의 지남력·주의력 문항을 부분 갱신해 추정해요. AI 위험 신호는 진단 결과가 아닙니다.</Caption>
       </Card>
 
-      {/* ⑥ 최근 일기 */}
+      {elderId ? (
+        <GuardianGameResults key={elderId} elderId={elderId} compact
+          onViewAll={() => navigation.navigate("GuardianTabs", { screen: "GuardianChart" })} />
+      ) : null}
+
+      {/* ⑦ 최근 일기 */}
       <Card style={{ marginTop: spacing.lg }}>
         <View style={styles.rowBetween}>
           <Body style={{ fontWeight: fontWeight.semibold }}>최근 일기</Body>
@@ -313,6 +334,11 @@ const styles = StyleSheet.create({
   indicatorRow: { flexDirection: "row", gap: spacing.lg },
   indicator: { flex: 1, alignItems: "center" },
   indicatorValue: { fontSize: 22, fontWeight: fontWeight.bold, lineHeight: 24 },
+  riskSummary: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.md },
+  riskValue: { fontSize: 26, fontWeight: fontWeight.bold, color: guardian.blueDark },
+  riskScale: { fontSize: fontSize.body, fontWeight: fontWeight.normal, color: colors.mutedForeground },
+  riskBadge: { borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  riskBadgeText: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold },
 
   linkRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   link: { fontSize: fontSize.caption, fontWeight: fontWeight.semibold, color: guardian.blue },

@@ -176,6 +176,7 @@
 
 - [x] `POST /game/result` - 미니게임 결과 저장
 - [x] `GET /game/{user_id}/history` - 게임 이력 조회
+- [x] 보호자의 게임 이력 조회는 기존 `activity` 범위로 제한하고, 보호자 화면에서 기억력·언어력 활동 기록으로 구분한다. (#298)
 - [x] `GET /character/{user_id}` - 캐릭터 레벨·경험치·아이템 조회
 - [x] `GET /character/{user_id}/xp-history` - 경험치 획득 내역 조회
 - [x] `POST /character/{user_id}/xp` - 정서 문답·게임 완료 이벤트 기반 경험치 자동 적립

@@ -134,7 +134,10 @@ class ReportIntegrationTest {
                 .andExpect(jsonPath("$.trend_points.length()").value(0))
                 .andExpect(jsonPath("$.ai_risk_trend_points.length()").value(1))
                 .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_score").value(0.42))
-                .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_level").value("monitoring_needed"));
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].risk_level").value("monitoring_needed"))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].decision_threshold").value(0.38))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].review_threshold").value(0.80))
+                .andExpect(jsonPath("$.ai_risk_trend_points[0].threshold_version").value("test-threshold"));
 
         SessionEntity failedSession = sessionRepository.save(new SessionEntity(
                 uuidGenerator.generate(), elder.getId(), "cist", 11, "{}", false, assessedAt.plusSeconds(10)));
@@ -178,6 +181,9 @@ class ReportIntegrationTest {
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].risk_score").value(0.37))
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].point_type").value("daily_partial_estimate"))
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].is_estimated").value(true))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].decision_threshold").value(0.38))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].review_threshold").value(0.80))
+                .andExpect(jsonPath("$.ai_risk_trend_points[2].threshold_version").value("test-threshold"))
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].baseline_snapshot_id").value(baseline.getSnapshotId().toString()))
                 .andExpect(jsonPath("$.ai_risk_trend_points[2].baseline_session_id").value(laterSession.getId().toString()));
         mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId()).with(jwtFor(guardian)))
