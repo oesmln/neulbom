@@ -64,6 +64,18 @@ public class AiServerClient {
         return execute(() -> post("/v1/analyses", idempotencyKey, body, AnalysisAcceptedResponse.class));
     }
 
+    public AnalysisAcceptedResponse restartAnalysis(
+            UUID analysisId,
+            String idempotencyKey,
+            AnalysisCreateRequest body
+    ) {
+        return execute(() -> post(
+                "/v1/analyses/" + analysisId + "/restart",
+                idempotencyKey,
+                body,
+                AnalysisAcceptedResponse.class));
+    }
+
     public AnalysisStatusResponse getAnalysis(UUID analysisId) {
         return execute(() -> restClient.get()
                 .uri(uri("/v1/analyses/" + analysisId))

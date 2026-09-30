@@ -2,6 +2,7 @@ package com.neulbom.backend.analysis;
 
 import static org.mockito.ArgumentMatchers.any;
 import static com.neulbom.backend.analysis.integration.aiserver.AiServerContractFixtures.featureSnapshot;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,8 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.neulbom.backend.analysis.integration.aiserver.AiAudioUrlSigner;
+import com.neulbom.backend.analysis.api.CistAiAnalysisResponse;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerClient;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts;
 import com.neulbom.backend.analysis.integration.aiserver.AiServerContracts.AnalysisCreateRequest;
@@ -66,9 +69,102 @@ class CistAiAnalysisIntegrationTest {
     @Autowired private AnswerRepository answerRepository;
     @Autowired private CistAiAnalysisRepository analysisRepository;
     @Autowired private CognitiveFeatureSnapshotRepository featureSnapshotRepository;
+    @Autowired private CistAiAnalysisService analysisService;
 
     @MockitoBean private AiServerClient aiServerClient;
     @MockitoBean private AiAudioUrlSigner audioUrlSigner;
+
+    @Test
+    void restartsTimedOutCistWithFreshAudioUrlsAndOneAutomaticAttempt() {
+        Instant now = Instant.parse("2026-09-29T18:55:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "cist-restart-" + UUID.randomUUID() + "@example.com",
+                null, "재처리 테스트", "elder", LocalDate.of(1945, 1, 1),
+                "80s_plus", "female", null, true, now, now));
+        SessionEntity session = sessionRepository.save(new SessionEntity(
+                UUID.randomUUID(), elder.getId(), "cist", 17, "{}", false, now));
+        for (QuestionEntity question : questionRepository
+                .findAllByActiveTrueAndSessionTypeOrderByDisplayOrderAsc("cist")) {
+            if (!"conditional".equals(question.getAdministrationMode())
+                    || SELECTED.contains(question.getQuestionCode())) {
+                saveAdministeredResponse(elder, session, question, now.plusSeconds(question.getDisplayOrder()));
+            }
+        }
+        AtomicInteger urlVersion = new AtomicInteger();
+        when(audioUrlSigner.issue(any(RecordingEntity.class))).thenAnswer(invocation -> {
+            RecordingEntity recording = invocation.getArgument(0);
+            return new AiServerContracts.AudioResource(
+                    URI.create("https://audio.test/" + recording.getId() + "?signature="
+                            + urlVersion.incrementAndGet()),
+                    now.plusSeconds(3600), "audio/wav", recording.getFileSizeBytes(), null);
+        });
+        when(aiServerClient.createRecognitionPlan(any(UUID.class), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    UUID assessmentId = invocation.getArgument(0);
+                    var request = (AiServerContracts.RecognitionPlanRequest) invocation.getArgument(2);
+                    var units = new AiServerContracts.MemoryUnitMap(true, false, true, false, true);
+                    var q11 = request.response();
+                    return new AiServerContracts.RecognitionPlanResponse(
+                            assessmentId, "completed", "cist-v1", "wrong-event-v1", units,
+                            List.copyOf(SELECTED),
+                            new AiServerContracts.QuestionAnalysisResult(
+                                    q11.questionCode(), "administered", q11.recordingId(), q11.responseId(),
+                                    "speech_detected", "not_scored", null, 0, null, 500L, units),
+                            null, false, List.of());
+                });
+        when(aiServerClient.createAnalysis(anyString(), any(AnalysisCreateRequest.class)))
+                .thenAnswer(invocation -> {
+                    AnalysisCreateRequest request = invocation.getArgument(1);
+                    return new AiServerContracts.AnalysisAcceptedResponse(
+                            request.analysisId(), request.assessmentId(), "pending", now);
+                });
+
+        analysisService.createRecognitionPlan(elder.getId(), session.getId());
+        session.end(now.plusSeconds(60));
+        sessionRepository.save(session);
+        CistAiAnalysisResponse created = analysisService.createAnalysis(elder.getId(), session.getId());
+        var createCaptor = ArgumentCaptor.forClass(AnalysisCreateRequest.class);
+        verify(aiServerClient).createAnalysis(anyString(), createCaptor.capture());
+        when(aiServerClient.getAnalysis(created.analysisId())).thenReturn(
+                new AiServerContracts.AnalysisStatusResponse(
+                        created.analysisId(), session.getId(), "failed", now,
+                        now.plusSeconds(300), false, "INTERNAL_ERROR", List.of(), null));
+        analysisService.refreshAnalysis(elder.getId(), session.getId());
+        when(aiServerClient.restartAnalysis(
+                org.mockito.ArgumentMatchers.eq(created.analysisId()), anyString(), any()))
+                .thenAnswer(invocation -> {
+                    AnalysisCreateRequest request = invocation.getArgument(2);
+                    return new AiServerContracts.AnalysisAcceptedResponse(
+                            request.analysisId(), request.assessmentId(), "pending", now.plusSeconds(301));
+                });
+
+        new CistAnalysisStatusSynchronizer(analysisRepository, sessionRepository, analysisService)
+                .synchronizeInFlightAnalyses();
+
+        var restartCaptor = ArgumentCaptor.forClass(AnalysisCreateRequest.class);
+        verify(aiServerClient).restartAnalysis(
+                org.mockito.ArgumentMatchers.eq(created.analysisId()), anyString(), restartCaptor.capture());
+        AnalysisCreateRequest restarted = restartCaptor.getValue();
+        assertThat(restarted.analysisId()).isEqualTo(created.analysisId());
+        assertThat(restarted.assessmentId()).isEqualTo(session.getId());
+        var initialAudio = ((AiServerContracts.AdministeredQuestionResponse)
+                createCaptor.getValue().responses().getFirst()).audio().signedUrl();
+        var refreshedAudio = ((AiServerContracts.AdministeredQuestionResponse)
+                restarted.responses().getFirst()).audio().signedUrl();
+        assertThat(refreshedAudio).isNotEqualTo(initialAudio);
+        CistAiAnalysisEntity stored = analysisRepository.findById(created.analysisId()).orElseThrow();
+        assertThat(stored.getStatus()).isEqualTo("pending");
+        assertThat(stored.getRetryCount()).isEqualTo(1);
+
+        analysisService.refreshAnalysis(elder.getId(), session.getId());
+        new CistAnalysisStatusSynchronizer(analysisRepository, sessionRepository, analysisService)
+                .synchronizeInFlightAnalyses();
+        org.mockito.Mockito.verify(aiServerClient, org.mockito.Mockito.times(1))
+                .restartAnalysis(org.mockito.ArgumentMatchers.eq(created.analysisId()), anyString(), any());
+
+        CistAiAnalysisResponse manual = analysisService.retryAnalysis(elder.getId(), session.getId());
+        assertThat(manual.retryCount()).isEqualTo(2);
+    }
 
     @Test
     void recognitionPlanAndSeventeenQuestionAnalysisFollowTheIntegratedContract() throws Exception {

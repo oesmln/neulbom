@@ -292,9 +292,12 @@ public class CistAiAnalysisService {
 
     @Transactional
     public CistAiAnalysisResponse retryAnalysis(UUID userId, UUID sessionId) {
-        ownedCistSession(userId, sessionId);
-        CistAiAnalysisEntity entity = analysisRepository.findBySessionId(sessionId)
+        SessionEntity session = ownedCistSession(userId, sessionId);
+        CistAiAnalysisEntity entity = analysisRepository.findBySessionIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("CIST AI 분석을 찾을 수 없습니다."));
+        if ("failed".equals(entity.getStatus()) && "INTERNAL_ERROR".equals(entity.getReasonCode())) {
+            return restartFailedAnalysis(session, entity);
+        }
         if (!"needs_retry".equals(entity.getStatus()) || !entity.isRetryable()) {
             throw validation("현재 분석은 재시도 가능한 상태가 아닙니다.");
         }
@@ -352,6 +355,44 @@ public class CistAiAnalysisService {
         analysisRepository.save(entity);
         AiServerOperationEntity operation = new AiServerOperationEntity(
                 uuidGenerator.generate(), sessionId, entity.getAnalysisId(), "analysis_retry",
+                operationNumber, key, requestHash, now);
+        operation.complete(accepted.status(), now);
+        operationRepository.save(operation);
+        return toResponse(entity);
+    }
+
+    private CistAiAnalysisResponse restartFailedAnalysis(SessionEntity session, CistAiAnalysisEntity entity) {
+        if (entity.getRetryCount() >= 2) {
+            throw validation("분석 재처리 횟수를 초과했습니다.");
+        }
+        CistRecognitionPlanEntity plan = recognitionPlanRepository.findById(session.getId())
+                .filter(value -> "completed".equals(value.getStatus()))
+                .orElseThrow(() -> validation("완료된 Q11 recognition plan이 필요합니다."));
+        RecognitionPlanSnapshot snapshot = new RecognitionPlanSnapshot(
+                read(plan.getRecalledUnits(), AiServerContracts.MemoryUnitMap.class),
+                stringList(plan.getSelectedQuestionCodes()));
+        List<QuestionResponseInput> responses = buildResponses(
+                session.getId(), Set.copyOf(snapshot.selectedQuestionCodes()));
+        Map<String, SubmittedResponse> identities = responseIdentities(responses);
+        if (!identities.equals(readMap(entity.getSubmittedResponses()))) {
+            throw validation("기존 분석의 답변과 현재 답변이 일치하지 않습니다.");
+        }
+        AnalysisCreateRequest request = new AnalysisCreateRequest(
+                entity.getAnalysisId(), session.getId(), assessmentDate(session), snapshot, responses);
+        validator.validateAnalysisCreate(request);
+        int operationNumber = entity.getRetryCount() + 1;
+        String key = idempotencyKey("analysis-restart-" + operationNumber);
+        String requestHash = hash(request);
+        var accepted = aiServerClient.restartAnalysis(entity.getAnalysisId(), key, request);
+        if (!entity.getAnalysisId().equals(accepted.analysisId())
+                || !session.getId().equals(accepted.assessmentId())) {
+            throw validation("AI 서버 재처리 응답의 식별자가 일치하지 않습니다.");
+        }
+        var now = clock.instant();
+        entity.recordRetry(json(identities), accepted.status(), now);
+        analysisRepository.save(entity);
+        AiServerOperationEntity operation = new AiServerOperationEntity(
+                uuidGenerator.generate(), session.getId(), entity.getAnalysisId(), "analysis_retry",
                 operationNumber, key, requestHash, now);
         operation.complete(accepted.status(), now);
         operationRepository.save(operation);

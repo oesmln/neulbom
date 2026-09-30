@@ -36,6 +36,35 @@ import org.springframework.web.client.RestClient;
 class AiServerClientTest {
 
     @Test
+    void restartAnalysisPostsFreshRequestToExistingAnalysisId() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        UUID analysisId = UUID.randomUUID();
+        UUID assessmentId = UUID.randomUUID();
+        server.expect(requestTo("http://ai.test/v1/analyses/" + analysisId + "/restart"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer service-secret"))
+                .andExpect(header("Idempotency-Key", "analysis-restart-operation-1"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString(
+                        "\"analysis_id\":\"" + analysisId + "\"")))
+                .andRespond(withSuccess("""
+                        {"analysis_id":"%s","assessment_id":"%s","status":"pending","created_at":"2026-09-29T00:00:00Z"}
+                        """.formatted(analysisId, assessmentId), MediaType.APPLICATION_JSON));
+        var request = new AiServerContracts.AnalysisCreateRequest(
+                analysisId, assessmentId, LocalDate.of(2026, 9, 29),
+                new AiServerContracts.RecognitionPlanSnapshot(
+                        new AiServerContracts.MemoryUnitMap(true, true, true, true, true), List.of()),
+                List.of());
+
+        var accepted = client(builder).restartAnalysis(
+                analysisId, "analysis-restart-operation-1", request);
+
+        assertThat(accepted.analysisId()).isEqualTo(analysisId);
+        assertThat(accepted.status()).isEqualTo("pending");
+        server.verify();
+    }
+
+    @Test
     void recognitionPlanUsesBearerTokenIdempotencyKeyAndSnakeCaseContract() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
