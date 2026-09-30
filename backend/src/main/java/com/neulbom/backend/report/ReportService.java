@@ -575,6 +575,8 @@ public class ReportService {
                 .findAllBySessionIdIn(cistSessions.keySet()).stream()
                 .filter(analysis -> "completed".equals(analysis.getStatus()) && analysis.getModelScore() != null)
                 .toList();
+        Map<UUID, CistAiAnalysisEntity> completedCistById = completedCist.stream()
+                .collect(Collectors.toMap(CistAiAnalysisEntity::getAnalysisId, Function.identity()));
         GuardianReportResponse.AiRiskTrendPoint priorCistBaseline = fromDate == null ? null : completedCist.stream()
                 .filter(analysis -> analysis.getUpdatedAt().atZone(BUSINESS_ZONE).toLocalDate().isBefore(fromDate))
                 .max(Comparator.comparing(CistAiAnalysisEntity::getUpdatedAt)
@@ -589,9 +591,15 @@ public class ReportService {
         for (DailyCognitiveEstimateEntity estimate : dailyCognitiveEstimateService.findDailyEstimates(userId, fromDate, toDate)) {
             CognitiveFeatureSnapshotEntity baseline = baselineById.get(estimate.getBaselineSnapshotId());
             if (baseline == null) continue;
+            CistAiAnalysisEntity baselineAnalysis = completedCistById.get(baseline.getSourceAnalysisId());
+            boolean sameThresholdVersion = baselineAnalysis != null
+                    && Objects.equals(estimate.getThresholdVersion(), baselineAnalysis.getThresholdVersion());
             points.add(new GuardianReportResponse.AiRiskTrendPoint(
                     estimate.getAnalyzedAt().atZone(BUSINESS_ZONE).toLocalDate(),
-                    estimate.getEstimatedModelScore(), estimate.getRiskLevel(), "daily_partial_estimate", true,
+                    estimate.getEstimatedModelScore(), estimate.getRiskLevel(),
+                    sameThresholdVersion ? baselineAnalysis.getDecisionThreshold() : null,
+                    sameThresholdVersion ? baselineAnalysis.getReviewThreshold() : null,
+                    estimate.getThresholdVersion(), "daily_partial_estimate", true,
                     estimate.getAnalyzedAt(), estimate.getSessionId(), baseline.getSourceSessionId(),
                     baseline.getSnapshotId()));
         }
@@ -605,7 +613,8 @@ public class ReportService {
         CognitiveFeatureSnapshotEntity baseline = baselineByAnalysis.get(analysis.getAnalysisId());
         return new GuardianReportResponse.AiRiskTrendPoint(
                 analysis.getUpdatedAt().atZone(BUSINESS_ZONE).toLocalDate(),
-                analysis.getModelScore(), analysis.getRiskLevel(), "full_cist", false,
+                analysis.getModelScore(), analysis.getRiskLevel(), analysis.getDecisionThreshold(),
+                analysis.getReviewThreshold(), analysis.getThresholdVersion(), "full_cist", false,
                 analysis.getUpdatedAt(), analysis.getSessionId(), analysis.getSessionId(),
                 baseline == null ? null : baseline.getSnapshotId());
     }
