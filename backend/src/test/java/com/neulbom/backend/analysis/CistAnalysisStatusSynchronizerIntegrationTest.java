@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -185,7 +186,7 @@ class CistAnalysisStatusSynchronizerIntegrationTest {
     }
 
     private void synchronize() {
-        new CistAnalysisStatusSynchronizer(analyses, sessions, analysisService)
+        new CistAnalysisStatusSynchronizer(analyses, sessions, analysisService, Clock.systemUTC())
                 .synchronizeInFlightAnalyses();
     }
 

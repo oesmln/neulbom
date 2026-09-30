@@ -26,6 +26,7 @@ import ElderGameHubScreen from "@/screens/elder/ElderGameHub";
 import ElderMyPageScreen from "@/screens/elder/ElderMyPage";
 import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
 import ElderAppSettingsScreen from "@/screens/elder/ElderAppSettings";
+import ElderGuardianInviteScreen from "@/screens/elder/ElderGuardianInvite";
 import ElderGameCardMatchScreen from "@/screens/elder/games/ElderGameCardMatch";
 import ElderGameColorScreen from "@/screens/elder/games/ElderGameColor";
 import ElderGameConsonantScreen from "@/screens/elder/games/ElderGameConsonant";
@@ -44,6 +45,7 @@ function ElderMyPageStackNavigator() {
       <MyPageStack.Screen name="ElderMyPageMain" component={ElderMyPageScreen} />
       <MyPageStack.Screen name="ElderPasswordChange" component={ElderPasswordChangeScreen} />
       <MyPageStack.Screen name="ElderAppSettings" component={ElderAppSettingsScreen} />
+      <MyPageStack.Screen name="ElderGuardianInvite" component={ElderGuardianInviteScreen} />
     </MyPageStack.Navigator>
   );
 }
