@@ -90,6 +90,11 @@ export default function ElderCistScreen() {
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
+  // 응답 지연은 "질문을 다 들은 뒤 답을 시작하기까지"다. 문항 표시부터 `다음 문항`
+  // 탭까지를 재면 TTS 재생, 발화 길이, 업로드·전사 시간이 모두 섞여 실제 지연의 열 배가
+  // 넘는 값이 기록되고, AI 서버의 `category_balanced_median_delay` 특징이 그대로 오염된다.
+  const [promptEndedAt, setPromptEndedAt] = React.useState<number | null>(null);
+  const [responseDelayMs, setResponseDelayMs] = React.useState<number | null>(null);
   const [recognitionPlan, setRecognitionPlan] = React.useState<CistRecognitionPlanResponse | null>(null);
   const [recordingAttempt, setRecordingAttempt] = React.useState(0);
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
@@ -137,10 +142,22 @@ export default function ElderCistScreen() {
 
   React.useEffect(() => {
     setAskedAt(Date.now());
+    setPromptEndedAt(null);
+    setResponseDelayMs(null);
     setRecordingId(null);
     setCurrentTranscript(null);
     setSubmissionError(null);
   }, [index]);
+
+  // 안내 음성이 끝나는 순간이 지연 측정의 기준점이다. 다시 듣기를 하면 마지막 재생이
+  // 끝난 시점으로 갱신된다. 음성을 꺼 둔 경우에는 재생이 없으므로 문항을 읽기 시작한
+  // 시점(`askedAt`)이 기준으로 남는다.
+  React.useEffect(() => {
+    if (voice.speaking) return;
+    if (voice.loading) return;
+    setPromptEndedAt(Date.now());
+    setResponseDelayMs(null);
+  }, [voice.speaking, voice.loading]);
 
   const goBack = () => {
     if (recognitionPlanBoundary) return;
@@ -168,7 +185,7 @@ export default function ElderCistScreen() {
         question_id: question.question_id,
         answer_text: isListenQuestion ? "listened" : undefined,
         recording_id: recordingId ?? undefined,
-        response_time_ms: Date.now() - askedAt,
+        response_time_ms: responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
         answered_at: new Date().toISOString(),
       });
 
@@ -181,6 +198,8 @@ export default function ElderCistScreen() {
           setRecordingId(null);
           setCurrentTranscript(null);
           setAskedAt(Date.now());
+          setPromptEndedAt(null);
+          setResponseDelayMs(null);
           setRecordingAttempt((attempt) => attempt + 1);
           setSubmissionError("음성이 또렷하게 들리지 않았어요. 이 문항만 다시 말씀해 주세요.");
           return;
@@ -301,6 +320,9 @@ export default function ElderCistScreen() {
                 questionId={question.question_id}
                 answered={answered}
                 disabled={voice.loading || voice.speaking}
+                onRecordStart={() => {
+                  setResponseDelayMs(Date.now() - (promptEndedAt ?? askedAt));
+                }}
                 onAnswer={(id) => {
                   setRecordingId(id);
                   setAnswered(true);
@@ -340,6 +362,7 @@ function MicRecorder({
   questionId,
   answered,
   disabled,
+  onRecordStart,
   onAnswer,
   onTranscript,
   hideTranscript = false,
@@ -349,6 +372,8 @@ function MicRecorder({
   questionId: Uuid;
   answered: boolean;
   disabled: boolean;
+  /** 녹음이 실제로 시작된 순간. 응답 지연을 여기서 확정한다. */
+  onRecordStart: () => void;
   onAnswer: (recordingId: Uuid) => void;
   onTranscript: (transcript: string) => void;
   /** 기억 등록 문항처럼 인식 결과가 곧 정답인 경우 결과 카드를 그리지 않는다. */
@@ -364,10 +389,16 @@ function MicRecorder({
     },
   );
   const elapsed = Math.floor(recording.durationMillis / 1000);
+  const wasRecording = React.useRef(false);
 
   React.useEffect(() => {
     setTranscript(null);
   }, [questionId]);
+
+  React.useEffect(() => {
+    if (recording.isRecording && !wasRecording.current) onRecordStart();
+    wasRecording.current = recording.isRecording;
+  }, [recording.isRecording, onRecordStart]);
 
   if (USE_MOCK_API) {
     return (
