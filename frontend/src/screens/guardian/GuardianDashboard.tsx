@@ -11,6 +11,7 @@ import { monthDayLabel, moodEmoji } from "@/utils/format";
 import type { GuardianNav } from "@/navigation/types";
 import { colors, guardian, spacing, radius, fontSize, fontWeight } from "@/theme";
 import AiRiskTrendChart from "@/components/AiRiskTrendChart";
+import ElderSelector from "@/components/ElderSelector";
 import GuardianHeaderActions from "@/components/GuardianHeaderActions";
 import {
   Screen,
@@ -152,30 +153,7 @@ export default function GuardianDashboardScreen() {
 
   return (
     <Screen header={header}>
-      {elderItems.length > 1 ? (
-        <Card style={styles.elderSelector}>
-          <Caption>확인할 어르신</Caption>
-          <View style={styles.elderOptions}>
-            {elderItems.map((elder) => {
-              const selected = elder.elder_id === elderId;
-              return (
-                <Pressable
-                  key={elder.elder_id}
-                  onPress={() => setSelectedElderId(elder.elder_id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${elder.elder_name} 어르신 선택`}
-                  accessibilityState={{ selected }}
-                  style={[styles.elderOption, selected && styles.elderOptionSelected]}
-                >
-                  <Text style={[styles.elderOptionLabel, selected && { color: guardian.blueDark }]}>
-                    {elder.elder_name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Card>
-      ) : null}
+      <ElderSelector elders={elderItems} />
 
       {/* ② 피보호자 현황 */}
       <Card>
@@ -290,23 +268,6 @@ export default function GuardianDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  elderSelector: { marginBottom: spacing.lg, gap: spacing.sm },
-  elderOptions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  elderOption: {
-    minHeight: 44,
-    justifyContent: "center",
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.lg,
-  },
-  elderOptionSelected: { borderColor: guardian.blue, backgroundColor: guardian.blueLight },
-  elderOptionLabel: {
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.semibold,
-    color: colors.mutedForeground,
-  },
   eyebrow: { letterSpacing: 0.7, marginBottom: spacing.md },
   rowBetween: {
     flexDirection: "row",
