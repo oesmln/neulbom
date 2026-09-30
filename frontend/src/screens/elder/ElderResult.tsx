@@ -264,12 +264,6 @@ export default function ElderResultScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {!baseline ? (
-          <Button
-            label="일기 확인하기"
-            onPress={() => navigation.navigate("ElderTabs", { screen: "ElderCalendar" })}
-          />
-        ) : null}
         <Button
           label={mode === "baseline" ? `${companionName} 시작하기` : "홈으로 돌아가기"}
           onPress={() => navigation.navigate("ElderTabs", { screen: "ElderHome" })}
