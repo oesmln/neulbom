@@ -25,6 +25,7 @@ import type {
   CalendarActivitiesResponse,
   CharacterResponse,
   CistAiAnalysisResponse,
+  DailyCognitiveAnalysisResponse,
   CistRecognitionPlanResponse,
   CistRetestScheduleResponse,
   ConsentRequest,
@@ -407,6 +408,17 @@ export const cistAi = {
   retryAnalysis(sessionId: Uuid): Promise<CistAiAnalysisResponse> {
     if (USE_MOCK_API) return Promise.resolve(mock.mockRetryCistAiAnalysis(sessionId));
     return request(`/sessions/${sessionId}/cist-ai/analyses/retry`, { method: "POST" });
+  },
+
+  /**
+   * Requests the partial CIST estimate for an ended daily-conversation session.
+   * The server also starts this from its own session-end trigger, and answers
+   * with the existing analysis when one is already there, so calling this again
+   * is safe.
+   */
+  createDailyAnalysis(sessionId: Uuid): Promise<DailyCognitiveAnalysisResponse> {
+    if (USE_MOCK_API) return Promise.resolve(mock.mockCreateDailyCognitiveAnalysis(sessionId));
+    return request(`/sessions/${sessionId}/cist-ai/daily-analyses`, { method: "POST" });
   },
 };
 

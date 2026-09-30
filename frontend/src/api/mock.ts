@@ -17,6 +17,7 @@ import type {
   CalendarActivitiesResponse,
   CharacterResponse,
   CistAiAnalysisResponse,
+  DailyCognitiveAnalysisResponse,
   CistRecognitionPlanResponse,
   CistRetestScheduleResponse,
   CounselingCentersResponse,
@@ -759,6 +760,20 @@ export function mockCistRetestSchedule(): CistRetestScheduleResponse {
     next_due_date: dueDate,
     retest_due: seoulDate(new Date().toISOString()) >= dueDate,
     timezone: "Asia/Seoul",
+  };
+}
+
+export function mockCreateDailyCognitiveAnalysis(sessionId: Uuid): DailyCognitiveAnalysisResponse {
+  const now = new Date().toISOString();
+  return {
+    analysis_id: `${sessionId}-daily`,
+    session_id: sessionId,
+    status: "pending",
+    retry_count: 0,
+    retryable: false,
+    reason_code: null,
+    created_at: now,
+    updated_at: now,
   };
 }
 
