@@ -23,7 +23,7 @@ import {
 
 /**
  * 알림에서 진입하는 검사 결과 상세 (`GET /screenings/{session_id}/result`, guardian audience).
- * 고령자 화면과 달리 점수·위험도 같은 수치를 그대로 보여준다.
+ * CIST AI 결과에는 기존 0~30점 점수가 없으므로 정성 결과만 보여준다.
  */
 export default function GuardianScreeningResultScreen() {
   const navigation = useNavigation<GuardianNav>();
@@ -70,9 +70,10 @@ export default function GuardianScreeningResultScreen() {
   }
 
   const r = result.data;
-  const score = r.display_score ?? r.screening_reference_score ?? null;
+  const cistAiResult = r.session_type === "cist" || r.session_type === "baseline";
+  const score = cistAiResult ? null : r.display_score ?? r.screening_reference_score ?? null;
   const max = r.score_max ?? 30;
-  const low = r.risk_level === "low";
+  const low = r.risk_level === "low" || r.risk_level === "stable";
   const badgeColor = low ? guardian.blue : colors.warning;
   const badgeBg = low ? guardian.blueLight : colors.accentLight;
   const percent = Math.round(((score ?? 0) / max) * 100);
@@ -82,7 +83,7 @@ export default function GuardianScreeningResultScreen() {
       <Card style={{ gap: spacing.md }}>
         <View style={styles.rowBetween}>
           <View>
-            <Caption style={styles.eyebrow}>CIST 인지 선별검사</Caption>
+            <Caption style={styles.eyebrow}>{cistAiResult ? "CIST AI 검사 결과" : "대화 결과"}</Caption>
             <Body style={{ fontWeight: fontWeight.semibold }}>
               {r.completed_at ? `${monthDayLabel(r.completed_at)} 검사` : "최근 검사"}
             </Body>
@@ -93,14 +94,16 @@ export default function GuardianScreeningResultScreen() {
             background={badgeBg}
           />
         </View>
-        <View style={styles.scoreRow}>
-          <Text style={styles.score}>{score === null ? "—" : `${score}점`}</Text>
-          <Caption style={styles.scoreMax}>/ {max}점</Caption>
-        </View>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${percent}%`, backgroundColor: badgeColor }]} />
-        </View>
-        <Caption>정상 하한 24점 · 경도 치매 의심 18점 이하</Caption>
+        {score !== null ? <>
+          <View style={styles.scoreRow}>
+            <Text style={styles.score}>{`${score}점`}</Text>
+            <Caption style={styles.scoreMax}>/ {max}점</Caption>
+          </View>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${percent}%`, backgroundColor: badgeColor }]} />
+          </View>
+          <Caption>정상 하한 24점 · 경도 치매 의심 18점 이하</Caption>
+        </> : cistAiResult ? <Caption>AI 위험 신호는 진단 결과가 아닙니다.</Caption> : null}
       </Card>
 
       <Card style={{ marginTop: spacing.md, gap: spacing.sm }}>
@@ -109,9 +112,9 @@ export default function GuardianScreeningResultScreen() {
         {r.recommendation ? (
           <Body style={{ color: colors.mutedForeground }}>{r.recommendation}</Body>
         ) : null}
-        <Caption style={{ marginTop: spacing.xs }}>
+        {score !== null ? <Caption style={{ marginTop: spacing.xs }}>
           이 점수는 참고용 스크리닝 결과이며, 정확한 진단은 전문의와 확인해 주세요.
-        </Caption>
+        </Caption> : null}
       </Card>
 
       <Pressable

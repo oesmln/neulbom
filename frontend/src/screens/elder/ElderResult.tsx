@@ -60,8 +60,7 @@ export default function ElderResultScreen() {
     () => reports.screeningResult(sessionId as string, "elder"),
     [sessionId],
     {
-      // 정서 문답의 검사 결과는 이 화면에서 분석하지 않는다. 일기는 세션 종료 후 생성된다.
-      // `result_status`는 계속 `pending`이라, 폴링하면 끝나지 않는 대기가 된다.
+      // 정서 문답은 세션 종료 상태만 정성적으로 표시한다. 일기는 종료 후 따로 생성된다.
       enabled: !!sessionId && !baseline,
     },
   );
