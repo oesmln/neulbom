@@ -107,6 +107,17 @@ public final class AiServerContracts {
     }
 
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ClipPrefetchRequest(
+            String questionSetVersion,
+            AdministeredQuestionResponse response
+    ) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record ClipPrefetchAcceptedResponse(UUID recordingId, String status) {
+    }
+
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record NotApplicableQuestionResponse(
             String questionCode,
             String variantId,

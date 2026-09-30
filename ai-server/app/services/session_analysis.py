@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Literal
 
 from fastapi.concurrency import (
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 from app.api.schemas.analysis import (
     AdministeredQuestionResponse,
     AnalysisCreateRequest,
+    ClipPrefetchRequest,
     AstQuestionFeatureSnapshot,
     CognitiveFeatureSnapshot,
     DailyAnalysisCreateRequest,
@@ -64,6 +66,7 @@ from app.repositories.analysis import (
     AnalysisStatus,
     StoredAnalysis,
 )
+from app.repositories.clip_features import SQLiteClipFeatureRepository, feature_key
 from app.scoring.aggregation import (
     WrongEventAggregationService,
     WrongEventObservation,
@@ -139,6 +142,7 @@ class SessionAnalysisProcessor:
         audio_preprocessor: AudioPreprocessor = (
             preprocess_audio
         ),
+        clip_repository: SQLiteClipFeatureRepository | None = None,
     ) -> None:
         self._audio_downloader = (
             audio_downloader
@@ -152,6 +156,7 @@ class SessionAnalysisProcessor:
         self._audio_preprocessor = (
             audio_preprocessor
         )
+        self._clip_repository = clip_repository
 
         self._completeness_service = (
             AssessmentCompletenessService
@@ -212,6 +217,71 @@ class SessionAnalysisProcessor:
             .excluded_question_policy
             .question_codes
         )
+
+    def _clip_key(self, response: AdministeredQuestionResponse, question_set_version: str) -> str:
+        return feature_key(
+            recording_id=str(response.recording_id),
+            question_code=response.question_code,
+            variant_id=response.variant_id,
+            question_set_version=question_set_version,
+            raw_transcript=response.stt.raw_transcript or "",
+            audio_sha256=response.audio.sha256,
+            ast_model_version=self._ast_service.model_version,
+            kcelectra_model_version=self._kcelectra_service.model_version,
+        )
+
+    async def prefetch_clip(self, request: ClipPrefetchRequest) -> None:
+        """Best effort work; callers handle failures and final analysis fills misses."""
+        response = request.response
+        question = self._question_by_code[response.question_code]
+        if response.variant_id != question.variant_id or response.stt.status != "success":
+            return
+        if not (question.feature_usage.ast or question.feature_usage.kcelectra):
+            return
+        repository = self._clip_repository
+        if repository is None:
+            return
+        key = self._clip_key(response, request.question_set_version)
+        if repository.get(key) is not None:
+            return
+        features: dict = {}
+        if question.feature_usage.ast:
+            downloaded = await self._audio_downloader.download(
+                signed_url=str(response.audio.signed_url),
+                expires_at=response.audio.expires_at,
+                declared_content_type=response.audio.content_type,
+                declared_size_bytes=response.audio.size_bytes,
+                expected_sha256=response.audio.sha256,
+            )
+            audio = await run_in_threadpool(
+                self._audio_preprocessor,
+                content=downloaded.content,
+                content_type=downloaded.content_type,
+            )
+            ast = await run_in_threadpool(
+                self._ast_service.infer_question_features,
+                (AstClipInput(question_code=response.question_code, audio=audio),),
+            )
+            features["ast"] = {
+                "question_code": ast[0].question_code,
+                "category": ast[0].category,
+                "dementia_logit": ast[0].dementia_logit,
+                "segment_count": ast[0].segment_count,
+            }
+        if question.feature_usage.kcelectra:
+            kcelectra = await run_in_threadpool(
+                self._kcelectra_service.infer_question_features,
+                (KcElectraClipInput(
+                    question_code=response.question_code,
+                    raw_transcript=response.stt.raw_transcript or "",
+                ),),
+            )
+            features["kcelectra"] = {
+                "question_code": kcelectra[0].question_code,
+                "category": kcelectra[0].category,
+                "dementia_logit": kcelectra[0].dementia_logit,
+            }
+        repository.put(key, str(response.recording_id), features)
 
     async def process(
         self,
@@ -375,15 +445,8 @@ class SessionAnalysisProcessor:
         )
 
         try:
-            ast_result = await run_in_threadpool(
-                self._ast_service.infer,
-                tuple(ast_inputs),
-            )
-            kcelectra_result = (
-                await run_in_threadpool(
-                    self._kcelectra_service.infer,
-                    tuple(kcelectra_inputs),
-                )
+            ast_result, kcelectra_result = await self._infer_with_cached_clips(
+                request, responses_by_code, ast_inputs, kcelectra_inputs,
             )
 
             fusion_features = FusionFeatures(
@@ -580,6 +643,79 @@ class SessionAnalysisProcessor:
         return AnalysisCompleted(
             result_body=result_body,
         )
+
+    async def _infer_with_cached_clips(
+        self,
+        request: AnalysisCreateRequest,
+        responses_by_code: dict,
+        ast_inputs: list[AstClipInput],
+        kcelectra_inputs: list[KcElectraClipInput],
+    ) -> tuple:
+        repository = self._clip_repository
+        cached_by_code: dict[str, dict] = {}
+        if repository is not None:
+            for code in {clip.question_code for clip in ast_inputs + kcelectra_inputs}:
+                response = responses_by_code[code]
+                cached = repository.get(self._clip_key(response, request.question_set_version))
+                if cached is not None:
+                    cached_by_code[code] = cached
+
+        # Preserve the exact original batch path when no features were prefetched.
+        if not cached_by_code:
+            ast_result = await run_in_threadpool(self._ast_service.infer, tuple(ast_inputs))
+            kcelectra_result = await run_in_threadpool(
+                self._kcelectra_service.infer, tuple(kcelectra_inputs),
+            )
+            return ast_result, kcelectra_result
+
+        ast_missing = tuple(
+            clip for clip in ast_inputs
+            if "ast" not in cached_by_code.get(clip.question_code, {})
+        )
+        kcelectra_missing = tuple(
+            clip for clip in kcelectra_inputs
+            if "kcelectra" not in cached_by_code.get(clip.question_code, {})
+        )
+        new_ast = (
+            await run_in_threadpool(self._ast_service.infer_question_features, ast_missing)
+            if ast_missing else ()
+        )
+        new_kcelectra = (
+            await run_in_threadpool(
+                self._kcelectra_service.infer_question_features, kcelectra_missing,
+            ) if kcelectra_missing else ()
+        )
+        ast_by_code = {
+            code: SimpleNamespace(**features["ast"])
+            for code, features in cached_by_code.items() if "ast" in features
+        }
+        ast_by_code.update({feature.question_code: feature for feature in new_ast})
+        kcelectra_by_code = {
+            code: SimpleNamespace(**features["kcelectra"])
+            for code, features in cached_by_code.items() if "kcelectra" in features
+        }
+        kcelectra_by_code.update({feature.question_code: feature for feature in new_kcelectra})
+        ast_features = tuple(ast_by_code[clip.question_code] for clip in ast_inputs)
+        kcelectra_features = tuple(
+            kcelectra_by_code[clip.question_code] for clip in kcelectra_inputs
+        )
+        ast_result = SimpleNamespace(
+            model_version=self._ast_service.model_version,
+            dementia_logit=rebuild_person_logit_from_questions(
+                ast_features, category_order=self._core_categories,
+                method="sqrt_clip_count_weighted",
+            ),
+            clip_results=ast_features,
+        )
+        kcelectra_result = SimpleNamespace(
+            model_version=self._kcelectra_service.model_version,
+            dementia_logit=rebuild_person_logit_from_questions(
+                kcelectra_features, category_order=self._core_categories,
+                method="equal_category_mean",
+            ),
+            clip_results=kcelectra_features,
+        )
+        return ast_result, kcelectra_result
 
     async def _process_daily(
         self,

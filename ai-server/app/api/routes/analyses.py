@@ -21,6 +21,8 @@ from app.api.schemas.analysis import (
     AnalysisCreateRequest,
     AnalysisRetryRequest,
     AnalysisStatusResponse,
+    ClipPrefetchRequest,
+    ClipPrefetchAcceptedResponse,
     DailyAnalysisAcceptedResponse,
     DailyAnalysisCreateRequest,
     DailyAnalysisStatusResponse,
@@ -49,6 +51,7 @@ from app.repositories.idempotency import (
 from app.services.analysis_worker import (
     SingleAnalysisWorker,
 )
+from app.services.clip_prefetch import ClipPrefetchWorker
 from app.services.analysis_retry import (
     AnalysisRetryService,
     AnalysisRetryValidationError,
@@ -69,6 +72,39 @@ router = APIRouter(
         Depends(require_service_token),
     ],
 )
+
+
+@router.post(
+    "/cist-clips/prefetch",
+    response_model=ClipPrefetchAcceptedResponse,
+    status_code=202,
+    operation_id="prefetchCistClip",
+)
+async def prefetch_cist_clip(
+    request_body: ClipPrefetchRequest,
+    request: Request,
+) -> ClipPrefetchAcceptedResponse:
+    state: RuntimeState = request.app.state.runtime_state
+    worker = state.clip_prefetch_worker
+    if worker is None or not worker.is_running or state.contract_bundle is None:
+        raise model_unavailable_error()
+    definition = next(
+        (question for question in state.contract_bundle.cist.questions
+         if question.question_code == request_body.response.question_code),
+        None,
+    )
+    if definition is None or definition.variant_id != request_body.response.variant_id:
+        raise APIError(
+            status_code=422,
+            code="VALIDATION_ERROR",
+            message="문항 계약이 일치하지 않습니다.",
+            retryable=False,
+        )
+    await worker.enqueue(request_body)
+    return ClipPrefetchAcceptedResponse(
+        recording_id=request_body.response.recording_id,
+        status="accepted",
+    )
 
 
 def get_analysis_repository(

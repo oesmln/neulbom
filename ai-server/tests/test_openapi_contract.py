@@ -35,6 +35,13 @@ class OperationExpectation:
 
 
 EXPECTED_OPERATIONS = {
+    "/v1/cist-clips/prefetch": OperationExpectation(
+        method="post",
+        operation_id="prefetchCistClip",
+        success_status="202",
+        request_schema="ClipPrefetchRequest",
+        response_schemas=frozenset({"ClipPrefetchAcceptedResponse"}),
+    ),
     (
         "/v1/assessments/"
         "{assessment_id}/recognition-plan"

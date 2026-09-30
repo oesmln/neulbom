@@ -145,6 +145,36 @@ paths:
         '503':
           $ref: '#/components/responses/ModelUnavailable'
 
+  /v1/cist-clips/prefetch:
+    post:
+      tags:
+        - Analyses
+      operationId: prefetchCistClip
+      summary: Queue feature extraction for one CIST recording
+      description: >-
+        Best-effort prefetch. Repeated requests for the same recording and inputs are
+        idempotent. Features are cached in analyses.sqlite3 by recording, transcript,
+        question contract and model versions. Final analysis computes cache misses.
+      responses:
+        '202':
+          description: Prefetch accepted or already queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClipPrefetchAcceptedResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClipPrefetchRequest'
+
   /v1/analyses:
     post:
       tags:
@@ -944,6 +974,32 @@ components:
           maxItems: 5
           items:
             $ref: '#/components/schemas/ConditionalQuestionCode'
+
+    ClipPrefetchRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - question_set_version
+        - response
+      properties:
+        question_set_version:
+          $ref: '#/components/schemas/QuestionSetVersion'
+        response:
+          $ref: '#/components/schemas/AdministeredQuestionResponse'
+
+    ClipPrefetchAcceptedResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - recording_id
+        - status
+      properties:
+        recording_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: accepted
 
     AnalysisCreateRequest:
       type: object

@@ -352,6 +352,10 @@ public class SessionService {
             session.recordAnswer();
             sessionRepository.save(session);
         }
+        if (Set.of("cist", "baseline", "onboarding").contains(session.getSessionType())
+                && answer.getRecordingId() != null) {
+            eventPublisher.publishEvent(new CistAnswerSavedEvent(answer.getId()));
+        }
         return new AnswerResponse(
                 answer.getId(),
                 answer.getQuestionId(),

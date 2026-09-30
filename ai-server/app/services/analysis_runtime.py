@@ -33,6 +33,8 @@ from app.inference.kcelectra import (
 from app.repositories.analysis import (
     StoredAnalysis,
 )
+from app.repositories.clip_features import SQLiteClipFeatureRepository
+from app.api.schemas.analysis import ClipPrefetchRequest
 from app.services.analysis_worker import (
     AnalysisModelUnavailableError,
     AnalysisProcessingOutcome,
@@ -65,6 +67,7 @@ class LazySessionAnalysisProcessor:
         processor_factory: (
             AnalysisProcessorFactory | None
         ) = None,
+        clip_repository: SQLiteClipFeatureRepository | None = None,
     ) -> None:
         self._contracts = contracts
         self._audio_downloader = (
@@ -77,6 +80,8 @@ class LazySessionAnalysisProcessor:
             AnalysisProcessor | None
         ) = None
         self._load_lock = asyncio.Lock()
+        self._inference_lock = asyncio.Lock()
+        self._clip_repository = clip_repository
         self._processor_factory = (
             processor_factory
             or self._build_default_processor
@@ -90,11 +95,14 @@ class LazySessionAnalysisProcessor:
         self,
         analysis: StoredAnalysis,
     ) -> AnalysisProcessingOutcome:
-        processor = await self._get_processor()
+        async with self._inference_lock:
+            processor = await self._get_processor()
+            return await processor.process(analysis)
 
-        return await processor.process(
-            analysis,
-        )
+    async def prefetch_clip(self, request: ClipPrefetchRequest) -> None:
+        async with self._inference_lock:
+            processor = await self._get_processor()
+            await processor.prefetch_clip(request)
 
     async def _get_processor(
         self,
@@ -179,4 +187,5 @@ class LazySessionAnalysisProcessor:
                 kcelectra_service
             ),
             fusion_service=fusion_service,
+            clip_repository=self._clip_repository,
         )
