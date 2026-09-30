@@ -1186,7 +1186,7 @@ AI 정서 문답의 오늘 상태는 `Asia/Seoul` 날짜를 기준으로 한다.
 
 정서 문답을 정상 종료하면 `20 XP`를 지급한다. `cist` 또는 `baseline` 최초 완료에는 사용자당 한 번 `30 XP`를 지급한다.
 
-분석이 비동기로 진행되면 앱은 `GET /screenings/{session_id}/result`를 재조회해 결과를 확인한다.
+전체 CIST 분석 상태는 `GET /sessions/{session_id}/cist-ai/analyses`에서 확인한다. `GET /screenings/{session_id}/result`도 같은 CIST AI 분석의 저장된 상태를 읽으며, 종료된 `emotional_qa` 세션은 분석 점수와 무관하게 대화 완료로 표시한다.
 
 ### 6.5 `GET /sessions` - 세션 목록
 
@@ -1778,7 +1778,7 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 ### 7.7 `GET /screenings/{session_id}/result` - 검사 결과
 
-검사 또는 AI 정서 문답 세션 종료 후 결과를 조회한다. 응답은 JWT 역할과 연결·동의·access scope에 따라 서버가 필터링한다. `audience`는 응답 설명을 위한 값이며 요청으로 지정할 수 없다.
+검사 또는 AI 정서 문답 세션 종료 후 결과를 조회한다. CIST(`cist`·`baseline`)는 `cist_ai_analyses`의 상태·위험 수준을 읽는다. `needs_retry`는 이 응답의 `failed`로 표시한다. 분석 행이 아직 없으면 진행 중인 세션은 `pending`, 종료된 세션은 `failed`로 표시하며, 별도의 CIST 분석 생성 복구 작업은 계속 실행된다. 종료된 `emotional_qa`는 별도 인지 점수 없이 `completed`로 표시한다. 옛 `screening_results`·`cognitive_analyses`는 CIST 결과의 대체 자료로 사용하지 않는다. 응답은 JWT 역할과 연결·동의·access scope에 따라 서버가 필터링한다. `audience`는 응답 설명을 위한 값이며 요청으로 지정할 수 없다.
 
 #### 고령자 응답 `200`
 
@@ -1789,11 +1789,11 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
   "audience": "elder",
   "session_id": "ses_01J...",
   "user_id": "usr_elder_01J...",
-  "session_type": "emotional_qa",
+  "session_type": "cist",
   "result_status": "completed",
   "result_type": "positive_feedback",
-  "display_label": "오늘 대화 결과가 좋아요",
-  "message": "오늘도 잘 대화하셨어요. 다음 대화에서 만나요.",
+  "display_label": "변화를 비교할 기준이 마련됐어요",
+  "message": "검사 결과가 준비됐어요. 앞으로의 변화를 비교하는 기준으로 사용해요.",
   "recommendation": null,
   "completed_at": "2026-08-05T11:42:00+09:00"
 }
@@ -1801,31 +1801,21 @@ AI 서버 DTO에는 검사 세션의 불변 STT 스냅샷 `google`, `v2`, `us`, 
 
 #### 보호자 응답 `200`
 
-연결·동의·access scope가 확인된 보호자에게만 아래 수치·상세 분석 필드를 추가한다. `screening_label`은 수치 결과에 대한 보호자용 상태 문구이며, 고령자용 `display_label`과 구분한다.
+연결·동의·access scope가 확인된 보호자에게만 CIST AI 위험 수준(`risk_level`)과 `screening_label`을 추가한다. 기존 0~30점 필드는 CIST AI의 0~1 위험 점수와 의미가 달라 CIST 응답에는 넣지 않는다. 위험 수치·추이는 보호자 리포트의 `ai_risk_trend_points`를 사용한다.
 
 ```json
 {
   "audience": "guardian",
   "session_id": "ses_01J...",
   "user_id": "usr_elder_01J...",
-  "session_type": "emotional_qa",
+  "session_type": "cist",
   "result_status": "completed",
   "result_type": "follow_up_recommended",
   "display_label": "추가 확인을 권장해요",
-  "message": "오늘 대화가 끝났어요. 보호자와 결과를 함께 확인해 주세요.",
-  "recommendation": "반복 관찰 결과를 확인하고 필요하면 전문기관 상담을 권장합니다.",
-  "screening_reference_score": 0.72,
-  "display_score": 27,
-  "score_max": 30,
-  "score_rate": 0.9,
-  "risk_level": "caution",
-  "screening_label": "인지기능 저하 의심 신호",
-  "domain_scores": {
-    "orientation": {"correct": 4, "total": 4, "score_rate": 1.0},
-    "memory": {"correct": 4, "total": 4, "score_rate": 1.0},
-    "attention": {"correct": 4, "total": 5, "score_rate": 0.8},
-    "language": {"correct": 2, "total": 3, "score_rate": 0.67}
-  },
+  "message": "검사 결과가 준비됐어요. 앞으로의 변화를 비교하는 기준으로 사용해요.",
+  "recommendation": "보호자와 함께 전문기관 상담을 고려해 주세요.",
+  "risk_level": "review_needed",
+  "screening_label": "추가 확인을 권장해요",
   "completed_at": "2026-08-05T11:42:00+09:00"
 }
 ```

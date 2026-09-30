@@ -62,6 +62,47 @@ class ReportIntegrationTest {
     @Autowired private UuidGenerator uuidGenerator;
 
     @Test
+    void cistScreeningResultUsesAiStatusInsteadOfPermanentPending() throws Exception {
+        UserEntity elder = saveUser("cist-result-status", "elder");
+        Instant startedAt = Instant.now().minusSeconds(60);
+        SessionEntity session = new SessionEntity(
+                uuidGenerator.generate(), elder.getId(), "cist", 11, "{}", false, startedAt);
+        sessionRepository.save(session);
+
+        mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", session.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result_status").value("pending"));
+
+        session.end(startedAt.plusSeconds(30));
+        sessionRepository.saveAndFlush(session);
+        mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", session.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result_status").value("failed"));
+
+        CistAiAnalysisEntity analysis = new CistAiAnalysisEntity(
+                uuidGenerator.generate(), session.getId(), "pending", "result-" + UUID.randomUUID(),
+                "a".repeat(64), "{}", startedAt, startedAt);
+        cistAiAnalysisRepository.saveAndFlush(analysis);
+        analysis.updateStatus("failed", true, "INTERNAL_ERROR", "[]", null, null,
+                null, null, null, null, null, null, startedAt.plusSeconds(40));
+        cistAiAnalysisRepository.saveAndFlush(analysis);
+
+        mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", session.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result_status").value("failed"));
+
+        analysis.updateStatus("completed", false, null, null, "{}", new BigDecimal("0.42"),
+                "test-model", new BigDecimal("0.38"), new BigDecimal("0.80"), "test-threshold",
+                true, "monitoring_needed", startedAt.plusSeconds(50));
+        cistAiAnalysisRepository.saveAndFlush(analysis);
+
+        mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", session.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result_status").value("completed"))
+                .andExpect(jsonPath("$.display_score").doesNotExist());
+    }
+
+    @Test
     void guardianReportShowsCompletedCistAiRiskSeparatelyFromLegacyScores() throws Exception {
         UserEntity guardian = saveUser("ai-trend-guardian", "guardian");
         UserEntity elder = saveUser("ai-trend-elder", "elder");
@@ -219,6 +260,13 @@ class ReportIntegrationTest {
         screeningResultRepository.save(new ScreeningResultEntity(uuidGenerator.generate(), session.getId(), elder.getId(), "completed",
                 new BigDecimal("0.8"), new BigDecimal("24.00"), new BigDecimal("30.00"), new BigDecimal("0.8"), "normal",
                 "오늘 대화 결과가 좋아요", null, "{}", analyzedAt, analyzedAt, analyzedAt));
+        CistAiAnalysisEntity cistAnalysis = new CistAiAnalysisEntity(
+                uuidGenerator.generate(), session.getId(), "pending", "report-" + UUID.randomUUID(),
+                "a".repeat(64), "{}", analyzedAt, analyzedAt);
+        cistAnalysis.updateStatus("completed", false, null, null, "{}", new BigDecimal("0.42"),
+                "test-model", new BigDecimal("0.38"), new BigDecimal("0.80"), "test-threshold",
+                true, "monitoring_needed", analyzedAt.plusSeconds(10));
+        cistAiAnalysisRepository.save(cistAnalysis);
         sessionSummaryRepository.save(new SessionSummaryEntity(uuidGenerator.generate(), session.getId(), elder.getId(), "오늘 대화 요약",
                 new BigDecimal("80"), "[]", 1, "completed", analyzedAt, analyzedAt));
         GuardianLinkEntity link = guardianLinkRepository.save(new GuardianLinkEntity(uuidGenerator.generate(), guardian.getId(), elder.getId(),
@@ -233,8 +281,15 @@ class ReportIntegrationTest {
         mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", session.getId()).with(jwtFor(guardian)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.audience").value("guardian"))
-                .andExpect(jsonPath("$.screening_reference_score").value(0.8))
-                .andExpect(jsonPath("$.domain_scores").isMap());
+                .andExpect(jsonPath("$.result_status").value("completed"))
+                .andExpect(jsonPath("$.risk_level").value("monitoring_needed"))
+                .andExpect(jsonPath("$.screening_reference_score").doesNotExist())
+                .andExpect(jsonPath("$.display_score").doesNotExist())
+                .andExpect(jsonPath("$.domain_scores").doesNotExist());
+        mockMvc.perform(get("/api/v1/screenings/{sessionId}/result", completedEmotional.getId()).with(jwtFor(elder)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result_status").value("completed"))
+                .andExpect(jsonPath("$.result_type").value("positive_feedback"));
         mockMvc.perform(get("/api/v1/analysis/cognitive/{userId}/history", elder.getId()).with(jwtFor(elder)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.records.length()").value(1))

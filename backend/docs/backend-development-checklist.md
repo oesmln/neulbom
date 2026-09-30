@@ -136,7 +136,7 @@
 
 기반: 분석 결과 집계와 보호자 권한 검증
 
-- [x] `GET /screenings/{session_id}/result` - 고령자용 검사 결과 조회
+- [x] `GET /screenings/{session_id}/result` - CIST AI 상태와 종료된 정서 문답의 정성 결과 조회 (#283)
 - [x] `GET /analysis/cognitive/{user_id}/history` - 분석 이력·30일 추이 조회
 - [x] `GET /analysis/cognitive/{user_id}/benchmark` - 보호자용 지역 기준선 비교 조회
 - [x] `GET /dashboard/{user_id}` - 고령자 홈 요약 조회
@@ -882,7 +882,7 @@
 - [ ] mock 외부 서비스로 업로드 → STT → AST/KcELECTRA → 집계 → 요약 전체 흐름이 통과한다.
 - [ ] 외부 서비스 실패 시 녹음·세션 데이터가 유실되지 않는다.
 - [ ] 동일 recording에 대한 중복 분석 결과가 생성되지 않는다.
-- [x] 결과 API가 `screening_reference_score`와 안전한 화면 문구를 반환한다.
+- [x] 결과 API가 CIST AI 상태와 안전한 화면 문구를 반환한다. 기존 `screening_reference_score`는 CIST 결과에 재사용하지 않는다. (#283)
 
 ---
 
@@ -891,9 +891,9 @@
 ### 9.1 고령자 결과
 
 - [x] `GET /screenings/{session_id}/result`를 구현한다.
-- [x] 최근 검사 결과와 영역별 점수를 반환한다.
+- [x] CIST 결과는 `cist_ai_analyses`를 읽고 종료된 정서 문답은 점수 없이 완료로 반환한다. (#283)
 - [x] 고령자에게는 `result_type`, `display_label`, `message`, `recommendation`만 반환한다.
-- [x] 보호자에게만 `screening_reference_score`, `display_score`, `score_max`, `score_rate`, `domain_scores`를 반환한다.
+- [x] 기존 0~30점 필드는 CIST AI 결과로 반환하지 않고 보호자에게는 CIST AI 위험 수준만 추가한다. (#283)
 - [x] `display_label`과 `recommendation`을 안전한 문구로 반환한다.
 - [x] 분석이 끝나지 않았으면 `pending` 상태를 구분한다.
 - [x] 결과 화면에서 일기 생성에 사용할 `summary_id`를 연결한다.

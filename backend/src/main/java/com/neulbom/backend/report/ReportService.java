@@ -152,10 +152,21 @@ public class ReportService {
         SessionEntity session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("검사 세션을 찾을 수 없습니다."));
         boolean guardian = authorizeRead(authenticatedUserId, session.getUserId(), "screening");
+        SessionSummaryEntity summary = sessionSummaryRepository.findBySessionId(sessionId).orElse(null);
+        UUID summaryId = summary == null ? null : summary.getId();
+        if (Set.of("cist", "baseline").contains(session.getSessionType())) {
+            CistAiAnalysisEntity analysis = cistAiAnalysisRepository.findBySessionId(sessionId).orElse(null);
+            return toCistScreeningResponse(session, analysis, summaryId, guardian);
+        }
+        if ("emotional_qa".equals(session.getSessionType()) && SessionEntity.ENDED.equals(session.getStatus())) {
+            return new ScreeningResultResponse(guardian ? "guardian" : "elder", session.getId(),
+                    session.getUserId(), session.getSessionType(), "completed", "positive_feedback",
+                    "오늘 대화를 마쳤어요", "오늘 대화가 끝났어요. 다음 대화에서 만나요.", null,
+                    null, null, null, null, null, null, null, session.getEndedAt(), summaryId);
+        }
         ScreeningResultEntity result = screeningResultRepository.findBySessionId(sessionId).orElse(null);
         CognitiveAnalysisEntity analysis = latestForSession(sessionId);
-        SessionSummaryEntity summary = sessionSummaryRepository.findBySessionId(sessionId).orElse(null);
-        return toScreeningResponse(session, result, analysis, summary == null ? null : summary.getId(), guardian);
+        return toScreeningResponse(session, result, analysis, summaryId, guardian);
     }
 
     @Transactional(readOnly = true)
@@ -424,6 +435,40 @@ public class ReportService {
         if (analysis == null) return null;
         return new GuardianReportResponse.ConversationResult(sessionId, session.getSessionType(), resultType(analysis.getRiskLevel()),
                 safeDisplayLabel(analysis.getRiskLevel()), analysis.getScreeningReferenceScore(), readJson(analysis.getDomainScores()));
+    }
+
+    private ScreeningResultResponse toCistScreeningResponse(
+            SessionEntity session,
+            CistAiAnalysisEntity analysis,
+            UUID summaryId,
+            boolean guardian
+    ) {
+        String status = analysis == null
+                ? SessionEntity.ENDED.equals(session.getStatus()) ? "failed" : "pending"
+                : switch (analysis.getStatus()) {
+            case "needs_retry" -> "failed";
+            default -> analysis.getStatus();
+        };
+        String risk = "completed".equals(status) ? analysis.getRiskLevel() : null;
+        String label = switch (risk == null ? "" : risk) {
+            case "stable" -> "변화를 비교할 기준이 마련됐어요";
+            case "monitoring_needed" -> "꾸준한 관찰을 권장해요";
+            case "review_needed" -> "추가 확인을 권장해요";
+            default -> null;
+        };
+        String message = switch (status) {
+            case "completed" -> "검사 결과가 준비됐어요. 앞으로의 변화를 비교하는 기준으로 사용해요.";
+            case "failed" -> "결과를 준비하지 못했어요. 다시 분석을 요청해 주세요.";
+            default -> "분석 결과를 준비하고 있어요.";
+        };
+        String recommendation = "review_needed".equals(risk)
+                ? "보호자와 함께 전문기관 상담을 고려해 주세요." : null;
+        return new ScreeningResultResponse(guardian ? "guardian" : "elder", session.getId(),
+                session.getUserId(), session.getSessionType(), status,
+                risk == null ? null : "stable".equals(risk) ? "positive_feedback" : "follow_up_recommended",
+                label, message, recommendation,
+                null, null, null, null, guardian ? risk : null, guardian ? label : null, null,
+                "completed".equals(status) ? analysis.getUpdatedAt() : null, summaryId);
     }
 
     private ScreeningResultResponse toScreeningResponse(
