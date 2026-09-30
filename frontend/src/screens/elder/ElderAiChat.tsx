@@ -309,7 +309,9 @@ export default function ElderAiChatScreen() {
               questionId={question.question_id}
               disabled={voice.loading || voice.speaking}
               onRecordStart={() => {
-                setResponseDelayMs(Date.now() - (promptEndedAt ?? askedAt));
+                // 같은 문항에서 다시 녹음하면 첫 시작 시점을 유지한다. 덮어쓰면 이전 답변
+                // 길이까지 지연으로 잡힌다.
+                setResponseDelayMs((current) => current ?? Date.now() - (promptEndedAt ?? askedAt));
               }}
               onAnswer={(id) =>
                 setRecordingIds((current) => {
