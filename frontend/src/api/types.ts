@@ -405,6 +405,7 @@ export interface RecordingStatusResponse {
   cognitive_analysis_id: Uuid | null;
   error_message: string | null;
   updated_at: IsoInstant;
+  audio_deleted_at: IsoInstant | null;
 }
 
 export interface TranscribeResponse {

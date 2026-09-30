@@ -201,6 +201,8 @@ Google STT 요청이 정상 완료됐지만 인식할 전사문이 없는 경우
 | --- | --- | --- | --- | --- | --- |
 | `POST` | `/recordings` | 문항 답변·음성 일기 녹음 업로드 및 동기화 | 필요 | 본인, 세션 사용자 | MVP |
 | `GET` | `/recordings/{recording_id}` | 녹음 업로드·분석 상태 조회 | 필요 | 세션 사용자, 권한 보유자 | MVP |
+| `DELETE` | `/recordings/{recording_id}` | 서버 원본 음성 파일 삭제 | 필요 | 본인 | MVP |
+| `DELETE` | `/recordings` | 본인의 서버 원본 음성 전체 삭제 | 필요 | 본인 | MVP |
 | `POST` | `/voice/transcribe` | 선택한 STT provider 실행 | 필요/서버 전용 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/acoustic` | AST 음향 특징 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
 | `POST` | `/analysis/cognitive` | KcELECTRA 텍스트 분석 | 서버 전용 권장 | 서버 작업 큐 | MVP |
@@ -1420,6 +1422,8 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 - 답변 녹음은 앱에서 60초에 자동 종료하고 서버도 `duration_ms`가 60,000을 초과하면 STT 호출 전에 `422`로 거부한다. 장시간 음성용 BatchRecognize는 사용하지 않는다.
 - 현재 local 저장소는 `app.storage.local-root/recordings/{recording_id}.{extension}`에 안전한 서버 키로 저장한다. 허용 확장자는 `wav`, `m4a`, `mp3`, `webm`(Opus 포함), 최대 25MB이며 MIME type도 함께 검증한다.
 - 동일 `client_recording_id`를 본인이 재전송하면 기존 `recording_id`와 처리 상태를 `deduplicated=true`로 반환한다. 다른 사용자가 해당 ID를 사용하면 `403`이다.
+- 서버 원본 음성은 AES-256-GCM으로 암호화한다. 운영 키 `RECORDING_ENCRYPTION_KEY`는 Base64로 인코딩한 32바이트 난수다. 기존 평문 파일은 서버 기동 중 암호화한 뒤 요청을 받는다.
+- 원본 음성의 기본 보존 기간은 녹음 시각부터 30일이며 `RECORDING_RETENTION_DAYS`로 변경할 수 있다. 만료 원본은 매일 자동 삭제한다. 전사문·답변·분석 기록은 이 정책의 대상이 아니다.
 - 상태 조회는 본인 또는 활성 보호자 연결의 `screening`(답변)·`diary`(음성 일기) scope만 허용한다. STT·AST·KcELECTRA 결과 ID는 처리 완료 시 adapter가 채우며 초기 업로드 응답에서는 `pending`이다.
 
 ### 7.2 `GET /recordings/{recording_id}` - 녹음 처리 상태
@@ -1437,8 +1441,21 @@ Figma의 `대화 내역` 화면과 중단 세션 복구에 사용한다. 세션 
 | `cognitive_analysis_id` | string/null | KcELECTRA 분석 결과 ID |
 | `error_message` | string/null | 실패 시 오류 내용 |
 | `updated_at` | string | 최종 처리 일시 |
+| `audio_deleted_at` | string/null | 서버 원본 음성을 삭제한 시각 |
 
-### 7.2.1 `POST /recordings/{recording_id}/transcribe` - 고령자 답변 STT 요청
+### 7.2.1 `DELETE /recordings/{recording_id}` - 서버 원본 음성 삭제
+
+로그인한 녹음 소유자만 호출할 수 있다. 암호화된 원본 파일을 영구 볼륨에서 제거하고 삭제 시각을 기록한다. 이후 기존 서명 URL도 `410`으로 거부한다. 이미 삭제된 녹음은 `204`를 반환한다. 다른 사용자에게는 `403`, 없는 녹음에는 `404`를 반환한다. 자동 만료도 같은 삭제 처리를 사용한다.
+
+이 API는 원본 오디오 파일만 삭제한다. 전사문, 답변 문장, 음향·인지 분석 및 검사 결과는 보존한다. 관련 데이터를 함께 삭제하는 요청에는 별도 데이터 삭제 정책과 API가 필요하다.
+
+`DELETE /recordings`는 로그인한 본인의 서버 원본 음성 전체에 동일한 삭제 처리를 적용하며 `204`를 반환한다. 계정 탈퇴 시에도 해당 계정의 서버 원본 음성을 삭제한다.
+
+#### Response `204`
+
+응답 본문 없음.
+
+### 7.2.2 `POST /recordings/{recording_id}/transcribe` - 고령자 답변 STT 요청
 
 업로드가 완료된 문항 답변 음성을 로그인한 고령자가 전사 요청한다. 서버는 녹음 소유권과 `purpose=answer`를 확인한 뒤 선택된 STT provider를 실행하고, 화면에 표시할 전사 문장을 반환한다. 서버 작업 큐에서 사용하는 `POST /voice/transcribe`와 달리 사용자 JWT로 호출한다.
 

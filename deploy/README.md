@@ -115,6 +115,8 @@ chmod 600 deploy/.env
 - `PUBLIC_API_HOST`: `https://`와 경로를 제외한 API 호스트
 - `POSTGRES_PASSWORD`
 - `JWT_SECRET`, `AI_SERVER_SERVICE_TOKEN`, `AI_AUDIO_SIGNING_SECRET`: 각각 독립적인 32자 이상 난수
+- `RECORDING_ENCRYPTION_KEY`: `openssl rand -base64 32`로 생성하는 녹음 전용 32바이트 키. 기존 파일 암호화 전에 지정하고 안전하게 백업한다. 키를 잃거나 임의로 바꾸면 저장된 녹음을 복호화할 수 없다.
+- `RECORDING_RETENTION_DAYS`: 녹음 시각부터 원본 파일을 보관할 일수. 기본값은 30일이며 만료 원본은 매일 삭제한다. 전사문과 분석 결과는 유지된다.
 - `CORS_ALLOWED_ORIGINS`: 공개 HTTPS origin
 - `GOOGLE_STT_PROJECT_ID`, 필요하면 `GOOGLE_TTS_PROJECT_ID`
 - `GEMINI_API_KEY`: 일상 문답 질문과 일기용 세션 요약에 필요
@@ -125,9 +127,12 @@ chmod 600 deploy/.env
 
 ```bash
 openssl rand -hex 32
+openssl rand -base64 32
 ```
 
 실제 값은 Git, 메신저, `.env.example`에 기록하지 않는다.
+
+처음 배포할 때 서버는 영구 볼륨에 남아 있는 평문 녹음을 암호화한다. 암호화가 완료되기 전에 준비 상태가 정상이 되지 않으며, 파일을 복호화할 수 없으면 시작을 중단한다. 기존 볼륨 스냅샷과 백업에는 평문이 남을 수 있으므로 별도 보관·삭제 정책을 적용해야 한다. 수동 삭제 API와 30일 만료 작업은 현재 서버 볼륨의 원본 파일에 적용된다.
 
 일상 문답 질문과 새 세션 요약은 같은 `GEMINI_MODEL`을 사용한다. 키가 없으면
 Compose 설정 단계에서 배포가 중단된다. 기존 세션 요약이 없는 일기는 요약 호출에

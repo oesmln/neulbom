@@ -114,6 +114,20 @@ class ProductionSecurityValidatorTest {
     }
 
     @Test
+    void rejectsDefaultRecordingEncryptionKeyInProduction() {
+        StorageProperties storage = new StorageProperties(
+                "persistent-volume",
+                Path.of("data", "uploads").toAbsolutePath().toString(),
+                "neulbom-production",
+                DataSize.ofMegabytes(25),
+                List.of("audio/wav"),
+                List.of("wav"),
+                ProductionSecurityValidator.DEFAULT_RECORDING_ENCRYPTION_KEY);
+
+        assertRejected(secureJwt(), secureAi(), secureCors(), storage, "RECORDING_ENCRYPTION_KEY");
+    }
+
+    @Test
     void rejectsLocalStorage() {
         StorageProperties storage = new StorageProperties(
                 "local",

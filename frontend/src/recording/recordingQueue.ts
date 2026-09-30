@@ -7,6 +7,12 @@ import { USE_MOCK_API } from "@/api/config";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { currentSession } from "@/api/tokens";
 import type { RecordingPurpose, Uuid } from "@/api/types";
+import {
+  decryptNativeAudio,
+  decryptWebAudio,
+  encryptNativeAudio,
+  encryptWebAudio,
+} from "./recordingCrypto";
 
 export type RecordingQueueStatus = "pending" | "uploading" | "failed";
 
@@ -21,6 +27,7 @@ export type RecordingQueueItem = {
   fileName: string;
   durationMs: number;
   localUri: string;
+  encrypted?: boolean;
   status: RecordingQueueStatus;
   /** 자동 재전송 대상인지. `false`면 사용자가 다시 녹음해야 한다. */
   retryable?: boolean;
@@ -53,7 +60,6 @@ type RecordingReceipt = {
   sessionId?: Uuid;
   questionId?: Uuid;
   recordingId: Uuid;
-  transcript?: string;
   transcriptId?: Uuid;
   completedAt: string;
 };
@@ -195,16 +201,47 @@ async function deleteStored(clientRecordingId: Uuid): Promise<void> {
   await writeNativeQueue(items.filter((candidate) => candidate.clientRecordingId !== clientRecordingId));
 }
 
-async function uploadUri(item: RecordingQueueItem): Promise<{ uri: string; release: () => void }> {
-  if (Platform.OS !== "web") return { uri: item.localUri, release: () => undefined };
+async function uploadUri(item: RecordingQueueItem): Promise<{
+  uri: string;
+  readBytes?: () => Promise<Uint8Array>;
+  release: () => void;
+}> {
+  if (Platform.OS !== "web") {
+    return {
+      uri: item.localUri,
+      readBytes: async () => decryptNativeAudio(item.userId, await new File(item.localUri).bytes()),
+      release: () => undefined,
+    };
+  }
   const row = await webRequest<WebStoredRow | undefined>("readonly", (store) =>
     store.get(item.clientRecordingId),
   );
   if (!row || row.recordKind !== "queue" || !row.audio) {
     throw new Error("저장된 녹음 파일을 찾지 못했습니다.");
   }
-  const uri = URL.createObjectURL(row.audio);
+  const uri = URL.createObjectURL(await decryptWebAudio(item.userId, row.audio, item.mimeType));
   return { uri, release: () => URL.revokeObjectURL(uri) };
+}
+
+/** Upgrade recordings captured by older releases before any upload attempt. */
+async function protectLegacyQueue(activeUserId: Uuid): Promise<void> {
+  for (const item of (await listStored()).filter((candidate) => candidate.userId === activeUserId && !candidate.encrypted)) {
+    if (Platform.OS === "web") {
+      const row = await webRequest<WebStoredRow | undefined>("readonly", (store) => store.get(item.clientRecordingId));
+      if (!row || row.recordKind !== "queue") continue;
+      const encryptedAudio = await encryptWebAudio(item.userId, row.audio);
+      await serializeMutation(() => putStored({ ...item, encrypted: true }, encryptedAudio));
+    } else {
+      const previous = new File(item.localUri);
+      if (!previous.exists) continue;
+      const destination = new File(nativeDirectory(), `${item.clientRecordingId}.enc`);
+      const encryptedAudio = await encryptNativeAudio(item.userId, await previous.bytes());
+      destination.create({ overwrite: true, intermediates: true });
+      destination.write(encryptedAudio);
+      await serializeMutation(() => putStored({ ...item, localUri: destination.uri, encrypted: true }));
+      previous.delete();
+    }
+  }
 }
 
 export async function enqueueRecording(input: CapturedRecording): Promise<RecordingQueueItem> {
@@ -212,11 +249,13 @@ export async function enqueueRecording(input: CapturedRecording): Promise<Record
     let localUri = `indexeddb://${input.clientRecordingId}`;
     let webAudio: Blob | undefined;
     if (Platform.OS === "web") {
-      webAudio = await (await fetch(input.uri)).blob();
+      webAudio = await encryptWebAudio(input.userId, await (await fetch(input.uri)).blob());
     } else {
-      const extension = input.fileName.split(".").pop() || "m4a";
-      const destination = new File(nativeDirectory(), `${input.clientRecordingId}.${extension}`);
-      await new File(input.uri).copy(destination, { overwrite: true });
+      const source = new File(input.uri);
+      const destination = new File(nativeDirectory(), `${input.clientRecordingId}.enc`);
+      const encryptedAudio = await encryptNativeAudio(input.userId, await source.bytes());
+      destination.create({ overwrite: true, intermediates: true });
+      destination.write(encryptedAudio);
       localUri = destination.uri;
     }
 
@@ -231,12 +270,17 @@ export async function enqueueRecording(input: CapturedRecording): Promise<Record
       fileName: input.fileName,
       durationMs: input.durationMs,
       localUri,
+      encrypted: true,
       status: "pending",
       retryable: true,
       attempts: 0,
       createdAt: new Date().toISOString(),
     };
     await putStored(item, webAudio);
+    if (Platform.OS !== "web" && input.uri !== localUri) {
+      const source = new File(input.uri);
+      if (source.exists) source.delete();
+    }
     emit({ type: "changed", item });
     return item;
   });
@@ -331,11 +375,14 @@ export async function consumeUploadedRecording(
         item.userId === userId && item.sessionId === sessionId && item.questionId === questionId,
     );
     if (!receipt) return null;
+    const transcript = receipt.transcriptId
+      ? await recordings.transcribe(receipt.recordingId)
+      : null;
     await deleteReceipt(receipt.clientRecordingId);
     return {
       recordingId: receipt.recordingId,
-      transcript: receipt.transcript,
-      transcriptId: receipt.transcriptId,
+      transcript: transcript?.transcript,
+      transcriptId: transcript?.transcript_id ?? receipt.transcriptId,
     };
   });
 }
@@ -355,6 +402,11 @@ async function cleanupQueue(activeUserId: Uuid): Promise<void> {
     const expired = now - Date.parse(receipt.completedAt) > MAX_QUEUE_AGE_MS;
     if (expired || receipt.userId !== activeUserId) {
       await deleteReceipt(receipt.clientRecordingId);
+    } else if ("transcript" in receipt) {
+      // Older releases stored the transcription in plaintext beside the queue.
+      const safe = { ...receipt };
+      delete (safe as RecordingReceipt & { transcript?: string }).transcript;
+      await saveReceipt(safe);
     }
   }
 }
@@ -373,6 +425,7 @@ function canRetryUpload(cause: unknown, attempts: number): boolean {
 
 async function performSync(activeUserId: Uuid): Promise<void> {
   await serializeMutation(() => cleanupQueue(activeUserId));
+  await protectLegacyQueue(activeUserId);
   const items = (await listStored()).filter((item) => item.userId === activeUserId);
   for (const item of items) {
     if (!USE_MOCK_API && currentSession()?.userId !== activeUserId) break;
@@ -397,6 +450,7 @@ async function performSync(activeUserId: Uuid): Promise<void> {
       releaseSource = source.release;
       const response = await recordings.upload({
         uri: source.uri,
+        readBytes: source.readBytes,
         clientRecordingId: uploading.clientRecordingId,
         userId: uploading.userId,
         purpose: uploading.purpose,
@@ -425,7 +479,6 @@ async function performSync(activeUserId: Uuid): Promise<void> {
           sessionId: uploading.sessionId,
           questionId: uploading.questionId,
           recordingId: response.recording_id,
-          transcript: transcript?.transcript,
           transcriptId: transcript?.transcript_id,
           completedAt: new Date().toISOString(),
         }),

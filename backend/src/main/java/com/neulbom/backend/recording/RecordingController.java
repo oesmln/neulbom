@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -73,6 +74,21 @@ public class RecordingController {
             @PathVariable UUID recordingId
     ) {
         return recordingService.getStatus(authenticatedUserId(jwt), recordingId);
+    }
+
+    @DeleteMapping("/{recordingId}")
+    public ResponseEntity<Void> deleteAudio(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID recordingId
+    ) {
+        recordingService.deleteAudio(authenticatedUserId(jwt), recordingId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAllAudio(@AuthenticationPrincipal Jwt jwt) {
+        recordingService.deleteAllAudioForUser(authenticatedUserId(jwt));
+        return ResponseEntity.noContent().build();
     }
 
     /** Start STT for an uploaded answer and return its text to the answer UI. */

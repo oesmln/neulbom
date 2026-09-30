@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ElderMyPageNav, RootNav } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { DEFAULT_CHARACTER_NAME } from "@/components/memoiCharacters";
-import { auth, game, reports, users } from "@/api";
+import { auth, game, recordings, reports, users } from "@/api";
 import { useApi } from "@/hooks/useApi";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { monthDayLabel } from "@/utils/format";
@@ -83,6 +83,7 @@ export default function ElderMyPageScreen() {
   const [nameDraft, setNameDraft] = React.useState("");
   const [nameSaving, setNameSaving] = React.useState(false);
   const [nameError, setNameError] = React.useState<string | null>(null);
+  const [audioDeleting, setAudioDeleting] = React.useState(false);
 
   const character = useApi(() => game.character(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
   const xpHistory = useApi(() => game.xpHistory(userId as string), [userId, isFocused], { enabled: !!userId && isFocused });
@@ -109,7 +110,7 @@ export default function ElderMyPageScreen() {
   const confirmWithdraw = () => {
     Alert.alert(
       "계정을 탈퇴하시겠어요?",
-      "그동안의 대화, 일기, 검사 기록이 모두 삭제되고 되돌릴 수 없어요.",
+      "녹음 원본은 삭제됩니다. 전사문과 검사 기록은 서버에 남을 수 있으며 계정은 다시 사용할 수 없어요.",
       [
         { text: "취소", style: "cancel" },
         {
@@ -125,6 +126,28 @@ export default function ElderMyPageScreen() {
               .catch((cause: ApiError) =>
                 Alert.alert("탈퇴하지 못했어요", apiErrorMessage(cause)),
               );
+          },
+        },
+      ],
+    );
+  };
+
+  const confirmDeleteAudio = () => {
+    if (audioDeleting) return;
+    Alert.alert(
+      "녹음 원본을 삭제할까요?",
+      "서버에 저장된 모든 녹음 원본을 삭제합니다. 전사문과 분석·검사 기록은 남으며 삭제한 음성은 복구할 수 없어요.",
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "원본 삭제",
+          style: "destructive",
+          onPress: () => {
+            setAudioDeleting(true);
+            void recordings.deleteAllAudio()
+              .then(() => Alert.alert("삭제했어요", "서버의 녹음 원본을 삭제했습니다."))
+              .catch((cause: ApiError) => Alert.alert("삭제하지 못했어요", apiErrorMessage(cause)))
+              .finally(() => setAudioDeleting(false));
           },
         },
       ],
@@ -372,6 +395,12 @@ export default function ElderMyPageScreen() {
             icon="lock-closed-outline"
             label="비밀번호 변경"
             onPress={() => elderNavigation.navigate("ElderPasswordChange")}
+          />
+          <SettingsRow
+            icon="mic-off-outline"
+            label={audioDeleting ? "녹음 원본 삭제 중…" : "서버 녹음 원본 삭제"}
+            tone={colors.destructive}
+            onPress={confirmDeleteAudio}
           />
           <SettingsRow
             icon="log-out-outline"

@@ -75,6 +75,9 @@ public class RecordingEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "audio_deleted_at")
+    private Instant audioDeletedAt;
+
     protected RecordingEntity() {
     }
 
@@ -184,6 +187,22 @@ public class RecordingEntity {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getAudioDeletedAt() {
+        return audioDeletedAt;
+    }
+
+    public boolean isAudioDeleted() {
+        return audioDeletedAt != null;
+    }
+
+    public void markAudioDeleted(Instant deletedAt) {
+        if (audioDeletedAt == null) {
+            audioDeletedAt = deletedAt;
+            originalFilename = null;
+            updatedAt = deletedAt;
+        }
     }
 
     public void markTranscriptCompleted(Instant updatedAt) {

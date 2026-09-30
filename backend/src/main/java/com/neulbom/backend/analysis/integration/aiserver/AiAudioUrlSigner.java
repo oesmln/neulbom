@@ -42,6 +42,9 @@ public class AiAudioUrlSigner {
 
     public AudioResource issue(RecordingEntity recording) {
         requireConfigured();
+        if (recording.isAudioDeleted()) {
+            throw new ApiException(HttpStatus.GONE, "원본 녹음이 삭제되었습니다.", "삭제된 음성은 분석에 사용할 수 없습니다.");
+        }
         Instant expiresAt = clock.instant().plus(properties.signedUrlTtl());
         long expiresEpoch = expiresAt.getEpochSecond();
         String signature = signature(recording.getId(), expiresEpoch);
