@@ -240,13 +240,12 @@ export default function GuardianDiaryScreen() {
                     </View>
                     {selectedEntries.length > 1 ? (
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.diaryChoices}>
-                        {selectedEntries.map((entry, index) => {
+                        {selectedEntries.map((entry) => {
                           const active = entry.diary_id === selectedEntry.diary_id;
                           return <Pressable key={entry.diary_id} onPress={() => setSelectedDiaryId(entry.diary_id)}
-                            accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${diaryTime(entry.written_at)}, ${entry.title ?? `일기 ${index + 1}`} 선택`}
+                            accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${diaryTime(entry.written_at)} 일기 선택`}
                             style={[styles.diaryChoice, active && styles.diaryChoiceSelected]}>
-                            <Text numberOfLines={1} style={[styles.diaryChoiceTitle, active && { color: guardian.blueDark }]}>{entry.title ?? `일기 ${index + 1}`}</Text>
-                            <Caption>{diaryTime(entry.written_at)}</Caption>
+                            <Text style={[styles.diaryChoiceTitle, active && { color: guardian.blueDark }]}>{diaryTime(entry.written_at)}</Text>
                           </Pressable>;
                         })}
                       </ScrollView>
@@ -254,8 +253,8 @@ export default function GuardianDiaryScreen() {
                     <Card style={styles.diaryCard}>
                       <View style={styles.diaryHeader}>
                         <View style={styles.diaryHeading}>
-                          <Text style={styles.diaryTitle}>{selectedEntry.title ?? "오늘의 이야기"}</Text>
-                          <Caption>{diaryTime(selectedEntry.written_at)} · {["session", "daily_summary"].includes(selectedEntry.source_type) ? "AI가 정리한 일기" : "직접 남긴 일기"}</Caption>
+                          {selectedEntry.title && !["오늘의 이야기", "일기"].includes(selectedEntry.title.trim()) ? <Text style={styles.diaryTitle}>{selectedEntry.title}</Text> : null}
+                          <Caption>{diaryTime(selectedEntry.written_at)}</Caption>
                         </View>
                         {selectedEntry.mood || selectedEntry.mood_level != null ? <Text style={styles.mood} accessibilityLabel="일기에 기록된 기분">{moodEmoji(selectedEntry.mood, selectedEntry.mood_level)}</Text> : null}
                       </View>
@@ -279,7 +278,6 @@ export default function GuardianDiaryScreen() {
                                   accessibilityRole="button" accessibilityState={{ selected: active, disabled }} accessibilityLabel={`${label}${sent ? " 전달됨" : " 반응 선택"}`}
                                   style={[styles.reactionButton, active && styles.reactionSelected, sent && styles.reactionSent]}>
                                   <Text style={styles.reactionEmoji}>{emoji}</Text>
-                                  <Text style={[styles.reactionLabel, (active || sent) && { color: guardian.blueDark }]}>{sent ? "전달됨" : label}</Text>
                                 </Pressable>;
                               })}
                             </View>
@@ -358,11 +356,10 @@ const styles = StyleSheet.create({
   sentReactions: { marginBottom: spacing.xl, padding: spacing.md, backgroundColor: guardian.blueLight, borderRadius: radius.md },
   sectionTitle: { fontWeight: fontWeight.semibold, marginBottom: spacing.xs },
   reactionRow: { flexDirection: "row", gap: spacing.xs, marginTop: spacing.lg },
-  reactionButton: { flex: 1, minHeight: 64, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", gap: spacing.xs },
+  reactionButton: { flex: 1, minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", gap: spacing.xs },
   reactionSelected: { borderColor: guardian.blue, backgroundColor: guardian.blueLight },
   reactionSent: { borderColor: guardian.blueLight, backgroundColor: guardian.blueLight },
   reactionEmoji: { fontSize: 24 },
-  reactionLabel: { fontSize: fontSize.micro, color: colors.mutedForeground },
   input: { marginTop: spacing.md, minHeight: 88, textAlignVertical: "top", padding: spacing.md, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, fontSize: fontSize.body, color: colors.foreground, lineHeight: 22 },
   formFooter: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: spacing.md, marginTop: spacing.md },
   formHint: { flexShrink: 1 },
