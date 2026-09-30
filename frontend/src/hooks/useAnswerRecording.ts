@@ -6,6 +6,7 @@ import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
+  useAudioPlayer,
   useAudioRecorder,
   useAudioRecorderState,
   type RecordingOptions,
@@ -68,6 +69,11 @@ export function useAnswerRecording(
   onTranscribed?: (transcript: string, transcriptId?: Uuid) => void,
 ) {
   const recorder = useAudioRecorder(ANSWER_RECORDING_OPTIONS);
+  // 녹음 시작·종료를 귀로 확인할 수 있는 짧은 알림음. 고령 사용자가 녹음이 안 된
+  // 상태로 말하는 것을 막는다. 시작음은 재생을 마친 뒤 녹음을 열어 효과음이 답변에
+  // 섞이지 않게 한다.
+  const startBeep = useAudioPlayer(require("../../assets/sounds/record-start.wav"));
+  const stopBeep = useAudioPlayer(require("../../assets/sounds/record-stop.wav"));
   const recorderState = useAudioRecorderState(recorder, 250);
   const capturedRef = React.useRef<CapturedAudio | null>(null);
   const queuedClientIdRef = React.useRef<Uuid | null>(null);
@@ -222,6 +228,13 @@ export function useAnswerRecording(
       setError("음성 답변을 저장하려면 마이크 권한이 필요합니다.");
       return;
     }
+    try {
+      await startBeep.seekTo(0);
+      startBeep.play();
+      await new Promise((resolve) => setTimeout(resolve, 260));
+    } catch {
+      // 알림음 실패가 녹음을 막아서는 안 된다.
+    }
     await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
     try {
       await recorder.prepareToRecordAsync();
@@ -234,7 +247,7 @@ export function useAnswerRecording(
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       throw cause;
     }
-  }, [recorder, target.questionId, target.sessionId, target.userId]);
+  }, [recorder, startBeep, target.questionId, target.sessionId, target.userId]);
 
   const stopAndUpload = React.useCallback(async (atLimit = false) => {
     if (stoppingRef.current) return;
@@ -252,6 +265,12 @@ export function useAnswerRecording(
       activeRef.current = false;
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       stoppingRef.current = false;
+      try {
+        await stopBeep.seekTo(0);
+        stopBeep.play();
+      } catch {
+        // 알림음 실패는 무시한다.
+      }
     }
     if (durationMs > MAX_ANSWER_RECORDING_DURATION_MS) {
       setError("답변 녹음은 최대 60초까지 가능합니다. 다시 녹음해 주세요.");
@@ -272,7 +291,7 @@ export function useAnswerRecording(
       durationMs,
     };
     await uploadCaptured();
-  }, [recorder, recorderState.durationMillis, uploadCaptured]);
+  }, [recorder, recorderState.durationMillis, stopBeep, uploadCaptured]);
 
   stopAndUploadRef.current = stopAndUpload;
 
