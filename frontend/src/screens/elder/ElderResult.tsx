@@ -1,17 +1,19 @@
 import React from "react";
 import { View, StyleSheet, ScrollView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useIsFocused, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ElderNav, ElderStackParamList } from "@/navigation/types";
 import { useApp } from "@/store/AppContext";
 import { cistAi, reports } from "@/api";
 import { useApi } from "@/hooks/useApi";
+import { useSpeechPlayback } from "@/hooks/useSpeechPlayback";
 import { apiErrorMessage } from "@/api/errors";
 import { colors, spacing, radius, fontSize, fontWeight } from "@/theme";
 import { Button, ErrorState, SentenceText as Text, SpeechBubble } from "@/components/ui";
 import Memoi3D from "@/components/Memoi3D";
+import VoicePlaybackButton from "@/components/VoicePlaybackButton";
 import { DEFAULT_CHARACTER_NAME, DEFAULT_MEMOI } from "@/components/memoiCharacters";
 import { AI_CHAT_DONE_LINE } from "./aiChatGreetings";
 
@@ -49,6 +51,7 @@ function formatKoreanDate(date: string): string {
 
 export default function ElderResultScreen() {
   const navigation = useNavigation<ElderNav>();
+  const isFocused = useIsFocused();
   const route = useRoute<RouteProp<ElderStackParamList, "ElderResult">>();
   const sessionId = route.params?.sessionId ?? null;
   const mode = route.params?.mode ?? "daily";
@@ -149,6 +152,10 @@ export default function ElderResultScreen() {
       : result?.result_type === "insufficient_data"
         ? "오늘은 답변이 충분히 담기지 않았어요. 내일 다시 이야기해요."
         : result?.message ?? "";
+  const dailyBubbleLine = result?.result_status === "failed" || result?.result_type === "insufficient_data"
+    ? message
+    : AI_CHAT_DONE_LINE;
+  const voice = useSpeechPlayback(!baseline && isFocused && result ? dailyBubbleLine : null);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -191,12 +198,22 @@ export default function ElderResultScreen() {
               <SpeechBubble
                 text={baseline
                   ? message || "검사는 끝났어요. AI 결과를 확인하고 있어요."
-                  : result?.result_status === "failed" || result?.result_type === "insufficient_data"
-                    ? message
-                    : AI_CHAT_DONE_LINE}
+                  : dailyBubbleLine}
                 side="below"
               />
           )}
+          {!baseline && result ? (
+            <View style={styles.voiceControl}>
+              <VoicePlaybackButton
+                enabled={voice.enabled}
+                loading={voice.loading}
+                speaking={voice.speaking}
+                onPress={voice.toggle}
+                onReplay={voice.replay}
+              />
+              {voice.error ? <Text style={styles.voiceError}>{voice.error}</Text> : null}
+            </View>
+          ) : null}
         </View>
 
         {baseline ? (
@@ -295,6 +312,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   stateWrap: { alignSelf: "stretch" },
+  voiceControl: { alignItems: "center", marginTop: spacing.md },
+  voiceError: { fontSize: fontSize.caption, color: colors.destructive, textAlign: "center" },
   note: {
     marginHorizontal: spacing.xl,
     marginBottom: spacing.md,

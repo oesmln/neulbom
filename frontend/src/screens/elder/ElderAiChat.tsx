@@ -66,6 +66,7 @@ export default function ElderAiChatScreen() {
     enabled: !!userId && isFocused,
   });
   const [completedAt, setCompletedAt] = React.useState<Date | null>(null);
+  const [suppressSpeech, setSuppressSpeech] = React.useState(false);
   const seoulDay = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: APP_TIMEZONE });
   const doneToday = (completedAt !== null && seoulDay(completedAt) === seoulDay(new Date())) || (dashboard.data?.today_tasks ?? []).some(
     (task) => task.task_type === "emotional_qa" && task.status === "completed",
@@ -108,8 +109,14 @@ export default function ElderAiChatScreen() {
   // The character only mouths the question itself; once it has been answered it
   // goes back to resting until the next one arrives.
   const introLine = doneToday ? AI_CHAT_RESTART_LINE : AI_CHAT_INTRO_LINE;
-  const spokenLine = phase === "intro" ? introLine : answered ? null : question?.content ?? null;
+  const spokenLine = !isFocused || suppressSpeech
+    ? null
+    : phase === "intro" ? introLine : answered ? null : question?.content ?? null;
   const voice = useSpeechPlayback(spokenLine);
+
+  React.useEffect(() => {
+    if (!isFocused) setSuppressSpeech(false);
+  }, [isFocused]);
 
   React.useEffect(() => {
     setAskedAt(Date.now());
@@ -178,6 +185,9 @@ export default function ElderAiChatScreen() {
 
       if (isLast) {
         await sessions.end(sessionId);
+        // 결과 화면으로 이동하는 동안 탭은 마운트된 채로 남는다. 초기화로 바뀐
+        // 시작 인사말이 뒤에서 재생되지 않도록 화면을 떠날 때까지 음성을 막는다.
+        setSuppressSpeech(true);
         // 결과 화면에서 돌아올 때 대시보드 재조회가 끝나기 전에도 재시작 인사를 띄운다.
         setCompletedAt(new Date());
         // 서버도 세션 종료 트리거에서 부분 CIST 추정을 시작하지만, 그 트리거가 실패하면
