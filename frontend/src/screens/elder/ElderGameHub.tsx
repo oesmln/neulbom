@@ -41,8 +41,9 @@ const GAMES: {
     title: "색깔 기억하기",
     desc: "색깔을 5초 보고 같은 색을 골라요",
     badge: "기억력",
-    badgeColor: colors.accent,
-    badgeBackground: colors.accentLight,
+    // 태그는 게임이 아니라 카테고리 표시라, 같은 카테고리는 같은 색을 쓴다.
+    badgeColor: colors.primary,
+    badgeBackground: colors.secondary,
   },
   {
     route: "ElderGameConsonant",
