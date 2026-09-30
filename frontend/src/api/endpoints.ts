@@ -455,8 +455,10 @@ export const recordings = {
    */
   async upload(input: RecordingUpload): Promise<RecordingUploadResponse> {
     if (USE_MOCK_API) {
+      const recordingId = newClientId();
+      mock.rememberMockRecordingQuestion(recordingId, input.questionId);
       return {
-        recording_id: newClientId(),
+        recording_id: recordingId,
         client_recording_id: input.clientRecordingId,
         purpose: input.purpose,
         sync_status: "server_uploaded",
@@ -514,11 +516,15 @@ export const recordings = {
 
   transcribe(recordingId: Uuid): Promise<TranscribeResponse> {
     if (USE_MOCK_API) {
-      return Promise.reject(new ApiError(
-        503,
-        "서버에 연결하지 않아 음성을 전사할 수 없습니다.",
-        { detail: "EXPO_PUBLIC_API_BASE_URL을 설정하고 백엔드 STT를 실행해 주세요." },
-      ));
+      return Promise.resolve({
+        transcript_id: newClientId(),
+        recording_id: recordingId,
+        transcript: mock.mockTranscriptFor(recordingId),
+        duration_sec: null,
+        confidence: null,
+        language: "ko",
+        model: "mock",
+      });
     }
     return request(`/recordings/${recordingId}/transcribe`, { method: "POST" });
   },

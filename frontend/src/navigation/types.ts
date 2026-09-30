@@ -1,3 +1,4 @@
+import type { Uuid } from "@/api/types";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { NavigatorScreenParams } from "@react-navigation/native";
 import type {
@@ -124,6 +125,8 @@ export type GuardianStackParamList = {
   GuardianPasswordChange: undefined;
   /** 보호자 초대 발급과 연결별 접근 범위 관리. */
   GuardianConnections: undefined;
+  /** 알림에서 진입하는 검사 결과 상세. */
+  GuardianScreeningResult: { sessionId: Uuid };
 };
 
 export type GuardianTabParamList = {
