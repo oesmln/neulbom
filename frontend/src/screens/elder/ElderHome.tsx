@@ -118,6 +118,12 @@ export default function ElderHomeScreen() {
     { enabled: !!userId && isFocused },
   );
 
+  // 기준 검사를 한 번도 완료하지 않으면 `retest_due`는 계속 false다. 그 상태에서 카드를
+  // 감추면 온보딩을 지나친 뒤로는 검사를 시작할 진입점이 남지 않으므로, 완료 이력이
+  // 없을 때도 카드를 띄운다.
+  const firstScreeningPending = !!retestSchedule && retestSchedule.last_completed_session_id === null;
+  const showScreeningCard = !!retestSchedule && (retestSchedule.retest_due || firstScreeningPending);
+
   React.useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active" && isFocused) reloadRetestSchedule();
@@ -171,15 +177,23 @@ export default function ElderHomeScreen() {
             <ErrorState message={apiErrorMessage(error)} onRetry={reload} />
           ) : null}
 
-          {!retestLoading && !retestError && retestSchedule?.retest_due ? (
+          {!retestLoading && !retestError && showScreeningCard ? (
             <Card style={styles.retestCard} color={colors.secondary}>
               <View style={styles.retestRow}>
                 <View style={styles.retestCopy}>
                   <View style={styles.retestTitleRow}>
                     <Text style={styles.retestTitle}>CIST 인지 검사</Text>
-                    <Badge label="검사 필요" color={colors.primaryDark} background={colors.muted} />
+                    <Badge
+                      label={firstScreeningPending ? "첫 검사" : "검사 필요"}
+                      color={colors.primaryDark}
+                      background={colors.muted}
+                    />
                   </View>
-                  <Text style={styles.retestDescription}>마지막 검사로부터 3개월이 지났어요</Text>
+                  <Text style={styles.retestDescription}>
+                    {firstScreeningPending
+                      ? "아직 인지 검사를 마치지 않았어요"
+                      : "마지막 검사로부터 3개월이 지났어요"}
+                  </Text>
                 </View>
                 <Button
                   label="검사하기"
