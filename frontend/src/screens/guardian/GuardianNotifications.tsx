@@ -81,17 +81,48 @@ export default function GuardianNotificationsScreen() {
     }
   };
 
-  const hasUnread = items.some((n) => !n.is_read);
-
-  const openNotification = (item: NotificationResponse) => {
-    void markRead(item.notification_id);
-    if (item.type !== "diary_generated" || !item.data || typeof item.data !== "object") return;
-    const elderId = (item.data as Record<string, unknown>).elder_id;
-    const diaryId = (item.data as Record<string, unknown>).reference_id;
-    if (typeof elderId !== "string") return;
-    setSelectedElderId(elderId);
-    navigation.navigate("GuardianTabs", { screen: "GuardianRecord", params: { diaryId: typeof diaryId === "string" ? diaryId : undefined } });
+  /** 알림이 가리키는 화면으로 이동. payload `data.target`이 우선, 없으면 type으로 판단. */
+  const openNotification = (n: NotificationResponse) => {
+    if (!n.is_read) void markRead(n.notification_id);
+    const data = (n.data ?? {}) as {
+      target?: string; session_id?: Uuid; elder_id?: string; reference_id?: string;
+    };
+    // 일기 알림은 해당 어르신으로 전환하고 그 일기를 바로 연다.
+    if (n.type === "diary_generated" && typeof data.elder_id === "string") {
+      setSelectedElderId(data.elder_id);
+      navigation.navigate("GuardianTabs", {
+        screen: "GuardianRecord",
+        params: { diaryId: typeof data.reference_id === "string" ? data.reference_id : undefined },
+      });
+      return;
+    }
+    const byType: Record<string, string> = {
+      score_drop: "chart",
+      screening_completed: "screening_result",
+      diary_created: "record",
+      appointment_reminder: "centers",
+    };
+    const target = data.target ?? byType[n.type];
+    switch (target) {
+      case "screening_result":
+        if (data.session_id) navigation.navigate("GuardianScreeningResult", { sessionId: data.session_id });
+        else navigation.navigate("GuardianTabs", { screen: "GuardianDashboard" });
+        return;
+      case "chart":
+        navigation.navigate("GuardianTabs", { screen: "GuardianChart" });
+        return;
+      case "record":
+        navigation.navigate("GuardianTabs", { screen: "GuardianRecord" });
+        return;
+      case "centers":
+        navigation.navigate("GuardianCounselingCenters");
+        return;
+      default:
+        return;
+    }
   };
+
+  const hasUnread = items.some((n) => !n.is_read);
 
   const header = (
     <ScreenHeader

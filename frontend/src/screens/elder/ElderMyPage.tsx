@@ -38,15 +38,25 @@ const PATYI_IMAGES: Record<number, number> = {
   3: require("../../../assets/character/patyi-level-3.png"),
   4: require("../../../assets/character/patyi-level-4.png"),
   5: require("../../../assets/character/patyi-level-5.png"),
+  6: require("../../../assets/character/patyi-level-6.png"),
 };
 
+/**
+ * 팥이의 성장 6단계. `min`은 각 레벨의 누적 XP 하한으로 백엔드 `XpPolicy`의
+ * LEVEL_MINIMUMS(0·100·300·600·1000·1500)와 같아야 한다 (#156, #158).
+ * 이름·설명은 "팥이의 성장 이야기" 기획 이미지를 따른다.
+ */
 const LEVELS = [
-  { level: 1, name: "아기 메모이", min: 0, emoji: "🐣", image: PATYI_IMAGES[1], desc: "막 태어난 메모이예요. 함께 시작해봐요!" },
-  { level: 2, name: "꼬마 메모이", min: 100, emoji: "🐶", image: PATYI_IMAGES[2], desc: "조금씩 자라고 있어요. 꾸준히 함께해요!" },
-  { level: 3, name: "활발한 메모이", min: 300, emoji: "🌱", image: PATYI_IMAGES[3], desc: "에너지가 넘치는 메모이가 됐어요!" },
-  { level: 4, name: "씩씩한 메모이", min: 600, emoji: "🌸", image: PATYI_IMAGES[4], desc: "메모이가 훌쩍 성장했어요. 대단해요!" },
-  { level: 5, name: "지혜로운 메모이", min: 1000, emoji: "⭐", image: PATYI_IMAGES[5], desc: "최고 등급! 메모이와 함께라서 행복해요." },
+  { level: 1, name: "씨앗 팥이", min: 0, emoji: "🌰", image: PATYI_IMAGES[1], desc: "작지만 든든한 씨앗이에요. 꿈틀꿈틀, 싹을 틔울 준비 중!" },
+  { level: 2, name: "새싹 팥이", min: 100, emoji: "🌱", image: PATYI_IMAGES[2], desc: "싹이 났어요! 작은 새싹이 고개를 쑥 내밀어요." },
+  { level: 3, name: "쑥쑥 팥이", min: 300, emoji: "🌿", image: PATYI_IMAGES[3], desc: "잎이 활짝! 쑥쑥 자라 힘이 불끈!" },
+  { level: 4, name: "꽃 피운 팥이", min: 600, emoji: "🌼", image: PATYI_IMAGES[4], desc: "예쁜 꽃이 피었어요! 향긋한 꽃이 활짝!" },
+  { level: 5, name: "콩깍지 팥이", min: 1000, emoji: "🌾", image: PATYI_IMAGES[5], desc: "꽃이 지고 콩깍지가 생겼어요. 안에 팥알이 영글고 있어요!" },
+  { level: 6, name: "튼튼한 팥이", min: 1500, emoji: "👒", image: PATYI_IMAGES[6], desc: "팥알이 잘 익었어요! 수확할 준비 완료!" },
 ];
+
+/** 마지막 성장 단계. 이 레벨부터는 다음 목표 대신 누적 XP만 보여준다. */
+const MAX_LEVEL = LEVELS[LEVELS.length - 1].level;
 
 /** 팥이 이미지를 보여주고, 로드에 실패하면 기존 이모지로 되돌아간다. */
 function PatyiAvatar({ image, emoji, size }: { image: number; emoji: string; size: number }) {
@@ -251,7 +261,7 @@ export default function ElderMyPageScreen() {
                   <Text style={styles.levelPillLabel}>Lv.{level.level}</Text>
                 </View>
               </View>
-              <Text style={styles.characterDesc}>{level.desc.replace(/메모이/g, displayName)}</Text>
+              <Text style={styles.characterDesc}>{level.desc}</Text>
             </View>
           </View>
 
@@ -259,7 +269,7 @@ export default function ElderMyPageScreen() {
             <View style={styles.xpRow}>
               <Text style={styles.xpLabel}>경험치</Text>
               <Text style={styles.xpValue}>
-                {levelNumber >= 5 ? `${xp_current} XP` : `${xp_current} / ${xp_goal} XP`}
+                {levelNumber >= MAX_LEVEL ? `${xp_current} XP` : `${xp_current} / ${xp_goal} XP`}
               </Text>
             </View>
             <ProgressBar value={level.progress} height={10} />

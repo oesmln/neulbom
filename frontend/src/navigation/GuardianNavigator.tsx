@@ -20,6 +20,7 @@ import GuardianCounselingCentersScreen from "@/screens/guardian/GuardianCounseli
 import GuardianAppSettingsScreen from "@/screens/guardian/GuardianAppSettings";
 import GuardianSettingsScreen from "@/screens/guardian/GuardianSettings";
 import GuardianConnectionsScreen from "@/screens/guardian/GuardianConnections";
+import GuardianScreeningResultScreen from "@/screens/guardian/GuardianScreeningResult";
 import ElderPasswordChangeScreen from "@/screens/elder/ElderPasswordChange";
 
 const Tab = createBottomTabNavigator<GuardianTabParamList>();
@@ -131,6 +132,7 @@ export default function GuardianNavigator() {
       <Stack.Screen name="GuardianAppSettings" component={GuardianAppSettingsScreen} />
       <Stack.Screen name="GuardianPasswordChange" component={GuardianPasswordChangeScreen} />
       <Stack.Screen name="GuardianConnections" component={GuardianConnectionsScreen} />
+      <Stack.Screen name="GuardianScreeningResult" component={GuardianScreeningResultScreen} />
     </Stack.Navigator>
   );
 }
