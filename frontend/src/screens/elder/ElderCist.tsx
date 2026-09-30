@@ -74,6 +74,11 @@ function displayContentOf(question: QuestionResponse): string {
   return question.display_content ?? question.content;
 }
 
+// 응답 지연 전송 상한. 측정이 어긋나는 비정상 경로(재생 상태 꼬임, 네트워크 지연,
+// 백그라운드 전환)에서 수십 초가 기록되면 그 값 하나가 지연 특징을 통해 위험 지수를
+// 포화시킨다. 임상적으로도 10초 이상은 동일한 "매우 느림"이므로 여기서 자른다.
+const MAX_RESPONSE_TIME_MS = 10_000;
+
 export default function ElderCistScreen() {
   const navigation = useNavigation<ElderNav>();
   const route = useRoute<RouteProp<ElderStackParamList, "ElderCist">>();
@@ -185,7 +190,10 @@ export default function ElderCistScreen() {
         question_id: question.question_id,
         answer_text: isListenQuestion ? "listened" : undefined,
         recording_id: recordingId ?? undefined,
-        response_time_ms: responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
+        response_time_ms: Math.min(
+          responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
+          MAX_RESPONSE_TIME_MS,
+        ),
         answered_at: new Date().toISOString(),
       });
 
