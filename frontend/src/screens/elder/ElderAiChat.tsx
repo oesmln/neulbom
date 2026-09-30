@@ -68,6 +68,11 @@ export default function ElderAiChatScreen() {
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [askedAt, setAskedAt] = React.useState(() => Date.now());
+  // 일상 문답의 CIST 2문항도 검사와 같은 `response_delay_ms` 특징으로 들어간다.
+  // 문항 표시부터 제출까지를 재면 TTS 재생·발화·업로드 시간이 섞이므로, 질문을 다 들은
+  // 뒤 답을 시작하기까지만 잰다.
+  const [promptEndedAt, setPromptEndedAt] = React.useState<number | null>(null);
+  const [responseDelayMs, setResponseDelayMs] = React.useState<number | null>(null);
   const answerClientIds = React.useRef<Record<string, Uuid>>({});
 
   const currentQuestion = useApi(
@@ -92,7 +97,17 @@ export default function ElderAiChatScreen() {
 
   React.useEffect(() => {
     setAskedAt(Date.now());
+    setPromptEndedAt(null);
+    setResponseDelayMs(null);
   }, [question?.question_id]);
+
+  // 안내 음성이 끝나는 순간이 기준점이다. 음성을 꺼 두면 재생이 없으므로 문항이 뜬
+  // 시점이 그대로 기준으로 남는다.
+  React.useEffect(() => {
+    if (voice.speaking || voice.loading) return;
+    setPromptEndedAt(Date.now());
+    setResponseDelayMs(null);
+  }, [voice.speaking, voice.loading]);
 
   const beginConversation = async () => {
     if (!userId || sessionLoading) return;
@@ -138,7 +153,7 @@ export default function ElderAiChatScreen() {
         question_id: question.question_id,
         answer_text: USE_MOCK_API ? answers[index] || undefined : undefined,
         recording_id: recordingIds[index] ?? undefined,
-        response_time_ms: Date.now() - askedAt,
+        response_time_ms: responseDelayMs ?? Date.now() - (promptEndedAt ?? askedAt),
         answered_at: new Date().toISOString(),
       });
 
@@ -287,6 +302,9 @@ export default function ElderAiChatScreen() {
                 sessionId={session?.session_id ?? null}
               questionId={question.question_id}
               disabled={voice.loading || voice.speaking}
+              onRecordStart={() => {
+                setResponseDelayMs(Date.now() - (promptEndedAt ?? askedAt));
+              }}
               onAnswer={(id) =>
                 setRecordingIds((current) => {
                   const next = [...current];
@@ -315,6 +333,7 @@ function ChatRecorder({
   sessionId,
   questionId,
   disabled,
+  onRecordStart,
   onAnswer,
   onTranscript,
 }: {
@@ -323,11 +342,19 @@ function ChatRecorder({
   sessionId: Uuid | null;
   questionId: Uuid;
   disabled: boolean;
+  /** 녹음이 실제로 시작된 순간. 응답 지연을 여기서 확정한다. */
+  onRecordStart: () => void;
   onAnswer: (recordingId: Uuid) => void;
   onTranscript: (transcript: string) => void;
 }) {
   const recording = useAnswerRecording({ userId, sessionId, questionId }, onAnswer, onTranscript);
   const seconds = Math.floor(recording.durationMillis / 1000);
+  const wasRecording = React.useRef(false);
+
+  React.useEffect(() => {
+    if (recording.isRecording && !wasRecording.current) onRecordStart();
+    wasRecording.current = recording.isRecording;
+  }, [recording.isRecording, onRecordStart]);
 
   const tap = async () => {
     await recording.toggle();
