@@ -372,6 +372,60 @@ class CistAiAnalysisIntegrationTest {
                 .isEqualTo(baseline.getSnapshotId());
     }
 
+    @Test
+    void failedAnalysisCanRetryWithSameIdAndFreshAudioUrl() throws Exception {
+        Instant now = Instant.parse("2026-09-05T09:00:00Z");
+        UserEntity elder = userRepository.save(new UserEntity(
+                UUID.randomUUID(), "failed-cist-" + UUID.randomUUID() + "@example.com",
+                null, "실패 복구 테스트", "elder", LocalDate.of(1945, 1, 1),
+                "80s_plus", "female", null, true, now, now));
+        SessionEntity session = sessionRepository.save(new SessionEntity(
+                UUID.randomUUID(), elder.getId(), "cist", 1, "{}", false, now));
+        QuestionEntity question = questionRepository.findByQuestionCodeAndActiveTrue("orientation_year").orElseThrow();
+        saveAdministeredResponse(elder, session, question, now.plusSeconds(1));
+        session.end(now.plusSeconds(2));
+        sessionRepository.saveAndFlush(session);
+        AnswerEntity answer = answerRepository.findAllBySessionIdOrderByAnsweredAtAsc(session.getId()).getFirst();
+        UUID analysisId = UUID.randomUUID();
+        String identities = """
+                {"orientation_year":{"recordingId":"%s","responseId":"%s"}}
+                """.formatted(answer.getRecordingId(), answer.getId());
+        CistAiAnalysisEntity analysis = new CistAiAnalysisEntity(
+                analysisId, session.getId(), "pending", "analysis-create-test-key-" + analysisId,
+                "a".repeat(64), identities, now, now);
+        analysis.updateStatus("failed", false, "INTERNAL_ERROR", "[]", null,
+                null, null, null, null, null, null, null, now.plusSeconds(3));
+        analysisRepository.saveAndFlush(analysis);
+
+        when(audioUrlSigner.issue(any(RecordingEntity.class))).thenAnswer(invocation -> {
+            RecordingEntity recording = invocation.getArgument(0);
+            return new AiServerContracts.AudioResource(
+                    URI.create("https://audio.test/" + recording.getId() + "?signature=renewed"),
+                    now.plusSeconds(3600), "audio/wav", recording.getFileSizeBytes(), null);
+        });
+        when(aiServerClient.retryAnalysis(org.mockito.ArgumentMatchers.eq(analysisId), anyString(), any()))
+                .thenReturn(new AiServerContracts.AnalysisAcceptedResponse(
+                        analysisId, session.getId(), "pending", now.plusSeconds(4)));
+
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/cist-ai/analyses/retry", session.getId())
+                        .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.status").value("pending"))
+                .andExpect(jsonPath("$.retry_count").value(1));
+
+        ArgumentCaptor<AiServerContracts.AnalysisRetryRequest> captor =
+                ArgumentCaptor.forClass(AiServerContracts.AnalysisRetryRequest.class);
+        verify(aiServerClient).retryAnalysis(org.mockito.ArgumentMatchers.eq(analysisId), anyString(), captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().reasonCode()).isEqualTo("INTERNAL_ERROR");
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().items())
+                .hasSize(1)
+                .allMatch(AiServerContracts.ReissueAudioUrlItem.class::isInstance);
+
+        mockMvc.perform(post("/api/v1/sessions/{sessionId}/cist-ai/analyses/retry", session.getId())
+                        .with(jwt().jwt(jwt -> jwt.subject(elder.getId().toString()).claim("role", "elder"))))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
     private void saveAdministeredResponse(
             UserEntity elder,
             SessionEntity session,

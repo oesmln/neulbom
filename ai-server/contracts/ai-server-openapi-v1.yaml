@@ -233,7 +233,9 @@ paths:
       description: >-
         Reuses the existing analysis_id. Use REISSUE_AUDIO_URL to replace only an
         expired or inaccessible signed URL. Use REPLACE_RESPONSE after a user
-        re-records a response. A new analysis record must not be created.
+        re-records a response. A failed full CIST analysis with INTERNAL_ERROR or
+        MODEL_UNAVAILABLE can be resumed by reissuing URLs for every administered
+        response. A new analysis record must not be created.
       x-timeout-ms: 5000
       parameters:
         - $ref: '#/components/parameters/AnalysisId'
@@ -1166,7 +1168,12 @@ components:
         - items
       properties:
         reason_code:
-          $ref: '#/components/schemas/RetryReasonCode'
+          oneOf:
+            - $ref: '#/components/schemas/RetryReasonCode'
+            - type: string
+              enum:
+                - MODEL_UNAVAILABLE
+                - INTERNAL_ERROR
         items:
           type: array
           minItems: 1

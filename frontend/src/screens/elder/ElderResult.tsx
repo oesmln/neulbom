@@ -104,6 +104,9 @@ export default function ElderResultScreen() {
   const replacementQuestionCodes = (aiAnalysis?.retry_items ?? [])
     .filter((item) => item.required_action === "REPLACE_RESPONSE")
     .map((item) => item.question_code);
+  const canRetryAnalysis = aiAnalysis?.status === "needs_retry"
+    || (aiAnalysis?.status === "failed"
+      && ["INTERNAL_ERROR", "MODEL_UNAVAILABLE"].includes(aiAnalysis.reason_code ?? ""));
 
   const retryAnalysis = async () => {
     if (!sessionId || retrying) return;
@@ -245,7 +248,7 @@ export default function ElderResultScreen() {
           </Text>
         </View>
 
-        {baseline && aiAnalysis?.status === "needs_retry" ? (
+        {baseline && canRetryAnalysis ? (
           <View style={styles.retryAction}>
             {retryError ? <Text style={styles.retryError}>{retryError}</Text> : null}
             <Button

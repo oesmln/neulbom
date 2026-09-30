@@ -117,6 +117,7 @@ class AnalysisRepository(Protocol):
         *,
         analysis_id: UUID,
         reason_code: str,
+        retryable: bool = False,
     ) -> StoredAnalysis:
         ...
 
@@ -296,13 +297,16 @@ class SQLiteAnalysisRepository:
                     "분석 작업을 찾을 수 없습니다.",
                 )
 
-            if (
-                row["status"]
-                != AnalysisStatus.NEEDS_RETRY.value
-            ):
+            retryable_state = (
+                row["status"] == AnalysisStatus.NEEDS_RETRY.value
+                or (
+                    row["status"] == AnalysisStatus.FAILED.value
+                    and row["reason_code"] in {"INTERNAL_ERROR", "MODEL_UNAVAILABLE"}
+                )
+            )
+            if not retryable_state:
                 raise InvalidAnalysisStateError(
-                    "needs_retry 상태의 분석만 "
-                    "재시도할 수 있습니다: "
+                    "재시도 가능한 분석 상태가 아닙니다: "
                     f"status={row['status']}",
                 )
 
@@ -371,7 +375,8 @@ class SQLiteAnalysisRepository:
                     result_body = NULL,
                     updated_at = ?
                 WHERE analysis_id = ?
-                  AND status = 'needs_retry'
+                  AND (status = 'needs_retry' OR
+                       (status = 'failed' AND reason_code IN ('INTERNAL_ERROR', 'MODEL_UNAVAILABLE')))
                 """,
                 (
                     serialized_request,
@@ -541,6 +546,7 @@ class SQLiteAnalysisRepository:
         *,
         analysis_id: UUID,
         reason_code: str,
+        retryable: bool = False,
     ) -> StoredAnalysis:
         if not reason_code.strip():
             raise ValueError(
@@ -553,7 +559,7 @@ class SQLiteAnalysisRepository:
                 AnalysisStatus.PROCESSING
             ),
             next_status=AnalysisStatus.FAILED,
-            retryable=False,
+            retryable=retryable,
             reason_code=reason_code,
             retry_items=(),
             result_body=None,

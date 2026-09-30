@@ -307,7 +307,7 @@ def test_worker_marks_unexpected_error_failed(
         assert stored.reason_code == (
             "INTERNAL_ERROR"
         )
-        assert stored.retryable is False
+        assert stored.retryable is True
 
     asyncio.run(scenario())
 

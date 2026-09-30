@@ -642,6 +642,50 @@ def test_rejects_variant_change(
         )
 
 
+def test_failed_analysis_reissues_every_administered_audio_url(
+    service: AnalysisRetryService,
+) -> None:
+    original = _valid_request()
+    analysis = _stored_analysis(
+        original,
+        reason_code="INTERNAL_ERROR",
+        retry_items=(),
+        status=AnalysisStatus.FAILED,
+    )
+    items = [
+        {
+            "question_code": response.question_code,
+            "retry_action": "REISSUE_AUDIO_URL",
+            "recording_id": str(response.recording_id),
+            "response_id": str(response.response_id),
+            "audio": _audio_payload(f"retry-{response.question_code}.wav"),
+        }
+        for response in original.responses
+        if isinstance(response, AdministeredQuestionResponse)
+    ]
+    retry = AnalysisRetryRequest.model_validate(
+        {"reason_code": "INTERNAL_ERROR", "items": items},
+    )
+
+    updated = service.merge_request(analysis=analysis, retry_request=retry)
+
+    assert updated.analysis_id == original.analysis_id
+    assert updated.assessment_id == original.assessment_id
+    assert len(items) == len([
+        response for response in original.responses
+        if isinstance(response, AdministeredQuestionResponse)
+    ])
+    assert _response(updated, "orientation_year").audio != _response(original, "orientation_year").audio
+
+    with pytest.raises(AnalysisRetryValidationError, match="모든 시행 문항"):
+        service.merge_request(
+            analysis=analysis,
+            retry_request=AnalysisRetryRequest.model_validate(
+                {"reason_code": "INTERNAL_ERROR", "items": items[:-1]},
+            ),
+        )
+
+
 def _valid_request() -> AnalysisCreateRequest:
     project_root = (
         Path(__file__).resolve().parents[1]

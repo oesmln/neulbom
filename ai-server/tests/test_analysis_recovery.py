@@ -270,7 +270,7 @@ def test_processing_timeout_marks_job_failed(
         assert stored.reason_code == (
             "INTERNAL_ERROR"
         )
-        assert stored.retryable is False
+        assert stored.retryable is True
 
     asyncio.run(scenario())
 
