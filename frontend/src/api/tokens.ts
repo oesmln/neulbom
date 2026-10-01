@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 import type { OnboardingStep, Role, Uuid } from "./types";
+import { clearWebSession, loadWebSession, saveWebSession } from "./webSession";
 
 /**
  * Where the signed-in session lives between launches.
@@ -11,8 +12,8 @@ import type { OnboardingStep, Role, Uuid } from "./types";
  * query, so the whole envelope is stored rather than the tokens alone.
  *
  * Tokens go to the OS keystore via `expo-secure-store` — never AsyncStorage.
- * SecureStore has no web backend, so the web bundle keeps the session in memory
- * and the user signs in again on reload; that is the safe direction to fail.
+ * SecureStore has no web backend. The web bundle uses tab-scoped sessionStorage
+ * so a reload restores sign-in while closing the tab discards its session.
  */
 export interface AuthSession {
   accessToken: string;
@@ -34,7 +35,10 @@ const secureStoreAvailable = Platform.OS !== "web";
 
 export async function loadSession(): Promise<AuthSession | null> {
   if (cached) return cached;
-  if (!secureStoreAvailable) return null;
+  if (!secureStoreAvailable) {
+    cached = loadWebSession();
+    return cached;
+  }
   try {
     const raw = await SecureStore.getItemAsync(KEY);
     if (!raw) return null;
@@ -49,7 +53,10 @@ export async function loadSession(): Promise<AuthSession | null> {
 
 export async function saveSession(session: AuthSession): Promise<void> {
   cached = session;
-  if (!secureStoreAvailable) return;
+  if (!secureStoreAvailable) {
+    saveWebSession(session);
+    return;
+  }
   try {
     await SecureStore.setItemAsync(KEY, JSON.stringify(session));
   } catch {
@@ -59,7 +66,10 @@ export async function saveSession(session: AuthSession): Promise<void> {
 
 export async function clearSession(): Promise<void> {
   cached = null;
-  if (!secureStoreAvailable) return;
+  if (!secureStoreAvailable) {
+    clearWebSession();
+    return;
+  }
   try {
     await SecureStore.deleteItemAsync(KEY);
   } catch {
