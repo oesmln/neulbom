@@ -39,6 +39,7 @@
 - [x] `profile_completed=false`인 신규·기존 사용자를 프로필·동의 온보딩으로 분기한다. (`2026-08-13`, Issue #58)
 - [x] 프로필과 필수 동의를 저장한 뒤 완료 상태를 세션에 반영하고 재로그인 시 온보딩을 건너뛴다. (`2026-08-13`, Expo Web 실 API)
 - [ ] 이메일 로그인 후 access token과 refresh token을 SecureStore에 저장한다.
+- [ ] Expo Web은 같은 탭의 새로고침에서 `sessionStorage` 세션을 복원하고, 로그아웃 후에는 복원하지 않는다. (Issue #304, 브라우저 실동작 확인 필요)
 - [ ] 보호 API 요청에 `Authorization: Bearer {access_token}`을 첨부한다.
 - [ ] access token 만료 시 refresh 요청을 한 번만 수행하고 원래 요청을 재시도한다.
 - [ ] refresh 실패 시 저장된 세션을 제거하고 로그인 화면으로 이동한다.
